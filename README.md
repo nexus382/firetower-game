@@ -23,3 +23,4 @@ You're trapped in a fire lookout tower on day 1 of the zombie outbreak. Your goa
 - E: Interact
 - I: Inventory
 - ESC: Pause menu
+"# firetower-game" 
