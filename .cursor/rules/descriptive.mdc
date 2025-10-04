@@ -1,0 +1,181 @@
+# Fire Tower Survival - Code Documentation Rules
+
+## Overview
+This document defines the coding standards and documentation requirements for the Fire Tower Survival game project. All code must follow these descriptive standards to ensure clarity and maintainability.
+
+## Variable and Property Documentation
+
+### Required Elements
+Every variable, property, constant, and function parameter must include:
+
+1. **Description** - Clear explanation of purpose and usage
+2. **Example** - Concrete example of how it's used
+3. **Range/Type** - Valid values, data types, or constraints
+
+### Format
+```gdscript
+# Description: Brief explanation of what this variable represents
+# Example: var health = 100  # Player's current health points
+# Range: 0-100 (percentage of maximum health)
+var health: float = 100.0
+```
+
+## Function Documentation
+
+### Required Elements
+Every function must include:
+
+1. **Description** - What the function does
+2. **Parameters** - Each parameter with description and type
+3. **Returns** - What the function returns (if anything)
+4. **Example** - Usage example
+
+### Format
+```gdscript
+# Description: Updates player position and handles collision detection
+# Parameters:
+#   - delta: float - Time elapsed since last frame (0.01667 for 60fps)
+#   - direction: Vector2 - Movement direction (-1 to 1 on each axis)
+# Returns: void - No return value
+# Example: move_player(0.016, Vector2(1, 0))  # Move right
+func move_player(delta: float, direction: Vector2) -> void:
+    # Function implementation
+```
+
+## Class Documentation
+
+### Required Elements
+Every class must include:
+
+1. **Description** - Purpose and role in the game
+2. **Properties** - Key variables with full documentation
+3. **Methods** - All public methods with full documentation
+
+### Format
+```gdscript
+# Description: Manages player character movement, interaction, and state
+# Properties:
+#   - position: Vector2 - Current world position (0,0 to 1000,1000)
+#   - health: float - Current health points (0-100)
+#   - speed: float - Movement speed in pixels/second (50-200)
+# Methods: move(), interact(), take_damage()
+class Player:
+    # Class implementation
+```
+
+## Constants and Enums
+
+### Required Elements
+All constants and enums must include:
+
+1. **Description** - Purpose and meaning
+2. **Values** - All possible values with explanations
+3. **Usage** - When and how to use
+
+### Format
+```gdscript
+# Description: Player movement speed settings
+# Values:
+#   - WALK_SPEED = 100: Normal walking speed
+#   - RUN_SPEED = 200: Sprinting speed when holding shift
+#   - SNEAK_SPEED = 50: Quiet movement for stealth
+# Usage: Use based on player input and game state
+const WALK_SPEED = 100
+const RUN_SPEED = 200
+const SNEAK_SPEED = 50
+```
+
+## System Architecture Documentation
+
+### Required Elements
+Every major system must include:
+
+1. **Architecture Overview** - How the system fits into the game
+2. **Data Flow** - How data moves through the system
+3. **Dependencies** - What other systems it relies on
+4. **Integration Points** - How other systems interact with it
+
+### Format
+```gdscript
+# Architecture: Survival Stats System
+#
+# Overview: Manages player health, hunger, thirst, warmth, and fatigue
+# Data Flow:
+#   - Input: Player actions, time passage, environment
+#   - Processing: Calculate stat changes based on conditions
+#   - Output: Updated stat values for UI and game logic
+# Dependencies:
+#   - TimeSystem: For time-based stat depletion
+#   - Inventory: For food/water consumption
+# Integration:
+#   - UI: Displays current stat values
+#   - Game Over: Triggers when stats reach critical levels
+```
+
+## Implementation Guidelines
+
+### Code Comments
+- **Function comments** - Required for all public functions
+- **Complex logic** - Explain "why" not just "what"
+- **Edge cases** - Document special handling
+
+### Variable Naming
+- **Descriptive names** - `player_health` not `hp`
+- **Consistent casing** - `snake_case` for variables, `PascalCase` for classes
+- **Clear purpose** - Name should indicate usage
+
+### Code Organization
+- **Related functions** - Group together with clear separators
+- **Constants** - Define at top of file with full documentation
+- **Helper functions** - Private functions with clear purpose
+
+## Example Implementation
+
+```gdscript
+# Description: Fire Tower Survival Game Manager
+# Architecture: Central coordinator for all game systems
+# Data Flow: Receives input -> Updates systems -> Renders output
+# Dependencies: All major systems (Time, Player, Inventory, etc.)
+class GameManager:
+
+    # Description: Current day number in the game
+    # Example: var day = 1  # First day of survival
+    # Range: 1+ (days survived)
+    var current_day: int = 1
+
+    # Description: Whether the game is currently paused
+    # Example: var paused = false  # Game running normally
+    # Range: true/false
+    var is_paused: bool = false
+
+    # Description: Initialize all game systems and start the game
+    # Parameters:
+    #   - screen: Viewport - The game window/viewport
+    # Returns: void - Sets up game state
+    # Example: setup_game(get_viewport())
+    func setup_game(screen: Viewport) -> void:
+        # Initialize time system
+        # Initialize player
+        # Initialize inventory
+        # Start game loop
+        pass
+
+    # Description: Update all game systems each frame
+    # Parameters:
+    #   - delta: float - Time since last frame (0.01667 for 60fps)
+    # Returns: void - Updates game state
+    # Example: update_game(0.016)
+    func update_game(delta: float) -> void:
+        if not is_paused:
+            # Update time system
+            # Update player position
+            # Check for game over conditions
+            pass
+```
+
+## Enforcement
+- All new code must follow these standards
+- Code reviews will check for compliance
+- Existing code should be updated to meet standards
+- Documentation should be updated when functionality changes
+- Ensure that this dosnt break anything written already when adding descriptions.
