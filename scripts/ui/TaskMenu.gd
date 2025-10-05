@@ -9,14 +9,15 @@ var selected_hours: int = 0
 var time_system: TimeSystem
 
 var _cached_minutes_remaining: int = 0
+var _menu_open: bool = false
 
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
 @onready var summary_label: Label = $Panel/VBox/SummaryLabel
 
 func _ready():
-    visible = false
     set_process_unhandled_input(true)
+    _close_menu()
 
     if game_manager:
         time_system = game_manager.get_time_system()
@@ -81,7 +82,7 @@ func _on_sleep_button_pressed():
             print("✅ Sleep applied: %s" % result)
             selected_hours = 0
             _refresh_display()
-            visible = false
+            _close_menu()
         else:
             var minutes_left = result.get("minutes_available", _get_minutes_left_today())
             summary_label.text = "Not enough time (left: %s)" % _format_duration(minutes_left)
@@ -105,3 +106,15 @@ func _format_duration(minutes: int) -> String:
         return "%dh" % hours
     else:
         return "%dm" % mins
+
+func _open_menu():
+    if _menu_open:
+        return
+    _menu_open = true
+    visible = true
+
+func _close_menu():
+    if !_menu_open and !visible:
+        return
+    _menu_open = false
+    visible = false
