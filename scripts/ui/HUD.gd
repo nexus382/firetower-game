@@ -17,10 +17,12 @@ const LBS_PER_KG: float = 2.2
 @onready var weather_label: Label = $DayTimeHeader/WeatherLabel
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
+@onready var food_counter_label: Label = $FoodCounter
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
 var weather_system: WeatherSystem
+var inventory_system: InventorySystem
 var _weight_unit: String = "lbs"
 var _latest_weight_lbs: float = 0.0
 var _latest_weight_category: String = "average"
@@ -36,6 +38,7 @@ func _ready():
     weight_status_label.add_theme_color_override("font_color", Color.WHITE)
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
     weather_label.add_theme_color_override("font_color", Color.WHITE)
+    food_counter_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
         push_warning("GameManager not found for HUD")
@@ -73,6 +76,13 @@ func _ready():
         _on_weather_changed(weather_system.get_state(), weather_system.get_state(), weather_system.get_hours_remaining())
     else:
         weather_label.text = "Weather Offline"
+
+    inventory_system = game_manager.get_inventory_system()
+    if inventory_system:
+        inventory_system.food_total_changed.connect(_on_food_total_changed)
+        _on_food_total_changed(inventory_system.get_total_food_units())
+    else:
+        food_counter_label.text = "Food: --"
 
 func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
@@ -119,6 +129,11 @@ func _on_weather_changed(new_state: String, _previous_state: String, hours_remai
     _latest_weather_state = new_state
     _latest_weather_hours = max(hours_remaining, 0)
     _update_weather_label()
+
+func _on_food_total_changed(new_total: float):
+    if !is_instance_valid(food_counter_label):
+        return
+    food_counter_label.text = "Food: %s" % _format_food_amount(new_total)
 
 func _on_weight_unit_button_pressed():
     if sleep_system:
@@ -216,3 +231,8 @@ func _format_weight_category_title(category: String) -> String:
             return "Overweight"
         _:
             return "Healthy"
+
+func _format_food_amount(value: float) -> String:
+    if is_equal_approx(value, round(value)):
+        return "%d" % int(round(value))
+    return "%.1f" % value

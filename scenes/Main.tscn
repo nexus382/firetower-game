@@ -89,6 +89,19 @@ horizontal_alignment = 2
 vertical_alignment = 1
 text = "175.0 LBS [Healthy]"
 
+[node name="FoodCounter" type="Label" parent="UI/HUD"]
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -160.0
+offset_top = 40.0
+offset_right = -32.0
+offset_bottom = 76.0
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Food: 5.0"
+
 [node name="Metrics" type="HBoxContainer" parent="UI/HUD/StatsBar"]
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -210,7 +223,7 @@ text = "0"
 text = ">"
 
 [node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-text = "Each hour: +10% rest / -100 cal"
+text = "Each hour: +10% rest / -1000 cal"
 horizontal_alignment = 1
 size_flags_horizontal = 3
 size_flags_vertical = 1
@@ -219,7 +232,17 @@ autowrap_mode = 1
 [node name="SleepButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
 text = "Rest"
 
+[node name="ForgingButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
+text = "Start Forging"
+
+[node name="ForgingResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+horizontal_alignment = 1
+size_flags_horizontal = 3
+autowrap_mode = 1
+text = "Forging ready (Food 5.0)"
+
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/SleepButton" to="UI/TaskMenu" method="_on_sleep_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/ForgingButton" to="UI/TaskMenu" method="_on_forging_button_pressed"]
 [connection signal="pressed" from="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]

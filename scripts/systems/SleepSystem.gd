@@ -5,11 +5,11 @@ class_name SleepSystem
 const MIN_SLEEP_PERCENT: float = 0.0
 const MAX_SLEEP_PERCENT: float = 100.0
 const SLEEP_PERCENT_PER_HOUR: float = 10.0
-const CALORIES_PER_SLEEP_HOUR: int = 100
+const CALORIES_PER_SLEEP_HOUR: int = 1000
 
 # Hunger & weight configuration (logic stored in pounds)
 const AWAKE_CALORIES_PER_HOUR: float = 23.0
-const CALORIES_PER_POUND: float = 100.0
+const CALORIES_PER_POUND: float = 1000.0
 const WEIGHT_UNIT_LBS := "lbs"
 const WEIGHT_UNIT_KG := "kg"
 const MALNOURISHED_MAX_LBS: float = 149.0

@@ -2,6 +2,7 @@ extends Node
 class_name GameManager
 
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
+const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 
@@ -18,9 +19,11 @@ var player: CharacterBody2D
 
 # Simulation systems
 var sleep_system: SleepSystem
+var inventory_system: InventorySystem
 var time_system: TimeSystem
 var weather_system: WeatherSystem
 var _last_awake_minute_stamp: int = 0
+var _rng: RandomNumberGenerator
 
 func _ready():
     print("🎮 GameManager initialized - Day %d" % current_day)
@@ -31,8 +34,15 @@ func _ready():
         print("❌ Player not found!")
 
     sleep_system = SleepSystem.new()
+    inventory_system = InventorySystem.new()
     time_system = TimeSystem.new()
     weather_system = WeatherSystem.new()
+    _rng = RandomNumberGenerator.new()
+    _rng.randomize()
+
+    if inventory_system:
+        inventory_system.bootstrap_defaults()
+        inventory_system.set_total_food_units(5.0)
     if time_system:
         time_system.day_rolled_over.connect(_on_day_rolled_over)
         _last_awake_minute_stamp = time_system.get_minutes_since_daybreak()
@@ -59,6 +69,10 @@ func get_sleep_system() -> SleepSystem:
 func get_time_system() -> TimeSystem:
     """Expose the time system for UI consumers."""
     return time_system
+
+func get_inventory_system() -> InventorySystem:
+    """Expose the inventory system for UI consumers."""
+    return inventory_system
 
 func get_weather_system() -> WeatherSystem:
     """Expose the weather system for UI consumers."""
@@ -147,6 +161,59 @@ func schedule_sleep(hours: int) -> Dictionary:
     print("⏳ Time multiplier x%.1f -> %d min spent" % [multiplier, result["minutes_spent"]])
 
     return result
+
+func perform_forging() -> Dictionary:
+    if inventory_system == null or _rng == null:
+        return {
+            "success": false,
+            "reason": "inventory_unavailable"
+        }
+
+    var roll = _rng.randf()
+    var outcome = _resolve_forging_outcome(roll)
+    if outcome.is_empty():
+        print("🌲 Forging yielded nothing (roll %.2f)" % roll)
+        return {
+            "success": false,
+            "reason": "nothing_found",
+            "chance_roll": roll
+        }
+
+    var report = inventory_system.add_item(outcome.get("item_id", ""), outcome.get("quantity", 1))
+    report["success"] = true
+    report["chance_roll"] = roll
+    print("🌲 Forging success: %s" % report)
+    return report
+
+func _resolve_forging_outcome(roll: float) -> Dictionary:
+    var thresholds = [
+        {
+            "cutoff": 0.25,
+            "item_id": "mushrooms",
+            "quantity": 1
+        },
+        {
+            "cutoff": 0.50,
+            "item_id": "berries",
+            "quantity": 1
+        },
+        {
+            "cutoff": 0.75,
+            "item_id": "walnuts",
+            "quantity": 1
+        },
+        {
+            "cutoff": 0.95,
+            "item_id": "grubs",
+            "quantity": 1
+        }
+    ]
+
+    for entry in thresholds:
+        if roll < entry.get("cutoff", 0.0):
+            return entry
+
+    return {}
 
 func _on_day_rolled_over():
     current_day += 1
