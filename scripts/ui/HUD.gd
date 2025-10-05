@@ -4,10 +4,16 @@ extends Control
 @onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
 @onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
 @onready var daily_cal_value_label: Label = $StatsBar/Metrics/DailyCalStat/DailyCalValue
+@onready var day_label: Label = $DayTimeHeader/DayLabel
+@onready var clock_label: Label = $DayTimeHeader/ClockLabel
+
+var time_system: TimeSystem
 
 func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
     tired_value_label.add_theme_color_override("font_color", Color.WHITE)
+    day_label.add_theme_color_override("font_color", Color.WHITE)
+    clock_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
         push_warning("GameManager not found for HUD")
@@ -22,9 +28,36 @@ func _ready():
     else:
         push_warning("SleepSystem not available on GameManager")
 
+    time_system = game_manager.get_time_system()
+    if time_system:
+        time_system.time_advanced.connect(_on_time_advanced)
+        time_system.day_rolled_over.connect(_on_day_rolled_over)
+        _update_clock_label()
+    else:
+        push_warning("TimeSystem not available on GameManager")
+
+    game_manager.day_changed.connect(_on_day_changed)
+    _update_day_label(game_manager.current_day)
+
 func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
     tired_value_label.text = "%d%%" % int(round(value))
 
 func _on_daily_calories_used_changed(value: int):
     daily_cal_value_label.text = "%d" % value
+
+func _on_time_advanced(_minutes: int, _rolled_over: bool):
+    _update_clock_label()
+
+func _on_day_rolled_over():
+    _update_clock_label()
+
+func _on_day_changed(new_day: int):
+    _update_day_label(new_day)
+
+func _update_clock_label():
+    if time_system:
+        clock_label.text = time_system.get_formatted_time()
+
+func _update_day_label(day_index: int):
+    day_label.text = "Day %d" % day_index
