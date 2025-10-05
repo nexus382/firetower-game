@@ -8,7 +8,9 @@ const CALORIES_PER_SLEEP_HOUR: int = 100
 var selected_hours: int = 0
 var time_system: TimeSystem
 
-@onready var game_manager: GameManager = get_tree().get_current_scene().get_node("GameManager")
+var _cached_minutes_remaining: int = 0
+
+@onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
 @onready var summary_label: Label = $Panel/VBox/SummaryLabel
 
@@ -24,14 +26,22 @@ func _ready():
 
     _refresh_display()
 
-func _unhandled_input(event):
+func _input(event):
     if event.is_action_pressed("action_menu") and !event.is_echo():
-        visible = !visible
         if visible:
-            grab_focus()
+            _close_menu()
+        else:
+            _open_menu()
+        get_viewport().set_input_as_handled()
+    elif event.is_action_pressed("ui_cancel") and visible and !event.is_echo():
+        _close_menu()
         get_viewport().set_input_as_handled()
 
 func _refresh_display():
+    _cached_minutes_remaining = _get_minutes_left_today()
+    var max_hours_today = min(max_sleep_hours, int(floor(_cached_minutes_remaining / 60.0)))
+    if selected_hours > max_hours_today:
+        selected_hours = max(max_hours_today, 0)
     hours_value_label.text = str(selected_hours)
     var minutes_remaining = _get_minutes_left_today()
     var max_hours_today = min(max_sleep_hours, int(floor(minutes_remaining / 60.0)))

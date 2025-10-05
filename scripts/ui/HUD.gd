@@ -1,6 +1,6 @@
 extends Control
 
-@onready var game_manager: GameManager = get_tree().get_current_scene().get_node("GameManager")
+@onready var game_manager: GameManager = _resolve_game_manager()
 @onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
 @onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
 @onready var daily_cal_value_label: Label = $StatsBar/Metrics/DailyCalStat/DailyCalValue
