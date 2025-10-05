@@ -2,6 +2,9 @@ extends Node
 class_name GameManager
 
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
+const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+
+signal day_changed(new_day: int)
 
 # Core game state
 var current_day: int = 1
@@ -12,6 +15,7 @@ var player: CharacterBody2D
 
 # Simulation systems
 var sleep_system: SleepSystem
+var time_system: TimeSystem
 
 func _ready():
     print("🎮 GameManager initialized - Day %d" % current_day)
@@ -22,6 +26,9 @@ func _ready():
         print("❌ Player not found!")
 
     sleep_system = SleepSystem.new()
+    time_system = TimeSystem.new()
+    if time_system:
+        time_system.day_rolled_over.connect(_on_day_rolled_over)
 
 func pause_game():
     game_paused = true
@@ -35,6 +42,10 @@ func get_sleep_system() -> SleepSystem:
     """Expose the sleep system for UI consumers."""
     return sleep_system
 
+func get_time_system() -> TimeSystem:
+    """Expose the time system for UI consumers."""
+    return time_system
+
 func get_sleep_percent() -> float:
     """Convenience accessor for tired meter value."""
     return sleep_system.get_sleep_percent() if sleep_system else 0.0
@@ -44,8 +55,48 @@ func get_daily_calories_used() -> int:
     return sleep_system.get_daily_calories_used() if sleep_system else 0
 
 func schedule_sleep(hours: int) -> Dictionary:
-    """Apply sleep hours and propagate calorie burn."""
-    if not sleep_system:
-        return {}
+    """Apply sleep hours while advancing the daily clock."""
+    if not sleep_system or not time_system:
+        return {
+            "accepted": false,
+            "reason": "systems_unavailable"
+        }
 
-    return sleep_system.apply_sleep(hours)
+    hours = max(hours, 0)
+    if hours == 0:
+        return {
+            "accepted": false,
+            "reason": "no_hours"
+        }
+
+    var requested_minutes = hours * 60
+    var minutes_available = time_system.get_minutes_until_daybreak()
+    if requested_minutes > minutes_available:
+        print("⚠️ Sleep rejected: %d min requested, %d min available" % [requested_minutes, minutes_available])
+        return {
+            "accepted": false,
+            "reason": "exceeds_day",
+            "minutes_available": minutes_available,
+            "hours_available": int(minutes_available / 60)
+        }
+
+    var time_report = time_system.advance_minutes(requested_minutes)
+    var sleep_report = sleep_system.apply_sleep(hours)
+
+    var result: Dictionary = sleep_report.duplicate()
+    result["accepted"] = true
+    result["minutes_spent"] = time_report.get("minutes_applied", requested_minutes)
+    result["rolled_over"] = time_report.get("rolled_over", false)
+    result["daybreaks_crossed"] = time_report.get("daybreaks_crossed", 0)
+    result["ended_at_minutes_since_daybreak"] = time_system.get_minutes_since_daybreak()
+    result["ended_at_time"] = time_system.get_formatted_time()
+    result["minutes_until_daybreak"] = time_system.get_minutes_until_daybreak()
+
+    return result
+
+func _on_day_rolled_over():
+    current_day += 1
+    print("🌅 New day begins: Day %d" % current_day)
+    if sleep_system:
+        sleep_system.reset_daily_counters()
+    day_changed.emit(current_day)
