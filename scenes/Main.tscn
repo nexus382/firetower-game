@@ -72,6 +72,19 @@ custom_constants/margin_top = 16
 custom_constants/margin_right = 24
 custom_constants/margin_bottom = 24
 
+[node name="WeightHeader" type="Label" parent="UI/HUD"]
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -208.0
+offset_top = 0.0
+offset_right = -32.0
+offset_bottom = 40.0
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "175.0 LBS [Healthy]"
+
 [node name="Metrics" type="HBoxContainer" parent="UI/HUD/StatsBar"]
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -195,6 +208,9 @@ text = ">"
 [node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Panel/VBox"]
 text = "Each hour: +10% rest / -100 cal"
 horizontal_alignment = 1
+size_flags_horizontal = 3
+size_flags_vertical = 1
+autowrap_mode = 1
 
 [node name="SleepButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
 text = "Rest"

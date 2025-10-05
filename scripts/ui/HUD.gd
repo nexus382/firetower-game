@@ -12,12 +12,15 @@ const LBS_PER_KG: float = 2.2
 @onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
 @onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
 @onready var weight_status_label: Label = $StatsBar/Metrics/WeightStat/WeightStatus
+@onready var weight_header_label: Label = $WeightHeader
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
 var _weight_unit: String = "lbs"
+var _latest_weight_lbs: float = 0.0
+var _latest_weight_category: String = "average"
 
 func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
@@ -26,6 +29,7 @@ func _ready():
     clock_label.add_theme_color_override("font_color", Color.WHITE)
     weight_value_label.add_theme_color_override("font_color", Color.WHITE)
     weight_status_label.add_theme_color_override("font_color", Color.WHITE)
+    weight_header_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
         push_warning("GameManager not found for HUD")
@@ -81,21 +85,22 @@ func _update_day_label(day_index: int):
     day_label.text = "Day %d" % day_index
 
 func _on_weight_changed(weight_lbs: float):
-    var display_weight = weight_lbs
-    if _weight_unit == "kg":
-        display_weight = weight_lbs / 2.2
-    weight_value_label.text = "%.1f" % display_weight
+    _latest_weight_lbs = weight_lbs
+    _update_weight_value_label()
+    _update_weight_header_label()
 
 func _on_weight_unit_changed(new_unit: String):
     _weight_unit = new_unit
     weight_unit_button.text = new_unit.to_upper()
-    if sleep_system:
-        _on_weight_changed(sleep_system.get_player_weight_lbs())
+    _update_weight_value_label()
+    _update_weight_header_label()
 
 func _on_weight_category_changed(category: String):
-    var title = category.capitalize()
+    _latest_weight_category = category
+    var title = _format_weight_category_title(category)
     var multiplier = sleep_system.get_time_multiplier() if sleep_system else 1.0
     weight_status_label.text = "%s (x%.1f)" % [title, multiplier]
+    _update_weight_header_label()
 
 func _on_weight_unit_button_pressed():
     if sleep_system:
@@ -152,3 +157,24 @@ func _format_threshold(value_lbs: float) -> String:
 
 func _convert_weight_for_display(value_lbs: float) -> float:
     return value_lbs if _weight_unit == SleepSystem.WEIGHT_UNIT_LBS else value_lbs / LBS_PER_KG
+
+func _update_weight_value_label():
+    var display_weight = _convert_weight_for_display(_latest_weight_lbs)
+    weight_value_label.text = "%.1f" % display_weight
+
+func _update_weight_header_label():
+    if !is_instance_valid(weight_header_label):
+        return
+    var display_weight = _convert_weight_for_display(_latest_weight_lbs)
+    var unit_suffix = _weight_unit.to_upper()
+    var category_text = _format_weight_category_title(_latest_weight_category)
+    weight_header_label.text = "%.1f %s [%s]" % [display_weight, unit_suffix, category_text]
+
+func _format_weight_category_title(category: String) -> String:
+    match category:
+        "malnourished":
+            return "Malnourished"
+        "overweight":
+            return "Overweight"
+        _:
+            return "Healthy"
