@@ -7,7 +7,7 @@ extends Control
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
 
-var time_system
+var time_system: TimeSystem
 
 func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)

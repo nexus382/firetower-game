@@ -6,7 +6,7 @@ const SLEEP_PERCENT_PER_HOUR: int = 10
 const CALORIES_PER_SLEEP_HOUR: int = 100
 
 var selected_hours: int = 0
-var time_system
+var time_system: TimeSystem
 
 @onready var game_manager: GameManager = get_tree().get_current_scene().get_node("GameManager")
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
