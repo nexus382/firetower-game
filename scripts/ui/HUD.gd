@@ -1,6 +1,9 @@
 extends Control
 
+const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+
+const LBS_PER_KG: float = 2.2
 
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
@@ -124,3 +127,28 @@ func _resolve_game_manager() -> GameManager:
         push_warning("GameManager node not found in scene tree")
 
     return null
+
+func _format_weight_value(weight_lbs: float) -> String:
+    var display_weight = _convert_weight_for_display(weight_lbs)
+    return "%.1f" % display_weight
+
+func _format_weight_range(category: String) -> String:
+    var unit_suffix = _weight_unit.to_upper()
+    match category:
+        "malnourished":
+            return "<=%s %s" % [_format_threshold(SleepSystem.MALNOURISHED_MAX_LBS), unit_suffix]
+        "overweight":
+            return ">=%s %s" % [_format_threshold(SleepSystem.OVERWEIGHT_MIN_LBS), unit_suffix]
+        _:
+            var lower = _format_threshold(SleepSystem.NORMAL_MIN_LBS)
+            var upper = _format_threshold(SleepSystem.NORMAL_MAX_LBS)
+            return "%s-%s %s" % [lower, upper, unit_suffix]
+
+func _format_threshold(value_lbs: float) -> String:
+    var display_value = _convert_weight_for_display(value_lbs)
+    if _weight_unit == SleepSystem.WEIGHT_UNIT_LBS:
+        return "%.0f" % round(display_value)
+    return "%.1f" % display_value
+
+func _convert_weight_for_display(value_lbs: float) -> float:
+    return value_lbs if _weight_unit == SleepSystem.WEIGHT_UNIT_LBS else value_lbs / LBS_PER_KG
