@@ -3,8 +3,11 @@ class_name GameManager
 
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+const BodyWeightSystem = preload("res://scripts/systems/BodyWeightSystem.gd")
 
 signal day_changed(new_day: int)
+signal systems_ready
+signal body_weight_changed(display_weight: String)
 
 # Core game state
 var current_day: int = 1
@@ -16,9 +19,11 @@ var player: CharacterBody2D
 # Simulation systems
 var sleep_system: SleepSystem
 var time_system: TimeSystem
+var body_weight_system: BodyWeightSystem
 
 func _ready():
     print("🎮 GameManager initialized - Day %d" % current_day)
+    add_to_group("game_manager")
     player = get_node("../Player")
     if player:
         print("✅ Player found and connected")
@@ -27,8 +32,15 @@ func _ready():
 
     sleep_system = SleepSystem.new()
     time_system = TimeSystem.new()
+    body_weight_system = BodyWeightSystem.new()
+
     if time_system:
         time_system.day_rolled_over.connect(_on_day_rolled_over)
+
+    if body_weight_system:
+        body_weight_system.body_weight_changed.connect(_on_body_weight_changed)
+
+    call_deferred("_emit_initial_system_state")
 
 func pause_game():
     game_paused = true
@@ -45,6 +57,10 @@ func get_sleep_system() -> SleepSystem:
 func get_time_system() -> TimeSystem:
     """Expose the time system for UI consumers."""
     return time_system
+
+func get_body_weight_system() -> BodyWeightSystem:
+    """Expose the body weight system for UI consumers."""
+    return body_weight_system
 
 func get_sleep_percent() -> float:
     """Convenience accessor for tired meter value."""
@@ -99,4 +115,17 @@ func _on_day_rolled_over():
     print("🌅 New day begins: Day %d" % current_day)
     if sleep_system:
         sleep_system.reset_daily_counters()
+    if body_weight_system:
+        var weight_report = body_weight_system.calculate_daily_weight_change()
+        var new_weight = weight_report.get("new_weight_lbs", body_weight_system.get_weight_lbs())
+        var delta = weight_report.get("weight_change_lbs", 0.0)
+        print("⚖️ Weight update: %.1f lbs (%+.1f)" % [new_weight, delta])
     day_changed.emit(current_day)
+
+func _on_body_weight_changed(display_weight: String):
+    body_weight_changed.emit(display_weight)
+
+func _emit_initial_system_state():
+    systems_ready.emit()
+    if body_weight_system:
+        body_weight_changed.emit(body_weight_system.get_weight_display_string())

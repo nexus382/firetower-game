@@ -1,6 +1,8 @@
 extends RefCounted
 class_name BodyWeightSystem
 
+signal body_weight_changed(display_weight: String)
+
 # Weight configuration (in pounds)
 const HEALTHY_MIN_WEIGHT_LBS = 180.0
 const HEALTHY_MAX_WEIGHT_LBS = 219.0
@@ -29,6 +31,7 @@ enum WeightCategory {
 
 func _init():
     print("⚖️ BodyWeightSystem initialized with %d lbs" % current_weight_lbs)
+    body_weight_changed.emit(get_weight_display_string())
 
 # Unit conversion methods
 func get_weight_kg() -> float:
@@ -44,6 +47,7 @@ func set_display_unit(unit: String):
     if unit in ["lbs", "kg"]:
         display_unit = unit
         print("⚖️ Display unit set to: %s" % unit)
+        body_weight_changed.emit(get_weight_display_string())
 
 func get_display_weight() -> float:
     """Get weight in preferred display unit"""
@@ -80,6 +84,8 @@ func calculate_daily_weight_change() -> Dictionary:
     # Reset daily counters
     daily_calories_consumed = 0
     daily_calories_burned = 0
+
+    body_weight_changed.emit(get_weight_display_string())
 
     return {
         "old_weight_lbs": old_weight,
