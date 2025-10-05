@@ -6,7 +6,7 @@ const SLEEP_PERCENT_PER_HOUR: int = 10
 const CALORIES_PER_SLEEP_HOUR: int = 100
 
 var selected_hours: int = 0
-var time_system
+var time_system: TimeSystem
 
 var _cached_minutes_remaining: int = 0
 
@@ -15,8 +15,8 @@ var _cached_minutes_remaining: int = 0
 @onready var summary_label: Label = $Panel/VBox/SummaryLabel
 
 func _ready():
-    hide()
-    set_process_input(true)
+    visible = false
+    set_process_unhandled_input(true)
 
     if game_manager:
         time_system = game_manager.get_time_system()
@@ -43,9 +43,14 @@ func _refresh_display():
     if selected_hours > max_hours_today:
         selected_hours = max(max_hours_today, 0)
     hours_value_label.text = str(selected_hours)
+    var minutes_remaining = _get_minutes_left_today()
+    var max_hours_today = min(max_sleep_hours, int(floor(minutes_remaining / 60.0)))
+    if selected_hours > max_hours_today:
+        selected_hours = max(max_hours_today, 0)
+        hours_value_label.text = str(selected_hours)
 
     if selected_hours == 0:
-        var time_hint = " (Time left: %s)" % _format_duration(_cached_minutes_remaining)
+        var time_hint = " (Time left: %s)" % _format_duration(minutes_remaining)
         summary_label.text = "Each hour: +10% rest / -100 cal%s" % time_hint
         return
 
@@ -53,7 +58,7 @@ func _refresh_display():
     var calories = selected_hours * CALORIES_PER_SLEEP_HOUR
     var preview_minutes = selected_hours * 60
     var end_text = ""
-    if time_system and preview_minutes <= _cached_minutes_remaining and _cached_minutes_remaining > 0:
+    if time_system and preview_minutes <= minutes_remaining and minutes_remaining > 0:
         end_text = " (Ends %s)" % time_system.get_formatted_time_after(preview_minutes)
     summary_label.text = "%d hr -> +%d%% rest / -%d cal%s" % [selected_hours, rest_gain, calories, end_text]
 
@@ -63,10 +68,10 @@ func _on_decrease_button_pressed():
 
 func _on_increase_button_pressed():
     var hours_available = min(max_sleep_hours, int(floor(_get_minutes_left_today() / 60.0)))
-    if hours_available <= 0:
+    if selected_hours >= hours_available:
         print("⚠️ Cannot schedule beyond remaining daily time")
         return
-    selected_hours = clamp(selected_hours + 1, 0, hours_available)
+    selected_hours = min(selected_hours + 1, hours_available)
     _refresh_display()
 
 func _on_sleep_button_pressed():
@@ -76,7 +81,7 @@ func _on_sleep_button_pressed():
             print("✅ Sleep applied: %s" % result)
             selected_hours = 0
             _refresh_display()
-            _close_menu()
+            visible = false
         else:
             var minutes_left = result.get("minutes_available", _get_minutes_left_today())
             summary_label.text = "Not enough time (left: %s)" % _format_duration(minutes_left)
@@ -100,21 +105,3 @@ func _format_duration(minutes: int) -> String:
         return "%dh" % hours
     else:
         return "%dm" % mins
-
-func _open_menu():
-    show()
-    grab_focus()
-    _refresh_display()
-
-func _close_menu():
-    hide()
-    release_focus()
-
-func _resolve_game_manager() -> GameManager:
-    var root = get_tree().get_root()
-    if root.has_node("Main/GameManager"):
-        return root.get_node("Main/GameManager")
-    var scene = get_tree().get_current_scene()
-    if scene and scene.has_node("GameManager"):
-        return scene.get_node("GameManager")
-    return null

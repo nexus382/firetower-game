@@ -7,7 +7,7 @@ extends Control
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
 
-var time_system
+var time_system: TimeSystem
 
 func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
@@ -61,12 +61,3 @@ func _update_clock_label():
 
 func _update_day_label(day_index: int):
     day_label.text = "Day %d" % day_index
-
-func _resolve_game_manager() -> GameManager:
-    var root = get_tree().get_root()
-    if root.has_node("Main/GameManager"):
-        return root.get_node("Main/GameManager")
-    var scene = get_tree().get_current_scene()
-    if scene and scene.has_node("GameManager"):
-        return scene.get_node("GameManager")
-    return null
