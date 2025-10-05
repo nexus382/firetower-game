@@ -3,6 +3,7 @@ extends Control
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
+const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 
 const LBS_PER_KG: float = 2.2
 

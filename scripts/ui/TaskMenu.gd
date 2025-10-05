@@ -5,6 +5,7 @@ extends Control
 const SLEEP_PERCENT_PER_HOUR: int = 10
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 
 var selected_hours: int = 0
 var time_system: TimeSystem
@@ -64,7 +65,7 @@ func _refresh_display():
 
     if selected_hours == 0:
         var lines: PackedStringArray = []
-        lines.append("Each hour: +10% rest / -%d cal" % SleepSystem.CALORIES_PER_SLEEP_HOUR)
+        lines.append("Each hour: +10%% rest / -%d cal" % SleepSystem.CALORIES_PER_SLEEP_HOUR)
         lines.append("Forging: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛")
         lines.append("Time x%.1f | Left %s" % [multiplier, _format_duration(minutes_remaining)])
         summary_label.text = "\n".join(lines)
