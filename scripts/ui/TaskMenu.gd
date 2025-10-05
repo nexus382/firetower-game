@@ -118,3 +118,30 @@ func _close_menu():
         return
     _menu_open = false
     visible = false
+
+func _resolve_game_manager() -> GameManager:
+    var tree = get_tree()
+    if tree == null:
+        push_warning("SceneTree unavailable, cannot resolve GameManager")
+        return null
+
+    var root = tree.get_root()
+    if root == null:
+        push_warning("Root node unavailable, cannot resolve GameManager")
+        return null
+
+    var candidate: Node = root.get_node_or_null("Main/GameManager")
+    if candidate == null:
+        var group_matches = tree.get_nodes_in_group("game_manager") if tree.has_group("game_manager") else []
+        if group_matches.size() > 0:
+            candidate = group_matches[0]
+
+    if candidate is GameManager:
+        return candidate
+
+    if candidate:
+        push_warning("GameManager node found but type mismatch: %s" % candidate.name)
+    else:
+        push_warning("GameManager node not found in scene tree")
+
+    return null
