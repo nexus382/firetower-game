@@ -3,8 +3,11 @@ class_name GameManager
 
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 
 signal day_changed(new_day: int)
+signal weather_changed(new_state: String, previous_state: String, hours_remaining: int)
+signal weather_multiplier_changed(new_multiplier: float, state: String)
 
 # Core game state
 var current_day: int = 1
@@ -16,6 +19,7 @@ var player: CharacterBody2D
 # Simulation systems
 var sleep_system: SleepSystem
 var time_system: TimeSystem
+var weather_system: WeatherSystem
 var _last_awake_minute_stamp: int = 0
 
 func _ready():
@@ -28,9 +32,17 @@ func _ready():
 
     sleep_system = SleepSystem.new()
     time_system = TimeSystem.new()
+    weather_system = WeatherSystem.new()
     if time_system:
         time_system.day_rolled_over.connect(_on_day_rolled_over)
         _last_awake_minute_stamp = time_system.get_minutes_since_daybreak()
+        if weather_system:
+            time_system.time_advanced.connect(Callable(weather_system, "on_time_advanced"))
+            time_system.day_rolled_over.connect(Callable(weather_system, "on_day_rolled_over"))
+            weather_system.initialize_clock_offset(time_system.get_minutes_since_daybreak())
+    if weather_system:
+        weather_system.weather_changed.connect(_on_weather_system_changed)
+        weather_system.broadcast_state()
 
 func pause_game():
     game_paused = true
@@ -47,6 +59,10 @@ func get_sleep_system() -> SleepSystem:
 func get_time_system() -> TimeSystem:
     """Expose the time system for UI consumers."""
     return time_system
+
+func get_weather_system() -> WeatherSystem:
+    """Expose the weather system for UI consumers."""
+    return weather_system
 
 func get_sleep_percent() -> float:
     """Convenience accessor for tired meter value."""
@@ -73,6 +89,12 @@ func toggle_weight_unit() -> String:
 
 func get_time_multiplier() -> float:
     return sleep_system.get_time_multiplier() if sleep_system else 1.0
+
+func get_weather_activity_multiplier() -> float:
+    return weather_system.get_activity_multiplier() if weather_system else 1.0
+
+func get_combined_activity_multiplier() -> float:
+    return get_time_multiplier() * get_weather_activity_multiplier()
 
 func schedule_sleep(hours: int) -> Dictionary:
     """Apply sleep hours while advancing the daily clock."""
@@ -133,6 +155,11 @@ func _on_day_rolled_over():
         sleep_system.reset_daily_counters()
     _last_awake_minute_stamp = 0
     day_changed.emit(current_day)
+
+func _on_weather_system_changed(new_state: String, previous_state: String, hours_remaining: int):
+    var multiplier = get_weather_activity_multiplier()
+    weather_changed.emit(new_state, previous_state, hours_remaining)
+    weather_multiplier_changed.emit(multiplier, new_state)
 
 func _apply_awake_time_up_to(current_minutes: int):
     if not sleep_system or not time_system:

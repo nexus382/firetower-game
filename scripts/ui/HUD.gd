@@ -2,6 +2,7 @@ extends Control
 
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 
 const LBS_PER_KG: float = 2.2
 
@@ -13,14 +14,18 @@ const LBS_PER_KG: float = 2.2
 @onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
 @onready var weight_status_label: Label = $StatsBar/Metrics/WeightStat/WeightStatus
 @onready var weight_header_label: Label = $WeightHeader
+@onready var weather_label: Label = $DayTimeHeader/WeatherLabel
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
+var weather_system: WeatherSystem
 var _weight_unit: String = "lbs"
 var _latest_weight_lbs: float = 0.0
 var _latest_weight_category: String = "average"
+var _latest_weather_state: String = WeatherSystem.WEATHER_CLEAR if WeatherSystem else "clear"
+var _latest_weather_hours: int = 0
 
 func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
@@ -30,6 +35,7 @@ func _ready():
     weight_value_label.add_theme_color_override("font_color", Color.WHITE)
     weight_status_label.add_theme_color_override("font_color", Color.WHITE)
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
+    weather_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
         push_warning("GameManager not found for HUD")
@@ -60,6 +66,13 @@ func _ready():
 
     game_manager.day_changed.connect(_on_day_changed)
     _update_day_label(game_manager.current_day)
+
+    weather_system = game_manager.get_weather_system()
+    if weather_system:
+        game_manager.weather_changed.connect(_on_weather_changed)
+        _on_weather_changed(weather_system.get_state(), weather_system.get_state(), weather_system.get_hours_remaining())
+    else:
+        weather_label.text = "Weather Offline"
 
 func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
@@ -101,6 +114,11 @@ func _on_weight_category_changed(category: String):
     var multiplier = sleep_system.get_time_multiplier() if sleep_system else 1.0
     weight_status_label.text = "%s (x%.1f)" % [title, multiplier]
     _update_weight_header_label()
+
+func _on_weather_changed(new_state: String, _previous_state: String, hours_remaining: int):
+    _latest_weather_state = new_state
+    _latest_weather_hours = max(hours_remaining, 0)
+    _update_weather_label()
 
 func _on_weight_unit_button_pressed():
     if sleep_system:
@@ -169,6 +187,26 @@ func _update_weight_header_label():
     var unit_suffix = _weight_unit.to_upper()
     var category_text = _format_weight_category_title(_latest_weight_category)
     weight_header_label.text = "%.1f %s [%s]" % [display_weight, unit_suffix, category_text]
+
+func _update_weather_label():
+    if !is_instance_valid(weather_label):
+        return
+
+    if weather_system == null:
+        weather_label.text = "Weather Offline"
+        return
+
+    var title = weather_system.get_state_display_name_for(_latest_weather_state)
+    var multiplier = weather_system.get_multiplier_for_state(_latest_weather_state)
+    var detail_parts: PackedStringArray = []
+    detail_parts.append("x%.2f" % multiplier)
+    if weather_system.is_precipitating_state(_latest_weather_state) and _latest_weather_hours > 0:
+        detail_parts.append("%dh left" % _latest_weather_hours)
+
+    if detail_parts.size() > 0:
+        weather_label.text = "%s (%s)" % [title, " | ".join(detail_parts)]
+    else:
+        weather_label.text = title
 
 func _format_weight_category_title(category: String) -> String:
     match category:
