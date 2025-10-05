@@ -159,6 +159,7 @@ func _open_menu():
     if _menu_open:
         return
     _menu_open = true
+    _refresh_display()
     visible = true
 
 func _close_menu():
