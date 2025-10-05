@@ -27,6 +27,14 @@ enum WeightCategory {
     OVERWEIGHT     # >= 220 lbs
 }
 
+# Task timing modifiers
+const WEIGHT_TIME_MULTIPLIERS := {
+    WeightCategory.MALNOURISHED: 1.35,
+    WeightCategory.SKINNY: 1.15,
+    WeightCategory.NORMAL: 1.0,
+    WeightCategory.OVERWEIGHT: 1.25
+}
+
 func _init():
     print("⚖️ BodyWeightSystem initialized with %d lbs" % current_weight_lbs)
 
@@ -144,3 +152,14 @@ func get_calorie_summary() -> Dictionary:
         "net": daily_calories_consumed - daily_calories_burned,
         "category": get_weight_category_name()
     }
+
+func get_time_multiplier() -> float:
+    """Multiplier applied to task durations based on weight class"""
+    var category := get_weight_category()
+    return WEIGHT_TIME_MULTIPLIERS.get(category, 1.0)
+
+func reset_daily_counters():
+    """Clear per-day calorie tracking when the clock rolls over"""
+    daily_calories_consumed = 0
+    daily_calories_burned = 0
+    print("🔁 Body weight daily counters reset")

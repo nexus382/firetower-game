@@ -1,12 +1,21 @@
-[gd_scene load_steps=4 format=3 uid="uid://clrcv081gblwd"]
+[gd_scene load_steps=6 format=3 uid="uid://clrcv081gblwd"]
 
 [ext_resource type="Script" path="res://scripts/GameManager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/Player.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/CameraController.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/TowerManager.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/ui/HUD.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/ui/TaskMenu.gd" id="6"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(32, 32)
+
+[sub_resource type="StyleBoxFlat" id="2"]
+bg_color = Color(0, 0, 0, 0.45)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="Main" type="Node2D"]
 
@@ -34,3 +43,126 @@ offset_bottom = 16.0
 color = Color(0, 0, 1, 1)
 
 [node name="UI" type="CanvasLayer" parent="."]
+
+[node name="HUD" type="Control" parent="UI"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("5")
+
+[node name="StatsPanel" type="PanelContainer" parent="UI/HUD"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -224.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 160.0
+custom_styles/panel = SubResource("2")
+
+[node name="Rows" type="VBoxContainer" parent="UI/HUD/StatsPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+theme_override_constants/separation = 8
+
+[node name="TimeRow" type="HBoxContainer" parent="UI/HUD/StatsPanel/Rows"]
+size_flags_horizontal = 3
+
+[node name="TimeLabel" type="Label" parent="UI/HUD/StatsPanel/Rows/TimeRow"]
+text = "Time"
+size_flags_horizontal = 3
+
+[node name="TimeValue" type="Label" parent="UI/HUD/StatsPanel/Rows/TimeRow"]
+horizontal_alignment = 2
+text = "06:00 AM"
+
+[node name="DayRow" type="HBoxContainer" parent="UI/HUD/StatsPanel/Rows"]
+size_flags_horizontal = 3
+
+[node name="DayLabel" type="Label" parent="UI/HUD/StatsPanel/Rows/DayRow"]
+text = "Day"
+size_flags_horizontal = 3
+
+[node name="DayValue" type="Label" parent="UI/HUD/StatsPanel/Rows/DayRow"]
+horizontal_alignment = 2
+text = "1"
+
+[node name="TiredRow" type="HBoxContainer" parent="UI/HUD/StatsPanel/Rows"]
+size_flags_horizontal = 3
+
+[node name="TiredLabel" type="Label" parent="UI/HUD/StatsPanel/Rows/TiredRow"]
+text = "Tired"
+size_flags_horizontal = 3
+
+[node name="TiredValue" type="Label" parent="UI/HUD/StatsPanel/Rows/TiredRow"]
+horizontal_alignment = 2
+text = "75%"
+
+[node name="DailyCalRow" type="HBoxContainer" parent="UI/HUD/StatsPanel/Rows"]
+size_flags_horizontal = 3
+
+[node name="DailyCalLabel" type="Label" parent="UI/HUD/StatsPanel/Rows/DailyCalRow"]
+text = "Daily Cal Used"
+size_flags_horizontal = 3
+
+[node name="DailyCalValue" type="Label" parent="UI/HUD/StatsPanel/Rows/DailyCalRow"]
+horizontal_alignment = 2
+text = "0"
+
+[node name="TaskMenu" type="Control" parent="UI"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -120.0
+offset_right = 160.0
+offset_bottom = 120.0
+script = ExtResource("6")
+
+[node name="Panel" type="Panel" parent="UI/TaskMenu"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="UI/TaskMenu/Panel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+custom_constants/separation = 12
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+
+[node name="TitleLabel" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+text = "Sleep Task"
+horizontal_alignment = 1
+
+[node name="HourSelector" type="HBoxContainer" parent="UI/TaskMenu/Panel/VBox"]
+size_flags_horizontal = 3
+alignment = 1
+custom_constants/separation = 12
+
+[node name="DecreaseButton" type="Button" parent="UI/TaskMenu/Panel/VBox/HourSelector"]
+text = "<"
+
+[node name="HoursValue" type="Label" parent="UI/TaskMenu/Panel/VBox/HourSelector"]
+custom_minimum_size = Vector2(48, 0)
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "0"
+
+[node name="IncreaseButton" type="Button" parent="UI/TaskMenu/Panel/VBox/HourSelector"]
+text = ">"
+
+[node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+text = "Each hour: +10% rest / -100 cal"
+horizontal_alignment = 1
+
+[node name="SleepButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
+text = "Rest"
+
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/SleepButton" to="UI/TaskMenu" method="_on_sleep_button_pressed"]
