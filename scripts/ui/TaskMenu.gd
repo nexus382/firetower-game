@@ -3,7 +3,7 @@ extends Control
 @export var max_sleep_hours: int = 12
 
 const SLEEP_PERCENT_PER_HOUR: int = 10
-const CALORIES_PER_SLEEP_HOUR: int = 100
+const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 
 var selected_hours: int = 0
@@ -11,10 +11,12 @@ var time_system: TimeSystem
 
 var _cached_minutes_remaining: int = 0
 var _menu_open: bool = false
+var inventory_system: InventorySystem
 
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
 @onready var summary_label: Label = $Panel/VBox/SummaryLabel
+@onready var forging_result_label: Label = $Panel/VBox/ForgingResult
 
 func _ready():
     set_process_unhandled_input(true)
@@ -22,9 +24,16 @@ func _ready():
 
     if game_manager:
         time_system = game_manager.get_time_system()
+        inventory_system = game_manager.get_inventory_system()
         if time_system:
             time_system.time_advanced.connect(_on_time_system_changed)
             time_system.day_rolled_over.connect(_on_time_system_changed)
+        if inventory_system:
+            forging_result_label.text = _format_forging_ready(inventory_system.get_total_food_units())
+        else:
+            forging_result_label.text = "Forging offline"
+    else:
+        forging_result_label.text = "Forging unavailable"
 
     _refresh_display()
 
@@ -55,13 +64,14 @@ func _refresh_display():
 
     if selected_hours == 0:
         var lines: PackedStringArray = []
-        lines.append("Each hour: +10% rest / -100 cal")
+        lines.append("Each hour: +10% rest / -%d cal" % SleepSystem.CALORIES_PER_SLEEP_HOUR)
+        lines.append("Forging: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛")
         lines.append("Time x%.1f | Left %s" % [multiplier, _format_duration(minutes_remaining)])
         summary_label.text = "\n".join(lines)
         return
 
     var rest_gain = selected_hours * SLEEP_PERCENT_PER_HOUR
-    var calories = selected_hours * CALORIES_PER_SLEEP_HOUR
+    var calories = selected_hours * SleepSystem.CALORIES_PER_SLEEP_HOUR
     var preview_minutes = int(ceil(selected_hours * 60.0 * multiplier))
     var detail_parts: PackedStringArray = []
     detail_parts.append("Takes %s" % _format_duration(preview_minutes))
@@ -97,6 +107,33 @@ func _on_sleep_button_pressed():
             var rejection_multiplier = result.get("time_multiplier", fallback_multiplier)
             summary_label.text = "Not enough time (x%.1f, left: %s)" % [rejection_multiplier, _format_duration(minutes_left)]
             print("⚠️ Sleep rejected: %s" % result)
+
+func _on_forging_button_pressed():
+    if game_manager == null:
+        forging_result_label.text = "Forging unavailable"
+        return
+
+    var result = game_manager.perform_forging()
+    forging_result_label.text = _format_forging_result(result)
+
+func _format_forging_ready(total_food: float) -> String:
+    return "Forging ready (Food %.1f)" % total_food
+
+func _format_forging_result(result: Dictionary) -> String:
+    if result.get("success", false):
+        var name = result.get("display_name", "Find")
+        var food = result.get("food_gained", 0.0)
+        var total = result.get("total_food_units", 0.0)
+        return "%s +%.1f food (Total %.1f)" % [name, food, total]
+
+    var reason = result.get("reason", "")
+    match reason:
+        "inventory_unavailable":
+            return "Forging offline"
+        "nothing_found":
+            return "Found nothing (%.0f%%)" % (result.get("chance_roll", 0.0) * 100.0)
+        _:
+            return "Forging failed"
 
 func _get_minutes_left_today() -> int:
     if time_system:
