@@ -1,32 +1,48 @@
 extends Control
 
+const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+
+const LBS_PER_KG: float = 2.2
 
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
 @onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
 @onready var daily_cal_value_label: Label = $StatsBar/Metrics/DailyCalStat/DailyCalValue
+@onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
+@onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
+@onready var weight_status_label: Label = $StatsBar/Metrics/WeightStat/WeightStatus
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
 
 var time_system: TimeSystem
+var sleep_system: SleepSystem
+var _weight_unit: String = SleepSystem.WEIGHT_UNIT_LBS
 
 func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
     tired_value_label.add_theme_color_override("font_color", Color.WHITE)
     day_label.add_theme_color_override("font_color", Color.WHITE)
     clock_label.add_theme_color_override("font_color", Color.WHITE)
+    weight_value_label.add_theme_color_override("font_color", Color.WHITE)
+    weight_status_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
         push_warning("GameManager not found for HUD")
         return
 
-    var sleep_system = game_manager.get_sleep_system()
+    sleep_system = game_manager.get_sleep_system()
     if sleep_system:
         sleep_system.sleep_percent_changed.connect(_on_sleep_percent_changed)
         sleep_system.daily_calories_used_changed.connect(_on_daily_calories_used_changed)
+        sleep_system.weight_changed.connect(_on_weight_changed)
+        sleep_system.weight_unit_changed.connect(_on_weight_unit_changed)
+        sleep_system.weight_category_changed.connect(_on_weight_category_changed)
         _on_sleep_percent_changed(sleep_system.get_sleep_percent())
         _on_daily_calories_used_changed(sleep_system.get_daily_calories_used())
+        _on_weight_unit_changed(sleep_system.get_weight_unit())
+        _on_weight_changed(sleep_system.get_player_weight_lbs())
+        _on_weight_category_changed(sleep_system.get_weight_category())
     else:
         push_warning("SleepSystem not available on GameManager")
 
@@ -45,8 +61,8 @@ func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
     tired_value_label.text = "%d%%" % int(round(value))
 
-func _on_daily_calories_used_changed(value: int):
-    daily_cal_value_label.text = "%d" % value
+func _on_daily_calories_used_changed(value: float):
+    daily_cal_value_label.text = "%d" % int(round(value))
 
 func _on_time_advanced(_minutes: int, _rolled_over: bool):
     _update_clock_label()
@@ -63,6 +79,26 @@ func _update_clock_label():
 
 func _update_day_label(day_index: int):
     day_label.text = "Day %d" % day_index
+
+func _on_weight_changed(weight_lbs: float):
+    weight_value_label.text = _format_weight_value(weight_lbs)
+
+func _on_weight_unit_changed(new_unit: String):
+    _weight_unit = new_unit
+    weight_unit_button.text = new_unit.to_upper()
+    if sleep_system:
+        _on_weight_changed(sleep_system.get_player_weight_lbs())
+        _on_weight_category_changed(sleep_system.get_weight_category())
+
+func _on_weight_category_changed(category: String):
+    var title = category.capitalize()
+    var multiplier = sleep_system.get_time_multiplier() if sleep_system else 1.0
+    var range_text = _format_weight_range(category)
+    weight_status_label.text = "%s (%s | x%.1f)" % [title, range_text, multiplier]
+
+func _on_weight_unit_button_pressed():
+    if sleep_system:
+        sleep_system.toggle_weight_unit()
 
 func _resolve_game_manager() -> GameManager:
     var tree = get_tree()
@@ -90,3 +126,28 @@ func _resolve_game_manager() -> GameManager:
         push_warning("GameManager node not found in scene tree")
 
     return null
+
+func _format_weight_value(weight_lbs: float) -> String:
+    var display_weight = _convert_weight_for_display(weight_lbs)
+    return "%.1f" % display_weight
+
+func _format_weight_range(category: String) -> String:
+    var unit_suffix = _weight_unit.to_upper()
+    match category:
+        "malnourished":
+            return "<=%s %s" % [_format_threshold(SleepSystem.MALNOURISHED_MAX_LBS), unit_suffix]
+        "overweight":
+            return ">=%s %s" % [_format_threshold(SleepSystem.OVERWEIGHT_MIN_LBS), unit_suffix]
+        _:
+            var lower = _format_threshold(SleepSystem.NORMAL_MIN_LBS)
+            var upper = _format_threshold(SleepSystem.NORMAL_MAX_LBS)
+            return "%s-%s %s" % [lower, upper, unit_suffix]
+
+func _format_threshold(value_lbs: float) -> String:
+    var display_value = _convert_weight_for_display(value_lbs)
+    if _weight_unit == SleepSystem.WEIGHT_UNIT_LBS:
+        return "%.0f" % round(display_value)
+    return "%.1f" % display_value
+
+func _convert_weight_for_display(value_lbs: float) -> float:
+    return value_lbs if _weight_unit == SleepSystem.WEIGHT_UNIT_LBS else value_lbs / LBS_PER_KG

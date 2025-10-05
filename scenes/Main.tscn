@@ -120,6 +120,32 @@ text = "0"
 horizontal_alignment = 2
 vertical_alignment = 1
 
+[node name="WeightStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
+custom_minimum_size = Vector2(160, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 1
+
+[node name="WeightLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/WeightStat"]
+text = "Weight"
+
+[node name="WeightRow" type="HBoxContainer" parent="UI/HUD/StatsBar/Metrics/WeightStat"]
+size_flags_horizontal = 3
+alignment = 2
+custom_constants/separation = 8
+
+[node name="WeightValue" type="Label" parent="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow"]
+custom_minimum_size = Vector2(72, 0)
+horizontal_alignment = 2
+text = "175.0"
+
+[node name="WeightUnitButton" type="Button" parent="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow"]
+custom_minimum_size = Vector2(56, 0)
+text = "LBS"
+
+[node name="WeightStatus" type="Label" parent="UI/HUD/StatsBar/Metrics/WeightStat"]
+horizontal_alignment = 2
+text = "Average (150-200 LBS | x1.0)"
+
 [node name="TaskMenu" type="Control" parent="UI"]
 anchor_left = 0.5
 anchor_top = 0.5
@@ -176,3 +202,4 @@ text = "Rest"
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/SleepButton" to="UI/TaskMenu" method="_on_sleep_button_pressed"]
+[connection signal="pressed" from="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]
