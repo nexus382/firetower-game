@@ -54,18 +54,20 @@ func _refresh_display():
         hours_value_label.text = str(selected_hours)
 
     if selected_hours == 0:
-        var time_hint = " (Time left: %s)" % _format_duration(minutes_remaining)
-        summary_label.text = "Each hour: +10%% rest / -100 cal | Time x%.1f%s" % [multiplier, time_hint]
+        var lines: PackedStringArray = []
+        lines.append("Each hour: +10% rest / -100 cal")
+        lines.append("Time x%.1f | Left %s" % [multiplier, _format_duration(minutes_remaining)])
+        summary_label.text = "\n".join(lines)
         return
 
     var rest_gain = selected_hours * SLEEP_PERCENT_PER_HOUR
     var calories = selected_hours * CALORIES_PER_SLEEP_HOUR
     var preview_minutes = int(ceil(selected_hours * 60.0 * multiplier))
-    var end_text = ""
+    var detail_parts: PackedStringArray = []
+    detail_parts.append("Takes %s" % _format_duration(preview_minutes))
     if time_system and preview_minutes <= minutes_remaining and minutes_remaining > 0:
-        end_text = " (Ends %s)" % time_system.get_formatted_time_after(preview_minutes)
-    var duration_text = "Takes %s" % _format_duration(preview_minutes)
-    summary_label.text = "%d hr -> +%d%% rest / -%d cal | %s%s" % [selected_hours, rest_gain, calories, duration_text, end_text]
+        detail_parts.append("Ends %s" % time_system.get_formatted_time_after(preview_minutes))
+    summary_label.text = "%d hr -> +%d%% rest / -%d cal\n%s" % [selected_hours, rest_gain, calories, " | ".join(detail_parts)]
 
 func _on_decrease_button_pressed():
     selected_hours = max(selected_hours - 1, 0)
