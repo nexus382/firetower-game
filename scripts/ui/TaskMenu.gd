@@ -4,6 +4,7 @@ extends Control
 
 const SLEEP_PERCENT_PER_HOUR: int = 10
 const CALORIES_PER_SLEEP_HOUR: int = 100
+const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 
 var selected_hours: int = 0
 var time_system: TimeSystem
@@ -45,7 +46,7 @@ func _refresh_display():
         selected_hours = max(max_hours_today, 0)
     hours_value_label.text = str(selected_hours)
     var minutes_remaining = _get_minutes_left_today()
-    var max_hours_today = min(max_sleep_hours, int(floor(minutes_remaining / 60.0)))
+    max_hours_today = min(max_sleep_hours, int(floor(minutes_remaining / 60.0)))
     if selected_hours > max_hours_today:
         selected_hours = max(max_hours_today, 0)
         hours_value_label.text = str(selected_hours)
