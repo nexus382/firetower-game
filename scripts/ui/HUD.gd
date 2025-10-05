@@ -1,5 +1,7 @@
 extends Control
 
+const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
 @onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
