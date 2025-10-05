@@ -144,7 +144,7 @@ text = "LBS"
 
 [node name="WeightStatus" type="Label" parent="UI/HUD/StatsBar/Metrics/WeightStat"]
 horizontal_alignment = 2
-text = "Average (150-200 LBS | x1.0)"
+text = "Average (x1.0)"
 
 [node name="TaskMenu" type="Control" parent="UI"]
 anchor_left = 0.5

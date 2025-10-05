@@ -17,7 +17,7 @@ const LBS_PER_KG: float = 2.2
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
-var _weight_unit: String = SleepSystem.WEIGHT_UNIT_LBS
+var _weight_unit: String = "lbs"
 
 func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
@@ -81,20 +81,21 @@ func _update_day_label(day_index: int):
     day_label.text = "Day %d" % day_index
 
 func _on_weight_changed(weight_lbs: float):
-    weight_value_label.text = _format_weight_value(weight_lbs)
+    var display_weight = weight_lbs
+    if _weight_unit == "kg":
+        display_weight = weight_lbs / 2.2
+    weight_value_label.text = "%.1f" % display_weight
 
 func _on_weight_unit_changed(new_unit: String):
     _weight_unit = new_unit
     weight_unit_button.text = new_unit.to_upper()
     if sleep_system:
         _on_weight_changed(sleep_system.get_player_weight_lbs())
-        _on_weight_category_changed(sleep_system.get_weight_category())
 
 func _on_weight_category_changed(category: String):
     var title = category.capitalize()
     var multiplier = sleep_system.get_time_multiplier() if sleep_system else 1.0
-    var range_text = _format_weight_range(category)
-    weight_status_label.text = "%s (%s | x%.1f)" % [title, range_text, multiplier]
+    weight_status_label.text = "%s (x%.1f)" % [title, multiplier]
 
 func _on_weight_unit_button_pressed():
     if sleep_system:
