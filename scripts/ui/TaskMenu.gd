@@ -6,6 +6,7 @@ const SLEEP_PERCENT_PER_HOUR: int = 10
 const CALORIES_PER_SLEEP_HOUR: int = 100
 
 var selected_hours: int = 0
+var time_system
 
 @onready var game_manager: GameManager = get_tree().get_current_scene().get_node("GameManager")
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
@@ -14,6 +15,13 @@ var selected_hours: int = 0
 func _ready():
     visible = false
     set_process_unhandled_input(true)
+
+    if game_manager:
+        time_system = game_manager.get_time_system()
+        if time_system:
+            time_system.time_advanced.connect(_on_time_system_changed)
+            time_system.day_rolled_over.connect(_on_time_system_changed)
+
     _refresh_display()
 
 func _unhandled_input(event):
@@ -25,26 +33,65 @@ func _unhandled_input(event):
 
 func _refresh_display():
     hours_value_label.text = str(selected_hours)
+    var minutes_remaining = _get_minutes_left_today()
+    var max_hours_today = min(max_sleep_hours, int(floor(minutes_remaining / 60.0)))
+    if selected_hours > max_hours_today:
+        selected_hours = max(max_hours_today, 0)
+        hours_value_label.text = str(selected_hours)
+
     if selected_hours == 0:
-        summary_label.text = "Each hour: +10% rest / -100 cal"
-    else:
-        var rest_gain = selected_hours * SLEEP_PERCENT_PER_HOUR
-        var calories = selected_hours * CALORIES_PER_SLEEP_HOUR
-        summary_label.text = "%d hr -> +%d%% rest / -%d cal" % [selected_hours, rest_gain, calories]
+        var time_hint = " (Time left: %s)" % _format_duration(minutes_remaining)
+        summary_label.text = "Each hour: +10% rest / -100 cal%s" % time_hint
+        return
+
+    var rest_gain = selected_hours * SLEEP_PERCENT_PER_HOUR
+    var calories = selected_hours * CALORIES_PER_SLEEP_HOUR
+    var preview_minutes = selected_hours * 60
+    var end_text = ""
+    if time_system and preview_minutes <= minutes_remaining and minutes_remaining > 0:
+        end_text = " (Ends %s)" % time_system.get_formatted_time_after(preview_minutes)
+    summary_label.text = "%d hr -> +%d%% rest / -%d cal%s" % [selected_hours, rest_gain, calories, end_text]
 
 func _on_decrease_button_pressed():
     selected_hours = max(selected_hours - 1, 0)
     _refresh_display()
 
 func _on_increase_button_pressed():
-    selected_hours = min(selected_hours + 1, max_sleep_hours)
+    var hours_available = min(max_sleep_hours, int(floor(_get_minutes_left_today() / 60.0)))
+    if selected_hours >= hours_available:
+        print("⚠️ Cannot schedule beyond remaining daily time")
+        return
+    selected_hours = min(selected_hours + 1, hours_available)
     _refresh_display()
 
 func _on_sleep_button_pressed():
     if game_manager and selected_hours > 0:
         var result = game_manager.schedule_sleep(selected_hours)
-        if result.has("new_percent"):
+        if result.get("accepted", false):
             print("✅ Sleep applied: %s" % result)
-    selected_hours = 0
+            selected_hours = 0
+            _refresh_display()
+            visible = false
+        else:
+            var minutes_left = result.get("minutes_available", _get_minutes_left_today())
+            summary_label.text = "Not enough time (left: %s)" % _format_duration(minutes_left)
+            print("⚠️ Sleep rejected: %s" % result)
+
+func _get_minutes_left_today() -> int:
+    if time_system:
+        return time_system.get_minutes_until_daybreak()
+    return max_sleep_hours * 60
+
+func _on_time_system_changed(_a = null, _b = null):
     _refresh_display()
-    visible = false
+
+func _format_duration(minutes: int) -> String:
+    minutes = max(minutes, 0)
+    var hours = minutes / 60
+    var mins = minutes % 60
+    if hours > 0 and mins > 0:
+        return "%dh %02dm" % [hours, mins]
+    elif hours > 0:
+        return "%dh" % hours
+    else:
+        return "%dm" % mins
