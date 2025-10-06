@@ -17,7 +17,7 @@ func display_broadcast(data: Dictionary):
     title_label.text = data.get("title", "Radio Update")
     body_label.text = data.get("text", "")
     visible = true
-    panel.modulate = Color(0.1, 0.1, 0.1, 0.9)
+    panel.modulate = Color(1.0, 1.0, 1.0, 1.0)
     if close_button:
         close_button.grab_focus()
 
@@ -32,10 +32,18 @@ func _unhandled_input(event):
         get_viewport().set_input_as_handled()
 
 func _apply_theme_overrides():
+    if panel:
+        var backdrop := StyleBoxFlat.new()
+        backdrop.bg_color = Color.BLACK
+        backdrop.shadow_size = 0
+        panel.add_theme_stylebox_override("panel", backdrop)
     if title_label:
         title_label.add_theme_color_override("font_color", Color.WHITE)
     if body_label:
-        body_label.add_theme_color_override("font_color", Color.SILVER)
+        body_label.add_theme_color_override("font_color", Color.WHITE)
         body_label.autowrap_mode = TextServer.AUTOWRAP_WORD
     if close_button:
         close_button.text = "Close"
+        close_button.add_theme_color_override("font_color", Color.WHITE)
+        close_button.add_theme_color_override("font_color_hover", Color.WHITE)
+        close_button.add_theme_color_override("font_color_pressed", Color.WHITE)
