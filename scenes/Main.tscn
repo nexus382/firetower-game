@@ -107,6 +107,11 @@ horizontal_alignment = 2
 vertical_alignment = 1
 text = "Wood: 0"
 
+[node name="ZombieCounter" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Zombies: 0"
+
 [node name="TowerHealthLabel" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
 horizontal_alignment = 2
 vertical_alignment = 1
