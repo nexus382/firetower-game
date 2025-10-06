@@ -15,12 +15,13 @@ const LBS_PER_KG: float = 2.2
 @onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
 @onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
 @onready var weight_status_label: Label = $StatsBar/Metrics/WeightStat/WeightStatus
-@onready var weight_header_label: Label = $WeightHeader
+@onready var weight_header_label: Label = $TopRightStats/WeightHeader
 @onready var weather_label: Label = $DayTimeHeader/WeatherLabel
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
-@onready var food_counter_label: Label = $FoodCounter
-@onready var tower_health_label: Label = $TowerHealthLabel
+@onready var food_counter_label: Label = $TopRightStats/ResourceList/FoodCounter
+@onready var wood_counter_label: Label = $TopRightStats/ResourceList/WoodCounter
+@onready var tower_health_label: Label = $TopRightStats/ResourceList/TowerHealthLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
@@ -43,6 +44,7 @@ func _ready():
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
     weather_label.add_theme_color_override("font_color", Color.WHITE)
     food_counter_label.add_theme_color_override("font_color", Color.WHITE)
+    wood_counter_label.add_theme_color_override("font_color", Color.WHITE)
     tower_health_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
@@ -85,9 +87,13 @@ func _ready():
     inventory_system = game_manager.get_inventory_system()
     if inventory_system:
         inventory_system.food_total_changed.connect(_on_food_total_changed)
+        inventory_system.item_added.connect(_on_inventory_item_added)
+        inventory_system.item_consumed.connect(_on_inventory_item_consumed)
         _on_food_total_changed(inventory_system.get_total_food_units())
+        _update_wood_counter()
     else:
         food_counter_label.text = "Food: --"
+        wood_counter_label.text = "Wood: --"
 
     tower_health_system = game_manager.get_tower_health_system()
     if tower_health_system:
@@ -147,10 +153,24 @@ func _on_food_total_changed(new_total: float):
         return
     food_counter_label.text = "Food: %s" % _format_food_amount(new_total)
 
+func _on_inventory_item_added(item_id: String, _quantity_added: int, _food_gained: float, _total_food_units: float):
+    if item_id == "wood":
+        _update_wood_counter()
+
+func _on_inventory_item_consumed(item_id: String, _quantity_removed: int, _food_lost: float, _total_food_units: float):
+    if item_id == "wood":
+        _update_wood_counter()
+
 func _on_tower_health_changed(new_health: float, _previous_health: float):
     if !is_instance_valid(tower_health_label):
         return
     tower_health_label.text = _format_tower_health(new_health)
+
+func _update_wood_counter():
+    if !is_instance_valid(wood_counter_label):
+        return
+    var count = inventory_system.get_item_count("wood") if inventory_system else 0
+    wood_counter_label.text = "Wood: %d" % count
 
 func _on_weight_unit_button_pressed():
     if sleep_system:

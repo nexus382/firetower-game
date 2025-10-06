@@ -107,7 +107,7 @@ func _refresh_display():
     if selected_hours == 0:
         var lines: PackedStringArray = []
         lines.append("Each hour: +10%% rest / -%d cal" % SleepSystem.CALORIES_PER_SLEEP_HOUR)
-        lines.append("Forging -> -15%% rest | 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛")
+        lines.append("Forging -> -15%% rest | Rolls: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛 / 20%% 🪵")
         lines.append("Time x%.1f | Left %s" % [multiplier, _format_duration(minutes_remaining)])
         summary_label.text = "\n".join(lines)
         return
@@ -213,6 +213,10 @@ func _on_repair_button_pressed():
             "exceeds_day":
                 var minutes_available = result.get("minutes_available", 0)
                 repair_result_label.text = _format_daybreak_warning(minutes_available)
+            "insufficient_wood":
+                var required = int(result.get("wood_required", 1))
+                var available = int(result.get("wood_available", 0))
+                repair_result_label.text = "Need %d wood (Have %d)" % [required, available]
             _:
                 repair_result_label.text = "Repair failed"
         return
@@ -224,6 +228,9 @@ func _on_repair_button_pressed():
     parts.append("+%s hp" % _format_health_value(restored))
     parts.append("%s" % _format_health_snapshot(after))
     parts.append("-%d cal" % int(round(result.get("calories_spent", 0.0))))
+    var wood_spent = int(result.get("wood_spent", 0))
+    if wood_spent > 0:
+        parts.append("-%d wood (Stock %d)" % [wood_spent, int(result.get("wood_remaining", 0))])
     var rest_bonus = result.get("rest_granted_percent", 0.0)
     if rest_bonus > 0.0:
         parts.append("+%d%% rest" % int(round(rest_bonus)))
@@ -239,7 +246,18 @@ func _format_forging_result(result: Dictionary) -> String:
     var end_at = result.get("ended_at_time", "")
     if result.get("success", false):
         var parts: PackedStringArray = []
-        parts.append("%s +%s food" % [result.get("display_name", "Find"), _format_food(result.get("food_gained", 0.0))])
+        var loot: Array = result.get("loot", [])
+        if loot.is_empty():
+            parts.append("Supplies added")
+        else:
+            for item in loot:
+                var label = item.get("display_name", item.get("item_id", "Find"))
+                var qty = int(item.get("quantity_added", item.get("quantity", 1)))
+                var entry = "%s x%d" % [label, max(qty, 1)]
+                var food_gain = float(item.get("food_gained", 0.0))
+                if !is_zero_approx(food_gain):
+                    entry += " (+%s food)" % _format_food(food_gain)
+                parts.append(entry)
         parts.append("Total %s" % _format_food(result.get("total_food_units", 0.0)))
         var rest_spent = result.get("rest_spent_percent", 0.0)
         if rest_spent > 0.0:
@@ -252,9 +270,11 @@ func _format_forging_result(result: Dictionary) -> String:
     match reason:
         "systems_unavailable":
             return "Forging offline"
+        "zombies_present":
+            var count = int(result.get("zombie_count", 0))
+            return "Zombies nearby! Forging blocked (%d)" % max(count, 1)
         "nothing_found":
-            var chance = int(round(result.get("chance_roll", 0.0) * 100.0))
-            var message = "Found nothing (%d%%)" % chance
+            var message = "Found nothing"
             var rest_spent = result.get("rest_spent_percent", 0.0)
             if rest_spent > 0.0:
                 message += " | -%d%% rest" % int(round(rest_spent))
@@ -357,6 +377,11 @@ func _update_repair_summary():
     var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
     var minutes = int(ceil(60.0 * max(multiplier, 0.01)))
     lines.append("Takes %s" % _format_duration(minutes))
+    if inventory_system:
+        var wood_stock = inventory_system.get_item_count("wood")
+        lines.append("Needs 1 wood (Stock %d)" % wood_stock)
+    else:
+        lines.append("Needs 1 wood")
     if tower_health_system:
         lines.append("Tower %s" % _format_health_snapshot(tower_health_system.get_health()))
     repair_summary_label.text = " | ".join(lines)
