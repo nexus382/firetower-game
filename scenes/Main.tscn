@@ -236,7 +236,7 @@ text = "0"
 text = ">"
 
 [node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-text = "Each hour: +10% rest / -1000 cal"
+text = "Each hour: +10% rest / -100 cal"
 horizontal_alignment = 1
 size_flags_horizontal = 3
 size_flags_vertical = 1

@@ -36,13 +36,15 @@ var game_paused: bool = false
 var player: CharacterBody2D
 
 # Simulation systems
-var sleep_system: SleepSystem
-var inventory_system: InventorySystem
-var time_system: TimeSystem
-var weather_system: WeatherSystem
-var tower_health_system: TowerHealthSystem
+# Instantiated immediately so UI elements resolving GameManager during their own _ready callbacks
+# always see live systems instead of a null placeholder.
+var sleep_system: SleepSystem = SleepSystem.new()
+var inventory_system: InventorySystem = InventorySystem.new()
+var time_system: TimeSystem = TimeSystem.new()
+var weather_system: WeatherSystem = WeatherSystem.new()
+var tower_health_system: TowerHealthSystem = TowerHealthSystem.new()
 var _last_awake_minute_stamp: int = 0
-var _rng: RandomNumberGenerator
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 func _ready():
     print("🎮 GameManager initialized - Day %d" % current_day)
@@ -52,12 +54,18 @@ func _ready():
     else:
         print("❌ Player not found!")
 
-    sleep_system = SleepSystem.new()
-    inventory_system = InventorySystem.new()
-    time_system = TimeSystem.new()
-    weather_system = WeatherSystem.new()
-    tower_health_system = TowerHealthSystem.new()
-    _rng = RandomNumberGenerator.new()
+    if sleep_system == null:
+        sleep_system = SleepSystem.new()
+    if inventory_system == null:
+        inventory_system = InventorySystem.new()
+    if time_system == null:
+        time_system = TimeSystem.new()
+    if weather_system == null:
+        weather_system = WeatherSystem.new()
+    if tower_health_system == null:
+        tower_health_system = TowerHealthSystem.new()
+    if _rng == null:
+        _rng = RandomNumberGenerator.new()
     _rng.randomize()
 
     if inventory_system:
