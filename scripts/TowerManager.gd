@@ -325,6 +325,17 @@ func create_radio_station():
     prompt.add_theme_font_size_override("font_size", 12)
     radio.add_child(prompt)
 
+    var name_label = Label.new()
+    name_label.name = "NameLabel"
+    name_label.text = "Radio"
+    name_label.position = Vector2(-20, -72)
+    name_label.custom_minimum_size = Vector2(40, 16)
+    name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    name_label.add_theme_color_override("font_color", Color.WHITE)
+    name_label.add_theme_font_size_override("font_size", 12)
+    name_label.z_index = 3
+    radio.add_child(name_label)
+
     var collision = CollisionShape2D.new()
     collision.name = "InteractShape"
     var shape = RectangleShape2D.new()
