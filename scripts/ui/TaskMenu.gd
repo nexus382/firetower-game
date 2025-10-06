@@ -39,6 +39,8 @@ var _menu_open: bool = false
 var inventory_system: InventorySystem
 var tower_health_system: TowerHealthSystem
 var selected_meal_key: String = "normal"
+var _forging_feedback_state: String = "ready"
+var _forging_feedback_locked: bool = false
 
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
@@ -63,13 +65,13 @@ func _ready():
             time_system.day_rolled_over.connect(_on_time_system_changed)
         if inventory_system:
             inventory_system.food_total_changed.connect(_on_inventory_food_total_changed)
-            forging_result_label.text = _format_forging_ready(inventory_system.get_total_food_units())
+            _set_forging_feedback(_format_forging_ready(inventory_system.get_total_food_units()), "ready")
         else:
-            forging_result_label.text = "Forging offline"
+            _set_forging_feedback("Forging offline", "offline")
         if tower_health_system:
             tower_health_system.tower_health_changed.connect(_on_tower_health_changed)
     else:
-        forging_result_label.text = "Forging unavailable"
+        _set_forging_feedback("Forging unavailable", "offline")
 
     _setup_meal_size_options()
     _refresh_display()
@@ -150,11 +152,13 @@ func _on_sleep_button_pressed():
 
 func _on_forging_button_pressed():
     if game_manager == null:
-        forging_result_label.text = "Forging unavailable"
+        _set_forging_feedback("Forging unavailable", "offline")
         return
 
+    _lock_forging_feedback()
     var result = game_manager.perform_forging()
-    forging_result_label.text = _format_forging_result(result)
+    _set_forging_feedback(_format_forging_result(result), "result")
+    _refresh_display()
 
 func _on_meal_size_option_item_selected(index: int):
     if index < 0 or index >= meal_size_option.item_count:
@@ -179,7 +183,7 @@ func _on_eat_button_pressed():
                 meal_result_label.text = "Need %s food (Have %s)" % [_format_food(required), _format_food(available)]
             "exceeds_day":
                 var minutes_available = result.get("minutes_available", 0)
-                meal_result_label.text = "No time (Left %s)" % _format_duration(minutes_available)
+                meal_result_label.text = _format_daybreak_warning(minutes_available)
             _:
                 meal_result_label.text = "Meal failed"
         return
@@ -208,7 +212,7 @@ func _on_repair_button_pressed():
                 repair_result_label.text = "Tower already stable"
             "exceeds_day":
                 var minutes_available = result.get("minutes_available", 0)
-                repair_result_label.text = "No time (Left %s)" % _format_duration(minutes_available)
+                repair_result_label.text = _format_daybreak_warning(minutes_available)
             _:
                 repair_result_label.text = "Repair failed"
         return
@@ -228,18 +232,28 @@ func _format_forging_ready(total_food: float) -> String:
     return "Forging ready (Food %.1f)" % total_food
 
 func _format_forging_result(result: Dictionary) -> String:
+    var end_at = result.get("ended_at_time", "")
     if result.get("success", false):
-        var name = result.get("display_name", "Find")
-        var food = result.get("food_gained", 0.0)
-        var total = result.get("total_food_units", 0.0)
-        return "%s +%.1f food (Total %.1f)" % [name, food, total]
+        var parts: PackedStringArray = []
+        parts.append("%s +%s food" % [result.get("display_name", "Find"), _format_food(result.get("food_gained", 0.0))])
+        parts.append("Total %s" % _format_food(result.get("total_food_units", 0.0)))
+        if end_at != "":
+            parts.append("End %s" % end_at)
+        return " | ".join(parts)
 
     var reason = result.get("reason", "")
     match reason:
-        "inventory_unavailable":
+        "systems_unavailable":
             return "Forging offline"
         "nothing_found":
-            return "Found nothing (%.0f%%)" % (result.get("chance_roll", 0.0) * 100.0)
+            var chance = int(round(result.get("chance_roll", 0.0) * 100.0))
+            var message = "Found nothing (%d%%)" % chance
+            if end_at != "":
+                message += " | End %s" % end_at
+            return message
+        "exceeds_day":
+            var minutes_available = result.get("minutes_available", 0)
+            return _format_daybreak_warning(minutes_available)
         _:
             return "Forging failed"
 
@@ -261,6 +275,22 @@ func _format_duration(minutes: int) -> String:
         return "%dh" % hours
     else:
         return "%dm" % mins
+
+func _format_daybreak_warning(minutes_available: int) -> String:
+    return "Daybreak soon (Left %s)" % _format_duration(minutes_available)
+
+func _set_forging_feedback(text: String, state: String):
+    if !is_instance_valid(forging_result_label):
+        return
+    forging_result_label.text = text
+    _forging_feedback_state = state
+
+func _lock_forging_feedback():
+    _forging_feedback_locked = true
+    call_deferred("_unlock_forging_feedback")
+
+func _unlock_forging_feedback():
+    _forging_feedback_locked = false
 
 func _open_menu():
     if _menu_open:
@@ -338,8 +368,13 @@ func _format_health_snapshot(value: float) -> String:
         return "--"
     return "%s/%s" % [_format_health_value(value), _format_health_value(tower_health_system.get_max_health())]
 
-func _on_inventory_food_total_changed(_new_total: float):
+func _on_inventory_food_total_changed(new_total: float):
     _update_meal_summary()
+    if _forging_feedback_locked:
+        return
+    if _forging_feedback_state == "offline":
+        return
+    _set_forging_feedback(_format_forging_ready(new_total), "ready")
 
 func _on_tower_health_changed(_new: float, _old: float):
     _update_repair_summary()
