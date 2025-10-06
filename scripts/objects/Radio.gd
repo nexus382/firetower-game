@@ -8,7 +8,7 @@ class_name Radio
 
 var _player_in_range: bool = false
 var _game_manager: GameManager
-var _radio_panel: RadioPanel
+var _radio_panel: Control
 
 func _ready():
     monitoring = true
@@ -28,7 +28,8 @@ func _resolve_dependencies():
     if root == null:
         return
     _game_manager = root.get_node_or_null("Main/GameManager")
-    _radio_panel = root.get_node_or_null("Main/UI/RadioPanel")
+    var panel_node = root.get_node_or_null("Main/UI/RadioPanel")
+    _radio_panel = panel_node if panel_node is Control else null
 
 func _unhandled_input(event):
     if !_player_in_range:
@@ -61,7 +62,7 @@ func _handle_interaction():
         var title = broadcast.get("title", "Radio Update")
         var text = broadcast.get("text", static_text)
         _show_panel_with_message({
-            "title": "%s - Day %d" % [title, report.get("day", 0)],
+            "title": "{0} - Day {1}".format(title, report.get("day", 0)),
             "text": text
         })
     else:
@@ -71,10 +72,12 @@ func _handle_interaction():
         })
 
 func _show_panel_with_message(payload: Dictionary):
-    if _radio_panel:
+    if _radio_panel and _radio_panel.has_method("display_broadcast"):
         _radio_panel.display_broadcast(payload)
     else:
-        print("📻 %s -> %s" % [payload.get("title", "Radio"), payload.get("text", "")])
+        var title = payload.get("title", "Radio")
+        var message = payload.get("text", "")
+        print("📻 {0} -> {1}".format(title, message))
 
 func _on_body_entered(body):
     if body is Player:
