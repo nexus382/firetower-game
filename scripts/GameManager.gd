@@ -281,27 +281,41 @@ func schedule_sleep(hours: int) -> Dictionary:
     return result
 
 func perform_forging() -> Dictionary:
-    if inventory_system == null or _rng == null:
+    if inventory_system == null or _rng == null or time_system == null or sleep_system == null:
         return {
             "success": false,
-            "reason": "inventory_unavailable"
+            "reason": "systems_unavailable",
+            "action": "forging"
         }
+
+    var time_report = _spend_activity_time(1.0, "forging")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["success"] = false
+        failure["action"] = "forging"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        failure["status"] = failure.get("status", "rejected")
+        return failure
 
     var roll = _rng.randf()
     var outcome = _resolve_forging_outcome(roll)
-    if outcome.is_empty():
-        print("🌲 Forging yielded nothing (roll %.2f)" % roll)
-        return {
-            "success": false,
-            "reason": "nothing_found",
-            "chance_roll": roll
-        }
+    var result := time_report.duplicate()
+    result["action"] = "forging"
+    result["chance_roll"] = roll
+    result["status"] = result.get("status", "applied")
 
-    var report = inventory_system.add_item(outcome.get("item_id", ""), outcome.get("quantity", 1))
-    report["success"] = true
-    report["chance_roll"] = roll
-    print("🌲 Forging success: %s" % report)
-    return report
+    if outcome.is_empty():
+        result["success"] = false
+        result["reason"] = "nothing_found"
+        print("🌲 Forging yielded nothing (roll %.2f)" % roll)
+        return result
+
+    var loot_report = inventory_system.add_item(outcome.get("item_id", ""), outcome.get("quantity", 1))
+    for key in loot_report.keys():
+        result[key] = loot_report[key]
+    result["success"] = true
+    print("🌲 Forging success: %s" % result)
+    return result
 
 func _resolve_forging_outcome(roll: float) -> Dictionary:
     var thresholds = [
@@ -379,7 +393,8 @@ func _spend_activity_time(hours: float, activity: String) -> Dictionary:
         return {
             "success": false,
             "reason": "systems_unavailable",
-            "activity": activity
+            "activity": activity,
+            "status": "unavailable"
         }
 
     hours = max(hours, 0.0)
@@ -387,7 +402,8 @@ func _spend_activity_time(hours: float, activity: String) -> Dictionary:
         return {
             "success": false,
             "reason": "no_duration",
-            "activity": activity
+            "activity": activity,
+            "status": "rejected"
         }
 
     var multiplier = get_combined_activity_multiplier()
@@ -402,7 +418,9 @@ func _spend_activity_time(hours: float, activity: String) -> Dictionary:
             "activity": activity,
             "minutes_required": requested_minutes,
             "minutes_available": minutes_available,
-            "time_multiplier": multiplier
+            "time_multiplier": multiplier,
+            "status": "blocked",
+            "blocker": "daybreak"
         }
 
     var current_minutes = time_system.get_minutes_since_daybreak()
@@ -423,5 +441,7 @@ func _spend_activity_time(hours: float, activity: String) -> Dictionary:
         "daybreaks_crossed": advance_report.get("daybreaks_crossed", 0),
         "ended_at_minutes_since_daybreak": time_system.get_minutes_since_daybreak(),
         "ended_at_time": time_system.get_formatted_time(),
-        "minutes_until_daybreak": time_system.get_minutes_until_daybreak()
+        "minutes_until_daybreak": time_system.get_minutes_until_daybreak(),
+        "minutes_required": requested_minutes,
+        "status": "applied"
     }

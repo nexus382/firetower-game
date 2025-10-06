@@ -59,7 +59,7 @@ func apply_damage(amount: float, source: String = "unknown") -> float:
         return _current_health
     var previous = _current_health
     _current_health = max(_current_health - amount, MIN_HEALTH)
-    var actual_damage := previous - _current_health
+    var actual_damage: float = previous - _current_health
     if actual_damage <= 0.0:
         return _current_health
     tower_health_changed.emit(_current_health, previous)
@@ -73,7 +73,7 @@ func apply_repair(amount: float, source: String = "unknown", materials: Dictiona
         return _current_health
     var previous = _current_health
     _current_health = clamp(_current_health + amount, MIN_HEALTH, MAX_HEALTH)
-    var actual_repair := _current_health - previous
+    var actual_repair: float = _current_health - previous
     if actual_repair <= 0.0:
         return _current_health
     tower_health_changed.emit(_current_health, previous)
