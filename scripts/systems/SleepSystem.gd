@@ -137,6 +137,28 @@ func consume_sleep(percent: float) -> float:
 
     return actual_spent
 
+func apply_rest_bonus(percent: float) -> Dictionary:
+    """Grant bonus rest without counting as sleep hours."""
+    percent = max(percent, 0.0)
+    if percent == 0.0:
+        return {
+            "percent_granted": 0.0,
+            "new_percent": sleep_percent
+        }
+
+    var previous_percent = sleep_percent
+    sleep_percent = clamp(previous_percent + percent, MIN_SLEEP_PERCENT, MAX_SLEEP_PERCENT)
+    var actual_gain = sleep_percent - previous_percent
+
+    if !is_zero_approx(actual_gain):
+        sleep_percent_changed.emit(sleep_percent)
+        print("💡 Rest bonus +%.0f%% (%.0f%% total)" % [actual_gain, sleep_percent])
+
+    return {
+        "percent_granted": actual_gain,
+        "new_percent": sleep_percent
+    }
+
 func apply_awake_minutes(minutes: int) -> Dictionary:
     """Burn baseline calories for awake time (23 cal/hour)."""
     minutes = max(minutes, 0)

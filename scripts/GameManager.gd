@@ -6,6 +6,7 @@ const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
+const NewsBroadcastSystem = preload("res://scripts/systems/NewsBroadcastSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 
@@ -43,6 +44,7 @@ var inventory_system: InventorySystem = InventorySystem.new()
 var time_system: TimeSystem = TimeSystem.new()
 var weather_system: WeatherSystem = WeatherSystem.new()
 var tower_health_system: TowerHealthSystem = TowerHealthSystem.new()
+var news_system: NewsBroadcastSystem = NewsBroadcastSystem.new()
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -64,6 +66,8 @@ func _ready():
         weather_system = WeatherSystem.new()
     if tower_health_system == null:
         tower_health_system = TowerHealthSystem.new()
+    if news_system == null:
+        news_system = NewsBroadcastSystem.new()
     if _rng == null:
         _rng = RandomNumberGenerator.new()
     _rng.randomize()
@@ -84,6 +88,8 @@ func _ready():
         weather_system.broadcast_state()
     if tower_health_system and weather_system:
         tower_health_system.set_initial_weather_state(weather_system.get_state())
+    if news_system:
+        news_system.reset_day(current_day)
 
 func pause_game():
     game_paused = true
@@ -111,6 +117,9 @@ func get_weather_system() -> WeatherSystem:
 
 func get_tower_health_system() -> TowerHealthSystem:
     return tower_health_system
+
+func get_news_system() -> NewsBroadcastSystem:
+    return news_system
 
 func get_sleep_percent() -> float:
     """Convenience accessor for tired meter value."""
@@ -143,6 +152,25 @@ func get_weather_activity_multiplier() -> float:
 
 func get_combined_activity_multiplier() -> float:
     return get_time_multiplier() * get_weather_activity_multiplier()
+
+func request_radio_broadcast() -> Dictionary:
+    if news_system == null:
+        return {
+            "success": false,
+            "reason": "news_offline"
+        }
+
+    var broadcast = news_system.get_broadcast_for_day(current_day)
+    var has_message = !broadcast.is_empty() and !broadcast.get("text", "").is_empty()
+    var result := {
+        "success": true,
+        "day": current_day,
+        "has_message": has_message,
+        "broadcast": broadcast
+    }
+    if !has_message:
+        result["reason"] = "no_broadcast"
+    return result
 
 func perform_eating(portion_key: String) -> Dictionary:
     if not sleep_system or not time_system or not inventory_system:
@@ -224,6 +252,12 @@ func repair_tower(materials: Dictionary = {}) -> Dictionary:
     result["health_before"] = before
     result["health_after"] = repaired
     result["health_restored"] = repaired - before
+    var calorie_burn = sleep_system.adjust_daily_calories(350.0)
+    var rest_bonus = sleep_system.apply_rest_bonus(10.0)
+    result["calories_spent"] = 350.0
+    result["daily_calories_used"] = calorie_burn
+    result["rest_granted_percent"] = rest_bonus.get("percent_granted", 0.0)
+    result["sleep_percent_remaining"] = rest_bonus.get("new_percent", sleep_system.get_sleep_percent())
 
     print("🔧 Tower repair -> +%.1f (%.1f/%.1f)" % [result["health_restored"], repaired, tower_health_system.get_max_health()])
     return result
@@ -297,12 +331,15 @@ func perform_forging() -> Dictionary:
         failure["status"] = failure.get("status", "rejected")
         return failure
 
+    var rest_spent = sleep_system.consume_sleep(15.0)
     var roll = _rng.randf()
     var outcome = _resolve_forging_outcome(roll)
     var result := time_report.duplicate()
     result["action"] = "forging"
     result["chance_roll"] = roll
     result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
 
     if outcome.is_empty():
         result["success"] = false
@@ -356,6 +393,8 @@ func _on_day_rolled_over():
     if tower_health_system:
         var current_state = weather_system.get_state() if weather_system else WeatherSystem.WEATHER_CLEAR
         tower_health_system.on_day_completed(current_state)
+    if news_system:
+        news_system.reset_day(current_day)
     day_changed.emit(current_day)
 
 func _on_weather_system_changed(new_state: String, previous_state: String, hours_remaining: int):

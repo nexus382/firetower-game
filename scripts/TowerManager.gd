@@ -5,6 +5,8 @@ class_name TowerManager
 var tower_bounds: Rect2
 var catwalk_width: float = 0.05  # 5% of tower width
 
+const Radio = preload("res://scripts/objects/Radio.gd")
+
 # Room configurations (public for other scripts to access)
 var living_area_rect: Rect2
 var kitchen_rect: Rect2
@@ -62,6 +64,9 @@ func setup_tower_layout():
 
     # Create ladder for location switching
     create_ladder()
+
+    # Create radio station in living area
+    create_radio_station()
 
     # Create visual walls and collision
     create_walls_and_collision()
@@ -285,6 +290,51 @@ func create_ladder():
 
     inside_view.add_child(ladder)
     print("🏗️ Created ladder at: %s" % ladder_pos)
+
+func create_radio_station():
+    """Create a static radio against the living room wall."""
+    if Radio == null:
+        return
+
+    var living_node: Node = inside_view.get_node_or_null("LivingArea")
+    if living_node == null:
+        return
+
+    var radio: Radio = Radio.new()
+    radio.name = "Radio"
+
+    var margin = 24.0
+    var radio_pos = Vector2(
+        living_area_rect.position.x + living_area_rect.size.x - margin,
+        living_area_rect.position.y + living_area_rect.size.y * 0.35
+    )
+    radio.position = radio_pos
+
+    var body = ColorRect.new()
+    body.name = "Body"
+    body.size = Vector2(48, 32)
+    body.position = Vector2(-24, -16)
+    body.color = Color.DIM_GRAY
+    body.z_index = 2
+    radio.add_child(body)
+
+    var prompt = Label.new()
+    prompt.name = "PromptLabel"
+    prompt.position = Vector2(-60, -52)
+    prompt.add_theme_color_override("font_color", Color.WHITE)
+    prompt.add_theme_font_size_override("font_size", 12)
+    radio.add_child(prompt)
+
+    var collision = CollisionShape2D.new()
+    collision.name = "InteractShape"
+    var shape = RectangleShape2D.new()
+    shape.size = Vector2(64, 48)
+    collision.shape = shape
+    radio.add_child(collision)
+
+    radio.add_to_group("interactable")
+    living_node.add_child(radio)
+    print("📻 Created radio at: %s" % radio_pos)
 
 func create_vertical_wall_with_doorway(x: float, y: float, height: float, doorway_size: float, wall_thickness: float):
     """Create a vertical wall with a doorway gap in the middle"""
