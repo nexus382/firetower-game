@@ -107,7 +107,7 @@ func _refresh_display():
     if selected_hours == 0:
         var lines: PackedStringArray = []
         lines.append("Each hour: +10%% rest / -%d cal" % SleepSystem.CALORIES_PER_SLEEP_HOUR)
-        lines.append("Forging: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛")
+        lines.append("Forging -> -15%% rest | 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛")
         lines.append("Time x%.1f | Left %s" % [multiplier, _format_duration(minutes_remaining)])
         summary_label.text = "\n".join(lines)
         return
@@ -223,13 +223,17 @@ func _on_repair_button_pressed():
     var parts: PackedStringArray = []
     parts.append("+%s hp" % _format_health_value(restored))
     parts.append("%s" % _format_health_snapshot(after))
+    parts.append("-%d cal" % int(round(result.get("calories_spent", 0.0))))
+    var rest_bonus = result.get("rest_granted_percent", 0.0)
+    if rest_bonus > 0.0:
+        parts.append("+%d%% rest" % int(round(rest_bonus)))
     if ended_at != "":
         parts.append("End %s" % ended_at)
     repair_result_label.text = "Repair -> %s" % " | ".join(parts)
     _refresh_display()
 
 func _format_forging_ready(total_food: float) -> String:
-    return "Forging ready (Food %.1f)" % total_food
+    return "Forging ready (-15% rest | Food %.1f)" % total_food
 
 func _format_forging_result(result: Dictionary) -> String:
     var end_at = result.get("ended_at_time", "")
@@ -237,6 +241,9 @@ func _format_forging_result(result: Dictionary) -> String:
         var parts: PackedStringArray = []
         parts.append("%s +%s food" % [result.get("display_name", "Find"), _format_food(result.get("food_gained", 0.0))])
         parts.append("Total %s" % _format_food(result.get("total_food_units", 0.0)))
+        var rest_spent = result.get("rest_spent_percent", 0.0)
+        if rest_spent > 0.0:
+            parts.append("-%d%% rest" % int(round(rest_spent)))
         if end_at != "":
             parts.append("End %s" % end_at)
         return " | ".join(parts)
@@ -248,6 +255,9 @@ func _format_forging_result(result: Dictionary) -> String:
         "nothing_found":
             var chance = int(round(result.get("chance_roll", 0.0) * 100.0))
             var message = "Found nothing (%d%%)" % chance
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                message += " | -%d%% rest" % int(round(rest_spent))
             if end_at != "":
                 message += " | End %s" % end_at
             return message
@@ -255,7 +265,11 @@ func _format_forging_result(result: Dictionary) -> String:
             var minutes_available = result.get("minutes_available", 0)
             return _format_daybreak_warning(minutes_available)
         _:
-            return "Forging failed"
+            var fallback = "Forging failed"
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fallback += " | -%d%% rest" % int(round(rest_spent))
+            return fallback
 
 func _get_minutes_left_today() -> int:
     if time_system:
@@ -339,6 +353,7 @@ func _update_repair_summary():
         return
     var lines: PackedStringArray = []
     lines.append("Repair -> +%s hp" % _format_health_value(TowerHealthSystem.REPAIR_HEALTH_PER_ACTION))
+    lines.append("+10% rest / -350 cal")
     var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
     var minutes = int(ceil(60.0 * max(multiplier, 0.01)))
     lines.append("Takes %s" % _format_duration(minutes))

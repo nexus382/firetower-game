@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://clrcv081gblwd"]
+[gd_scene load_steps=7 format=3 uid="uid://clrcv081gblwd"]
 
 [ext_resource type="Script" path="res://scripts/GameManager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/Player.gd" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/TowerManager.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/ui/HUD.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/ui/TaskMenu.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/ui/RadioPanel.gd" id="7"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(32, 32)
@@ -252,7 +253,7 @@ text = "Start Forging"
 horizontal_alignment = 1
 size_flags_horizontal = 3
 autowrap_mode = 1
-text = "Forging ready (Food 5.0)"
+text = "Forging ready (-15% rest | Food 5.0)"
 
 [node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Panel/VBox"]
 alignment = 1
@@ -288,6 +289,42 @@ text = "Repair Tower"
 horizontal_alignment = 1
 size_flags_horizontal = 3
 autowrap_mode = 1
+
+[node name="RadioPanel" type="Control" parent="UI"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -140.0
+offset_right = 260.0
+offset_bottom = 140.0
+visible = false
+script = ExtResource("7")
+
+[node name="Panel" type="Panel" parent="UI/RadioPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="UI/RadioPanel/Panel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="UI/RadioPanel/Panel/VBox"]
+text = "Radio Update"
+horizontal_alignment = 1
+
+[node name="Body" type="Label" parent="UI/RadioPanel/Panel/VBox"]
+text = "Static hums in the speaker."
+autowrap_mode = 3
+
+[node name="CloseButton" type="Button" parent="UI/RadioPanel/Panel/VBox"]
+text = "Close"
 
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
