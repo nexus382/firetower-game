@@ -4,6 +4,7 @@ const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
+const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 
 const LBS_PER_KG: float = 2.2
 
@@ -19,11 +20,13 @@ const LBS_PER_KG: float = 2.2
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
 @onready var food_counter_label: Label = $FoodCounter
+@onready var tower_health_label: Label = $TowerHealthLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
 var weather_system: WeatherSystem
 var inventory_system: InventorySystem
+var tower_health_system: TowerHealthSystem
 var _weight_unit: String = "lbs"
 var _latest_weight_lbs: float = 0.0
 var _latest_weight_category: String = "average"
@@ -40,6 +43,7 @@ func _ready():
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
     weather_label.add_theme_color_override("font_color", Color.WHITE)
     food_counter_label.add_theme_color_override("font_color", Color.WHITE)
+    tower_health_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
         push_warning("GameManager not found for HUD")
@@ -84,6 +88,13 @@ func _ready():
         _on_food_total_changed(inventory_system.get_total_food_units())
     else:
         food_counter_label.text = "Food: --"
+
+    tower_health_system = game_manager.get_tower_health_system()
+    if tower_health_system:
+        tower_health_system.tower_health_changed.connect(_on_tower_health_changed)
+        _on_tower_health_changed(tower_health_system.get_health(), tower_health_system.get_health())
+    else:
+        tower_health_label.text = "Tower: --"
 
 func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
@@ -135,6 +146,11 @@ func _on_food_total_changed(new_total: float):
     if !is_instance_valid(food_counter_label):
         return
     food_counter_label.text = "Food: %s" % _format_food_amount(new_total)
+
+func _on_tower_health_changed(new_health: float, _previous_health: float):
+    if !is_instance_valid(tower_health_label):
+        return
+    tower_health_label.text = _format_tower_health(new_health)
 
 func _on_weight_unit_button_pressed():
     if sleep_system:
@@ -237,3 +253,9 @@ func _format_food_amount(value: float) -> String:
     if is_equal_approx(value, round(value)):
         return "%d" % int(round(value))
     return "%.1f" % value
+
+func _format_tower_health(value: float) -> String:
+    if tower_health_system == null:
+        return "Tower: --"
+    var max_health = tower_health_system.get_max_health()
+    return "Tower: %.0f/%.0f" % [value, max_health]

@@ -102,6 +102,19 @@ horizontal_alignment = 2
 vertical_alignment = 1
 text = "Food: 5.0"
 
+[node name="TowerHealthLabel" type="Label" parent="UI/HUD"]
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -160.0
+offset_top = 72.0
+offset_right = -32.0
+offset_bottom = 108.0
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Tower: 100/100"
+
 [node name="Metrics" type="HBoxContainer" parent="UI/HUD/StatsBar"]
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -241,8 +254,46 @@ size_flags_horizontal = 3
 autowrap_mode = 1
 text = "Forging ready (Food 5.0)"
 
+[node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Panel/VBox"]
+alignment = 1
+custom_constants/separation = 8
+
+[node name="MealSizeOption" type="OptionButton" parent="UI/TaskMenu/Panel/VBox/MealRow"]
+size_flags_horizontal = 3
+
+[node name="EatButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
+text = "Eat Meal"
+
+[node name="MealSummary" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+horizontal_alignment = 1
+size_flags_horizontal = 3
+autowrap_mode = 1
+text = "Meal ->"
+
+[node name="MealResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+horizontal_alignment = 1
+size_flags_horizontal = 3
+autowrap_mode = 1
+
+[node name="RepairSummary" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+horizontal_alignment = 1
+size_flags_horizontal = 3
+autowrap_mode = 1
+text = "Repair ->"
+
+[node name="RepairButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
+text = "Repair Tower"
+
+[node name="RepairResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+horizontal_alignment = 1
+size_flags_horizontal = 3
+autowrap_mode = 1
+
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/SleepButton" to="UI/TaskMenu" method="_on_sleep_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/ForgingButton" to="UI/TaskMenu" method="_on_forging_button_pressed"]
+[connection signal="item_selected" from="UI/TaskMenu/Panel/VBox/MealRow/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/EatButton" to="UI/TaskMenu" method="_on_eat_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/RepairButton" to="UI/TaskMenu" method="_on_repair_button_pressed"]
 [connection signal="pressed" from="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]

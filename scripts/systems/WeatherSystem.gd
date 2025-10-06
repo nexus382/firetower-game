@@ -33,6 +33,7 @@ const WEATHER_DEFAULT_DURATIONS := {
 }
 
 signal weather_changed(new_state: String, previous_state: String, hours_remaining: int)
+signal weather_hour_elapsed(state: String)
 
 var _current_state: String = WEATHER_CLEAR
 var _hour_timer: int = 0
@@ -89,6 +90,7 @@ func broadcast_state():
     weather_changed.emit(_current_state, _current_state, get_hours_remaining())
 
 func _process_hour_tick():
+    weather_hour_elapsed.emit(_current_state)
     if is_precipitating():
         _hour_timer = max(_hour_timer - 1, 0)
         if _hour_timer == 0:

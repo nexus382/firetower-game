@@ -83,6 +83,35 @@ func add_food_units(delta: float) -> float:
         return _total_food_units
     return _apply_food_delta(delta)
 
+func has_food_units(amount: float) -> bool:
+    amount = max(amount, 0.0)
+    return _total_food_units >= amount - 0.0001
+
+func consume_food_units(amount: float) -> Dictionary:
+    amount = max(amount, 0.0)
+    if amount <= 0.0:
+        return {
+            "success": false,
+            "reason": "no_amount",
+            "amount_consumed": 0.0,
+            "total_food_units": _total_food_units
+        }
+
+    if amount > _total_food_units + 0.0001:
+        return {
+            "success": false,
+            "reason": "insufficient_food",
+            "required_food": amount,
+            "total_food_units": _total_food_units
+        }
+
+    _apply_food_delta(-amount)
+    return {
+        "success": true,
+        "amount_consumed": amount,
+        "total_food_units": _total_food_units
+    }
+
 func add_item(item_id: String, quantity: int = 1) -> Dictionary:
     if item_id.is_empty() or quantity == 0:
         return {

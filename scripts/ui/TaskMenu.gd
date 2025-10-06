@@ -6,6 +6,30 @@ const SLEEP_PERCENT_PER_HOUR: int = 10
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
+const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
+
+const CALORIES_PER_FOOD_UNIT: float = 1000.0
+
+const MEAL_OPTIONS := [
+    {
+        "key": "small",
+        "label": "Small (0.5)",
+        "display": "Small",
+        "food_units": 0.5
+    },
+    {
+        "key": "normal",
+        "label": "Normal (1.0)",
+        "display": "Normal",
+        "food_units": 1.0
+    },
+    {
+        "key": "large",
+        "label": "Large (1.5)",
+        "display": "Large",
+        "food_units": 1.5
+    }
+]
 
 var selected_hours: int = 0
 var time_system: TimeSystem
@@ -13,11 +37,18 @@ var time_system: TimeSystem
 var _cached_minutes_remaining: int = 0
 var _menu_open: bool = false
 var inventory_system: InventorySystem
+var tower_health_system: TowerHealthSystem
+var selected_meal_key: String = "normal"
 
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
 @onready var summary_label: Label = $Panel/VBox/SummaryLabel
 @onready var forging_result_label: Label = $Panel/VBox/ForgingResult
+@onready var meal_size_option: OptionButton = $Panel/VBox/MealRow/MealSizeOption
+@onready var meal_summary_label: Label = $Panel/VBox/MealSummary
+@onready var meal_result_label: Label = $Panel/VBox/MealResult
+@onready var repair_summary_label: Label = $Panel/VBox/RepairSummary
+@onready var repair_result_label: Label = $Panel/VBox/RepairResult
 
 func _ready():
     set_process_unhandled_input(true)
@@ -26,16 +57,21 @@ func _ready():
     if game_manager:
         time_system = game_manager.get_time_system()
         inventory_system = game_manager.get_inventory_system()
+        tower_health_system = game_manager.get_tower_health_system()
         if time_system:
             time_system.time_advanced.connect(_on_time_system_changed)
             time_system.day_rolled_over.connect(_on_time_system_changed)
         if inventory_system:
+            inventory_system.food_total_changed.connect(_on_inventory_food_total_changed)
             forging_result_label.text = _format_forging_ready(inventory_system.get_total_food_units())
         else:
             forging_result_label.text = "Forging offline"
+        if tower_health_system:
+            tower_health_system.tower_health_changed.connect(_on_tower_health_changed)
     else:
         forging_result_label.text = "Forging unavailable"
 
+    _setup_meal_size_options()
     _refresh_display()
 
 func _input(event):
@@ -62,6 +98,9 @@ func _refresh_display():
     if selected_hours > max_hours_today:
         selected_hours = max(max_hours_today, 0)
         hours_value_label.text = str(selected_hours)
+
+    _update_meal_summary()
+    _update_repair_summary()
 
     if selected_hours == 0:
         var lines: PackedStringArray = []
@@ -117,6 +156,74 @@ func _on_forging_button_pressed():
     var result = game_manager.perform_forging()
     forging_result_label.text = _format_forging_result(result)
 
+func _on_meal_size_option_item_selected(index: int):
+    if index < 0 or index >= meal_size_option.item_count:
+        return
+    var key = meal_size_option.get_item_metadata(index)
+    if key is String:
+        selected_meal_key = key
+    _update_meal_summary()
+
+func _on_eat_button_pressed():
+    if game_manager == null:
+        meal_result_label.text = "Eating unavailable"
+        return
+
+    var result = game_manager.perform_eating(selected_meal_key)
+    if !result.get("success", false):
+        var reason = result.get("reason", "failed")
+        match reason:
+            "insufficient_food":
+                var required = result.get("required_food", 0.0)
+                var available = result.get("total_food_units", 0.0)
+                meal_result_label.text = "Need %s food (Have %s)" % [_format_food(required), _format_food(available)]
+            "exceeds_day":
+                var minutes_available = result.get("minutes_available", 0)
+                meal_result_label.text = "No time (Left %s)" % _format_duration(minutes_available)
+            _:
+                meal_result_label.text = "Meal failed"
+        return
+
+    var calories = int(round(result.get("calories_consumed", 0.0)))
+    var food_spent = result.get("food_units_spent", 0.0)
+    var ended_at = result.get("ended_at_time", "")
+    var message_parts: PackedStringArray = []
+    message_parts.append("-%d cal" % calories)
+    message_parts.append("-%s food" % _format_food(food_spent))
+    if ended_at != "":
+        message_parts.append("End %s" % ended_at)
+    meal_result_label.text = "%s meal -> %s" % [result.get("portion", selected_meal_key).capitalize(), " | ".join(message_parts)]
+    _refresh_display()
+
+func _on_repair_button_pressed():
+    if game_manager == null:
+        repair_result_label.text = "Repair unavailable"
+        return
+
+    var result = game_manager.repair_tower({})
+    if !result.get("success", false):
+        var reason = result.get("reason", "failed")
+        match reason:
+            "tower_full_health":
+                repair_result_label.text = "Tower already stable"
+            "exceeds_day":
+                var minutes_available = result.get("minutes_available", 0)
+                repair_result_label.text = "No time (Left %s)" % _format_duration(minutes_available)
+            _:
+                repair_result_label.text = "Repair failed"
+        return
+
+    var restored = result.get("health_restored", 0.0)
+    var after = result.get("health_after", 0.0)
+    var ended_at = result.get("ended_at_time", "")
+    var parts: PackedStringArray = []
+    parts.append("+%s hp" % _format_health_value(restored))
+    parts.append("%s" % _format_health_snapshot(after))
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    repair_result_label.text = "Repair -> %s" % " | ".join(parts)
+    _refresh_display()
+
 func _format_forging_ready(total_food: float) -> String:
     return "Forging ready (Food %.1f)" % total_food
 
@@ -167,6 +274,75 @@ func _close_menu():
         return
     _menu_open = false
     visible = false
+
+func _setup_meal_size_options():
+    if !is_instance_valid(meal_size_option):
+        return
+    meal_size_option.clear()
+    for option in MEAL_OPTIONS:
+        var idx = meal_size_option.item_count
+        meal_size_option.add_item(option.get("label", option.get("display", "Meal")))
+        meal_size_option.set_item_metadata(idx, option.get("key", "normal"))
+        if option.get("key", "normal") == selected_meal_key:
+            meal_size_option.select(idx)
+    if meal_size_option.selected == -1 and meal_size_option.item_count > 0:
+        meal_size_option.select(0)
+        selected_meal_key = meal_size_option.get_item_metadata(0)
+    _update_meal_summary()
+
+func _update_meal_summary():
+    if !is_instance_valid(meal_summary_label):
+        return
+    var option = _resolve_meal_option(selected_meal_key)
+    var food_units = option.get("food_units", 1.0)
+    var calories = int(round(food_units * CALORIES_PER_FOOD_UNIT))
+    var lines: PackedStringArray = []
+    lines.append("%s meal -> -%s food / -%d cal" % [option.get("display", selected_meal_key.capitalize()), _format_food(food_units), calories])
+    if inventory_system:
+        lines.append("Stock: %s food" % _format_food(inventory_system.get_total_food_units()))
+    else:
+        lines.append("Inventory offline")
+    meal_summary_label.text = "\n".join(lines)
+
+func _update_repair_summary():
+    if !is_instance_valid(repair_summary_label):
+        return
+    var lines: PackedStringArray = []
+    lines.append("Repair -> +%s hp" % _format_health_value(TowerHealthSystem.REPAIR_HEALTH_PER_ACTION))
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    var minutes = int(ceil(60.0 * max(multiplier, 0.01)))
+    lines.append("Takes %s" % _format_duration(minutes))
+    if tower_health_system:
+        lines.append("Tower %s" % _format_health_snapshot(tower_health_system.get_health()))
+    repair_summary_label.text = " | ".join(lines)
+
+func _resolve_meal_option(key: String) -> Dictionary:
+    var normalized = key.to_lower()
+    for option in MEAL_OPTIONS:
+        if option.get("key", "") == normalized:
+            return option
+    return MEAL_OPTIONS[1]
+
+func _format_food(value: float) -> String:
+    if is_equal_approx(value, round(value)):
+        return "%d" % int(round(value))
+    return "%.1f" % value
+
+func _format_health_value(value: float) -> String:
+    if is_zero_approx(value - round(value)):
+        return "%d" % int(round(value))
+    return "%.1f" % value
+
+func _format_health_snapshot(value: float) -> String:
+    if tower_health_system == null:
+        return "--"
+    return "%s/%s" % [_format_health_value(value), _format_health_value(tower_health_system.get_max_health())]
+
+func _on_inventory_food_total_changed(_new_total: float):
+    _update_meal_summary()
+
+func _on_tower_health_changed(_new: float, _old: float):
+    _update_repair_summary()
 
 func _resolve_game_manager() -> GameManager:
     var tree = get_tree()

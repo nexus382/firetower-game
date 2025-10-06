@@ -5,6 +5,24 @@ const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
+const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
+
+const CALORIES_PER_FOOD_UNIT: float = 1000.0
+
+const MEAL_PORTIONS := {
+    "small": {
+        "food_units": 0.5,
+        "label": "Small"
+    },
+    "normal": {
+        "food_units": 1.0,
+        "label": "Normal"
+    },
+    "large": {
+        "food_units": 1.5,
+        "label": "Large"
+    }
+}
 
 signal day_changed(new_day: int)
 signal weather_changed(new_state: String, previous_state: String, hours_remaining: int)
@@ -22,6 +40,7 @@ var sleep_system: SleepSystem
 var inventory_system: InventorySystem
 var time_system: TimeSystem
 var weather_system: WeatherSystem
+var tower_health_system: TowerHealthSystem
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator
 
@@ -37,6 +56,7 @@ func _ready():
     inventory_system = InventorySystem.new()
     time_system = TimeSystem.new()
     weather_system = WeatherSystem.new()
+    tower_health_system = TowerHealthSystem.new()
     _rng = RandomNumberGenerator.new()
     _rng.randomize()
 
@@ -52,7 +72,10 @@ func _ready():
             weather_system.initialize_clock_offset(time_system.get_minutes_since_daybreak())
     if weather_system:
         weather_system.weather_changed.connect(_on_weather_system_changed)
+        weather_system.weather_hour_elapsed.connect(_on_weather_hour_elapsed)
         weather_system.broadcast_state()
+    if tower_health_system and weather_system:
+        tower_health_system.set_initial_weather_state(weather_system.get_state())
 
 func pause_game():
     game_paused = true
@@ -77,6 +100,9 @@ func get_inventory_system() -> InventorySystem:
 func get_weather_system() -> WeatherSystem:
     """Expose the weather system for UI consumers."""
     return weather_system
+
+func get_tower_health_system() -> TowerHealthSystem:
+    return tower_health_system
 
 func get_sleep_percent() -> float:
     """Convenience accessor for tired meter value."""
@@ -109,6 +135,90 @@ func get_weather_activity_multiplier() -> float:
 
 func get_combined_activity_multiplier() -> float:
     return get_time_multiplier() * get_weather_activity_multiplier()
+
+func perform_eating(portion_key: String) -> Dictionary:
+    if not sleep_system or not time_system or not inventory_system:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "eat"
+        }
+
+    var portion = _resolve_meal_portion(portion_key)
+    var food_units = portion.get("food_units", 1.0)
+    if !inventory_system.has_food_units(food_units):
+        return {
+            "success": false,
+            "reason": "insufficient_food",
+            "action": "eat",
+            "portion": portion.get("key", "normal"),
+            "required_food": food_units,
+            "total_food_units": inventory_system.get_total_food_units()
+        }
+
+    var time_report = _spend_activity_time(1.0, "eat")
+    if !time_report.get("success", false):
+        time_report["action"] = "eat"
+        time_report["portion"] = portion.get("key", "normal")
+        return time_report
+
+    var consume_report = inventory_system.consume_food_units(food_units)
+    if !consume_report.get("success", false):
+        return {
+            "success": false,
+            "reason": consume_report.get("reason", "consume_failed"),
+            "action": "eat",
+            "portion": portion.get("key", "normal"),
+            "required_food": food_units,
+            "total_food_units": inventory_system.get_total_food_units()
+        }
+
+    var calories = portion.get("calories", food_units * CALORIES_PER_FOOD_UNIT)
+    var daily_total = sleep_system.adjust_daily_calories(-calories)
+    var result := time_report.duplicate()
+    result["action"] = "eat"
+    result["portion"] = portion.get("key", "normal")
+    result["food_units_spent"] = consume_report.get("amount_consumed", food_units)
+    result["calories_consumed"] = calories
+    result["calorie_delta"] = -calories
+    result["daily_calories_used"] = daily_total
+    result["weight_lbs"] = sleep_system.get_player_weight_lbs()
+    result["total_food_units"] = inventory_system.get_total_food_units()
+
+    print("🍴 Ate %s meal: -%.0f cal, -%.1f food" % [result["portion"], calories, result["food_units_spent"]])
+    return result
+
+func repair_tower(materials: Dictionary = {}) -> Dictionary:
+    if not time_system or not sleep_system or tower_health_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "repair"
+        }
+
+    if tower_health_system.is_at_max_health():
+        return {
+            "success": false,
+            "reason": "tower_full_health",
+            "action": "repair",
+            "health": tower_health_system.get_health()
+        }
+
+    var time_report = _spend_activity_time(1.0, "repair")
+    if !time_report.get("success", false):
+        time_report["action"] = "repair"
+        return time_report
+
+    var before = tower_health_system.get_health()
+    var repaired = tower_health_system.apply_repair(TowerHealthSystem.REPAIR_HEALTH_PER_ACTION, "manual_repair", materials)
+    var result := time_report.duplicate()
+    result["action"] = "repair"
+    result["health_before"] = before
+    result["health_after"] = repaired
+    result["health_restored"] = repaired - before
+
+    print("🔧 Tower repair -> +%.1f (%.1f/%.1f)" % [result["health_restored"], repaired, tower_health_system.get_max_health()])
+    return result
 
 func schedule_sleep(hours: int) -> Dictionary:
     """Apply sleep hours while advancing the daily clock."""
@@ -221,12 +331,19 @@ func _on_day_rolled_over():
     if sleep_system:
         sleep_system.reset_daily_counters()
     _last_awake_minute_stamp = 0
+    if tower_health_system:
+        var current_state = weather_system.get_state() if weather_system else WeatherSystem.WEATHER_CLEAR
+        tower_health_system.on_day_completed(current_state)
     day_changed.emit(current_day)
 
 func _on_weather_system_changed(new_state: String, previous_state: String, hours_remaining: int):
     var multiplier = get_weather_activity_multiplier()
     weather_changed.emit(new_state, previous_state, hours_remaining)
     weather_multiplier_changed.emit(multiplier, new_state)
+
+func _on_weather_hour_elapsed(state: String):
+    if tower_health_system:
+        tower_health_system.register_weather_hour(state)
 
 func _apply_awake_time_up_to(current_minutes: int):
     if not sleep_system or not time_system:
@@ -238,3 +355,65 @@ func _apply_awake_time_up_to(current_minutes: int):
     if delta > 0:
         sleep_system.apply_awake_minutes(delta)
     _last_awake_minute_stamp = current_minutes
+
+func _resolve_meal_portion(portion_key: String) -> Dictionary:
+    var key = portion_key.to_lower()
+    if key.is_empty() or !MEAL_PORTIONS.has(key):
+        key = "normal"
+    var definition: Dictionary = MEAL_PORTIONS.get(key, MEAL_PORTIONS["normal"])
+    var resolved := definition.duplicate()
+    resolved["key"] = key
+    resolved["calories"] = resolved.get("food_units", 1.0) * CALORIES_PER_FOOD_UNIT
+    return resolved
+
+func _spend_activity_time(hours: float, activity: String) -> Dictionary:
+    if not time_system or not sleep_system:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "activity": activity
+        }
+
+    hours = max(hours, 0.0)
+    if is_zero_approx(hours):
+        return {
+            "success": false,
+            "reason": "no_duration",
+            "activity": activity
+        }
+
+    var multiplier = get_combined_activity_multiplier()
+    multiplier = max(multiplier, 0.01)
+    var requested_minutes = int(ceil(hours * 60.0 * multiplier))
+    requested_minutes = max(requested_minutes, 1)
+    var minutes_available = time_system.get_minutes_until_daybreak()
+    if requested_minutes > minutes_available:
+        return {
+            "success": false,
+            "reason": "exceeds_day",
+            "activity": activity,
+            "minutes_required": requested_minutes,
+            "minutes_available": minutes_available,
+            "time_multiplier": multiplier
+        }
+
+    var current_minutes = time_system.get_minutes_since_daybreak()
+    _apply_awake_time_up_to(current_minutes)
+
+    var advance_report = time_system.advance_minutes(requested_minutes)
+    if sleep_system:
+        sleep_system.apply_awake_minutes(requested_minutes)
+
+    _last_awake_minute_stamp = time_system.get_minutes_since_daybreak()
+
+    return {
+        "success": true,
+        "activity": activity,
+        "minutes_spent": requested_minutes,
+        "time_multiplier": multiplier,
+        "rolled_over": advance_report.get("rolled_over", false),
+        "daybreaks_crossed": advance_report.get("daybreaks_crossed", 0),
+        "ended_at_minutes_since_daybreak": time_system.get_minutes_since_daybreak(),
+        "ended_at_time": time_system.get_formatted_time(),
+        "minutes_until_daybreak": time_system.get_minutes_until_daybreak()
+    }
