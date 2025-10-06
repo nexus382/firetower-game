@@ -59,10 +59,12 @@ func apply_damage(amount: float, source: String = "unknown") -> float:
         return _current_health
     var previous = _current_health
     _current_health = max(_current_health - amount, MIN_HEALTH)
-    if !is_equal_approx(previous, _current_health):
-        tower_health_changed.emit(_current_health, previous)
-    tower_damaged.emit(amount, source)
-    print("🏚️ Tower damaged %.1f (%s) -> %.1f/%.1f" % [amount, source, _current_health, MAX_HEALTH])
+    var actual_damage := previous - _current_health
+    if actual_damage <= 0.0:
+        return _current_health
+    tower_health_changed.emit(_current_health, previous)
+    tower_damaged.emit(actual_damage, source)
+    print("🏚️ Tower damaged %.1f (%s) -> %.1f/%.1f" % [actual_damage, source, _current_health, MAX_HEALTH])
     return _current_health
 
 func apply_repair(amount: float, source: String = "unknown", materials: Dictionary = {}) -> float:
@@ -71,10 +73,12 @@ func apply_repair(amount: float, source: String = "unknown", materials: Dictiona
         return _current_health
     var previous = _current_health
     _current_health = clamp(_current_health + amount, MIN_HEALTH, MAX_HEALTH)
-    if !is_equal_approx(previous, _current_health):
-        tower_health_changed.emit(_current_health, previous)
-    tower_repaired.emit(amount, source)
-    print("🛠️ Tower repaired %.1f (%s) -> %.1f/%.1f" % [amount, source, _current_health, MAX_HEALTH])
+    var actual_repair := _current_health - previous
+    if actual_repair <= 0.0:
+        return _current_health
+    tower_health_changed.emit(_current_health, previous)
+    tower_repaired.emit(actual_repair, source)
+    print("🛠️ Tower repaired %.1f (%s) -> %.1f/%.1f" % [actual_repair, source, _current_health, MAX_HEALTH])
     return _current_health
 
 func _is_precipitating_state(state: String) -> bool:
