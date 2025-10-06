@@ -61,8 +61,9 @@ func _handle_interaction():
     if report.get("has_message", false) and !broadcast.is_empty():
         var title = broadcast.get("title", "Radio Update")
         var text = broadcast.get("text", static_text)
+        var day_value = report.get("day", 0)
         _show_panel_with_message({
-            "title": "{0} - Day {1}".format(title, report.get("day", 0)),
+            "title": "{0} - Day {1}".format([title, day_value]),
             "text": text
         })
     else:
