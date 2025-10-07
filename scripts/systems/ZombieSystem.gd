@@ -7,6 +7,7 @@ signal zombies_damaged_tower(damage: float, count: int)
 
 const DAMAGE_INTERVAL_MINUTES: int = 6 * 60
 const DAMAGE_PER_ZOMBIE: float = 0.5
+const DEFAULT_LEAD_AWAY_CHANCE: float = 0.80
 
 var _active_zombies: int = 0
 var _minutes_since_tick: int = 0
@@ -90,6 +91,50 @@ func advance_time(minutes: int) -> Dictionary:
         "damage_per_tick": damage_per_tick,
         "total_damage": total_damage,
         "zombies": _active_zombies
+    }
+
+func attempt_lead_away(chance: float, rng: RandomNumberGenerator) -> Dictionary:
+    var active_before = _active_zombies
+    var resolved_chance = clamp(chance, 0.0, 1.0)
+
+    if active_before <= 0:
+        return {
+            "rolls": 0,
+            "removed": 0,
+            "remaining": _active_zombies,
+            "chance": resolved_chance,
+            "reason": "no_zombies"
+        }
+
+    if resolved_chance <= 0.0 or rng == null:
+        return {
+            "rolls": active_before,
+            "removed": 0,
+            "remaining": _active_zombies,
+            "chance": resolved_chance,
+            "reason": "chance_blocked"
+        }
+
+    var removed = 0
+    for _i in range(active_before):
+        if rng.randf() < resolved_chance:
+            removed += 1
+
+    var remaining = max(active_before - removed, 0)
+    if removed > 0:
+        _active_zombies = remaining
+        if _active_zombies <= 0:
+            _minutes_since_tick = 0
+        zombies_changed.emit(_active_zombies)
+
+    var outcome = "cleared" if removed > 0 else "stayed"
+    return {
+        "rolls": active_before,
+        "removed": removed,
+        "remaining": _active_zombies,
+        "chance": resolved_chance,
+        "rolls_failed": max(active_before - removed, 0),
+        "reason": outcome
     }
 
 func _resolve_spawn_rolls(day_index: int) -> int:

@@ -256,6 +256,15 @@ size_flags_horizontal = 3
 autowrap_mode = 1
 text = "Forging ready (-15% rest | Food 5.0)"
 
+[node name="LeadAwayButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
+text = "Lead Away Undead"
+
+[node name="LeadAwayResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+horizontal_alignment = 1
+size_flags_horizontal = 3
+autowrap_mode = 1
+text = "Lead Away -> 80% per 🧟 (Have 0)"
+
 [node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Panel/VBox"]
 alignment = 1
 custom_constants/separation = 8
@@ -331,6 +340,7 @@ text = "Close"
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/SleepButton" to="UI/TaskMenu" method="_on_sleep_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/ForgingButton" to="UI/TaskMenu" method="_on_forging_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/LeadAwayButton" to="UI/TaskMenu" method="_on_lead_away_button_pressed"]
 [connection signal="item_selected" from="UI/TaskMenu/Panel/VBox/MealRow/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/EatButton" to="UI/TaskMenu" method="_on_eat_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/RepairButton" to="UI/TaskMenu" method="_on_repair_button_pressed"]

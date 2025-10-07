@@ -7,8 +7,10 @@ const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
+const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
+const LEAD_AWAY_CHANCE_PERCENT: int = int(round(ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE * 100.0))
 
 const MEAL_OPTIONS := [
     {
@@ -38,9 +40,12 @@ var _cached_minutes_remaining: int = 0
 var _menu_open: bool = false
 var inventory_system: InventorySystem
 var tower_health_system: TowerHealthSystem
+var zombie_system: ZombieSystem
 var selected_meal_key: String = "normal"
 var _forging_feedback_state: String = "ready"
 var _forging_feedback_locked: bool = false
+var _lead_feedback_state: String = "status"
+var _lead_feedback_locked: bool = false
 
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
@@ -51,6 +56,7 @@ var _forging_feedback_locked: bool = false
 @onready var meal_result_label: Label = $Panel/VBox/MealResult
 @onready var repair_summary_label: Label = $Panel/VBox/RepairSummary
 @onready var repair_result_label: Label = $Panel/VBox/RepairResult
+@onready var lead_result_label: Label = $Panel/VBox/LeadAwayResult
 
 func _ready():
     set_process_unhandled_input(true)
@@ -70,8 +76,15 @@ func _ready():
             _set_forging_feedback("Forging offline", "offline")
         if tower_health_system:
             tower_health_system.tower_health_changed.connect(_on_tower_health_changed)
+        zombie_system = game_manager.get_zombie_system()
+        if zombie_system:
+            zombie_system.zombies_changed.connect(_on_lead_zombie_count_changed)
+            _set_lead_feedback(_format_lead_ready(zombie_system.get_active_zombies()), "status")
+        else:
+            _set_lead_feedback("Lead Away offline", "offline")
     else:
         _set_forging_feedback("Forging unavailable", "offline")
+        _set_lead_feedback("Lead Away unavailable", "offline")
 
     _setup_meal_size_options()
     _refresh_display()
@@ -108,6 +121,7 @@ func _refresh_display():
         var lines: PackedStringArray = []
         lines.append("Each hour: +10%% rest / -%d cal" % SleepSystem.CALORIES_PER_SLEEP_HOUR)
         lines.append("Forging -> -15%% rest | Rolls: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛 / 20%% 🪵")
+        lines.append("Lead -> -15%% rest | %d%% per 🧟 (1 hr)" % LEAD_AWAY_CHANCE_PERCENT)
         lines.append("Time x%.1f | Left %s" % [multiplier, _format_duration(minutes_remaining)])
         summary_label.text = "\n".join(lines)
         return
@@ -158,6 +172,16 @@ func _on_forging_button_pressed():
     _lock_forging_feedback()
     var result = game_manager.perform_forging()
     _set_forging_feedback(_format_forging_result(result), "result")
+    _refresh_display()
+
+func _on_lead_away_button_pressed():
+    if game_manager == null:
+        _set_lead_feedback("Lead Away unavailable", "offline")
+        return
+
+    _lock_lead_feedback()
+    var result = game_manager.perform_lead_away_undead()
+    _set_lead_feedback(_format_lead_result(result), "result")
     _refresh_display()
 
 func _on_meal_size_option_item_selected(index: int):
@@ -326,6 +350,19 @@ func _lock_forging_feedback():
 func _unlock_forging_feedback():
     _forging_feedback_locked = false
 
+func _set_lead_feedback(text: String, state: String):
+    if !is_instance_valid(lead_result_label):
+        return
+    lead_result_label.text = text
+    _lead_feedback_state = state
+
+func _lock_lead_feedback():
+    _lead_feedback_locked = true
+    call_deferred("_unlock_lead_feedback")
+
+func _unlock_lead_feedback():
+    _lead_feedback_locked = false
+
 func _open_menu():
     if _menu_open:
         return
@@ -398,6 +435,53 @@ func _format_food(value: float) -> String:
         return "%d" % int(round(value))
     return "%.1f" % value
 
+func _format_lead_ready(count: int) -> String:
+    return "Lead Away -> %d%% per 🧟 (Have %d)" % [LEAD_AWAY_CHANCE_PERCENT, max(count, 0)]
+
+func _format_lead_result(result: Dictionary) -> String:
+    var rest_spent = result.get("rest_spent_percent", 0.0)
+    var ended_at = result.get("ended_at_time", "")
+    if result.get("success", false):
+        var removed = int(result.get("removed", 0))
+        var remaining = int(result.get("remaining", 0))
+        var chance = float(result.get("chance", 0.0)) * 100.0
+        var parts: PackedStringArray = []
+        parts.append("Removed %d" % max(removed, 0))
+        parts.append("Remain %d" % max(remaining, 0))
+        parts.append("%.0f%% each" % chance)
+        if rest_spent > 0.0:
+            parts.append("-%d%% rest" % int(round(rest_spent)))
+        if ended_at != "":
+            parts.append("End %s" % ended_at)
+        return "Lead Away -> %s" % " | ".join(parts)
+
+    var reason = result.get("reason", "")
+    match reason:
+        "systems_unavailable":
+            return "Lead Away offline"
+        "no_zombies":
+            return "No zombies nearby"
+        "exceeds_day":
+            var minutes_available = result.get("minutes_available", 0)
+            return _format_daybreak_warning(minutes_available)
+        "zombies_stayed":
+            var rolls = int(result.get("rolls", 0))
+            var chance = float(result.get("chance", 0.0)) * 100.0
+            var fragments: PackedStringArray = []
+            fragments.append("No takers (%d @ %.0f%%)" % [max(rolls, 0), chance])
+            if rest_spent > 0.0:
+                fragments.append("-%d%% rest" % int(round(rest_spent)))
+            if ended_at != "":
+                fragments.append("End %s" % ended_at)
+            return "Lead Away -> %s" % " | ".join(fragments)
+        _:
+            var fallback = "Lead Away failed"
+            if rest_spent > 0.0:
+                fallback += " | -%d%% rest" % int(round(rest_spent))
+            if ended_at != "":
+                fallback += " | End %s" % ended_at
+            return fallback
+
 func _format_health_value(value: float) -> String:
     if is_zero_approx(value - round(value)):
         return "%d" % int(round(value))
@@ -418,6 +502,13 @@ func _on_inventory_food_total_changed(new_total: float):
 
 func _on_tower_health_changed(_new: float, _old: float):
     _update_repair_summary()
+
+func _on_lead_zombie_count_changed(count: int):
+    if _lead_feedback_locked:
+        return
+    if _lead_feedback_state == "offline":
+        return
+    _set_lead_feedback(_format_lead_ready(count), "status")
 
 func _resolve_game_manager() -> GameManager:
     var tree = get_tree()

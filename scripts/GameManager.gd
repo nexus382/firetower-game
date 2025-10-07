@@ -10,6 +10,7 @@ const NewsBroadcastSystem = preload("res://scripts/systems/NewsBroadcastSystem.g
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
+const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
 
 const MEAL_PORTIONS := {
     "small": {
@@ -401,6 +402,58 @@ func perform_forging() -> Dictionary:
     result["items_found"] = loot_reports.size()
     result["total_food_units"] = inventory_system.get_total_food_units()
     print("🌲 Forging success: %s" % result)
+    return result
+
+func perform_lead_away_undead() -> Dictionary:
+    if time_system == null or sleep_system == null or zombie_system == null or _rng == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "lead_away"
+        }
+
+    if !zombie_system.has_active_zombies():
+        return {
+            "success": false,
+            "reason": "no_zombies",
+            "action": "lead_away",
+            "zombies_before": zombie_system.get_active_zombies()
+        }
+
+    var time_report = _spend_activity_time(1.0, "lead_away")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "lead_away"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(15.0)
+    var before = zombie_system.get_active_zombies()
+    var attempt = zombie_system.attempt_lead_away(LEAD_AWAY_ZOMBIE_CHANCE, _rng)
+    var removed = int(attempt.get("removed", 0))
+    var remaining = int(attempt.get("remaining", zombie_system.get_active_zombies()))
+
+    var result := time_report.duplicate()
+    result["action"] = "lead_away"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["zombies_before"] = before
+    result["removed"] = removed
+    result["remaining"] = remaining
+    result["rolls"] = int(attempt.get("rolls", before))
+    result["rolls_failed"] = int(attempt.get("rolls_failed", max(before - removed, 0)))
+    result["chance"] = float(attempt.get("chance", LEAD_AWAY_ZOMBIE_CHANCE))
+    result["success"] = removed > 0
+    if removed <= 0:
+        var attempt_reason = str(attempt.get("reason", "stayed"))
+        result["reason"] = "zombies_stayed" if attempt_reason == "stayed" else attempt_reason
+
+    if removed > 0:
+        print("🧟‍♂️ Lead Away -> removed %d (%.0f%% each, %d remain)" % [removed, result["chance"] * 100.0, max(remaining, 0)])
+    else:
+        print("🧟‍♂️ Lead Away failed (%.0f%% each, %d tried)" % [result["chance"] * 100.0, result["rolls"]])
+
     return result
 
 func _roll_forging_loot() -> Array:
