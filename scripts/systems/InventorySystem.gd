@@ -3,6 +3,7 @@ class_name InventorySystem
 
 signal food_total_changed(new_total: float)
 signal item_added(item_id: String, quantity_added: int, food_gained: float, total_food_units: float)
+signal item_consumed(item_id: String, quantity_removed: int, food_lost: float, total_food_units: float)
 
 const KEY_DISPLAY_NAME := "display_name"
 const KEY_FOOD_UNITS := "food_units"
@@ -35,6 +36,11 @@ func bootstrap_defaults():
         KEY_DISPLAY_NAME: "Grubs",
         KEY_FOOD_UNITS: 0.5,
         KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("wood", {
+        KEY_DISPLAY_NAME: "Wood",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 999
     })
 
 func register_item_definition(item_id: String, definition: Dictionary) -> Dictionary:
@@ -143,6 +149,53 @@ func add_item(item_id: String, quantity: int = 1) -> Dictionary:
 
     item_added.emit(item_id, quantity, food_gained, _total_food_units)
     print("➕ Added %d x %s (food +%.1f -> %.1f)" % [quantity, report["display_name"], food_gained, _total_food_units])
+
+    return report
+
+func consume_item(item_id: String, quantity: int = 1) -> Dictionary:
+    quantity = max(quantity, 0)
+    if item_id.is_empty() or quantity <= 0:
+        return {
+            "success": false,
+            "reason": "invalid_request",
+            "item_id": item_id,
+            "quantity_requested": quantity,
+            "quantity_remaining": get_item_count(item_id),
+            "total_food_units": _total_food_units
+        }
+
+    var current_quantity = get_item_count(item_id)
+    if current_quantity < quantity:
+        return {
+            "success": false,
+            "reason": "insufficient_items",
+            "item_id": item_id,
+            "quantity_requested": quantity,
+            "quantity_remaining": current_quantity,
+            "total_food_units": _total_food_units
+        }
+
+    var definition = ensure_item_definition(item_id)
+    var new_quantity = current_quantity - quantity
+    _item_counts[item_id] = new_quantity
+
+    var food_per_item = float(definition.get(KEY_FOOD_UNITS, 0.0))
+    var food_lost = food_per_item * quantity
+    if !is_zero_approx(food_lost):
+        _apply_food_delta(-food_lost)
+
+    var report := {
+        "success": true,
+        "item_id": item_id,
+        "display_name": get_item_display_name(item_id),
+        "quantity_removed": quantity,
+        "quantity_remaining": new_quantity,
+        "food_lost": food_lost,
+        "total_food_units": _total_food_units
+    }
+
+    item_consumed.emit(item_id, quantity, food_lost, _total_food_units)
+    print("➖ Removed %d x %s (food -%.1f -> %.1f)" % [quantity, report["display_name"], food_lost, _total_food_units])
 
     return report
 

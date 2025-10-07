@@ -34,9 +34,13 @@ func _unhandled_input(event):
 func _apply_theme_overrides():
     if panel:
         var backdrop := StyleBoxFlat.new()
-        backdrop.bg_color = Color.BLACK
+        backdrop.bg_color = Color(0.08, 0.08, 0.08, 1.0)
+        backdrop.corner_radius_all = 8
+        backdrop.border_width_all = 2
+        backdrop.border_color = Color(0.25, 0.25, 0.25, 1.0)
         backdrop.shadow_size = 0
         panel.add_theme_stylebox_override("panel", backdrop)
+        panel.self_modulate = Color(1.0, 1.0, 1.0, 1.0)
     if title_label:
         title_label.add_theme_color_override("font_color", Color.WHITE)
     if body_label:

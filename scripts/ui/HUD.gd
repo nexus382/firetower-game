@@ -5,6 +5,7 @@ const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
+const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 
 const LBS_PER_KG: float = 2.2
 
@@ -15,18 +16,21 @@ const LBS_PER_KG: float = 2.2
 @onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
 @onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
 @onready var weight_status_label: Label = $StatsBar/Metrics/WeightStat/WeightStatus
-@onready var weight_header_label: Label = $WeightHeader
+@onready var weight_header_label: Label = $TopRightStats/WeightHeader
 @onready var weather_label: Label = $DayTimeHeader/WeatherLabel
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
-@onready var food_counter_label: Label = $FoodCounter
-@onready var tower_health_label: Label = $TowerHealthLabel
+@onready var food_counter_label: Label = $TopRightStats/ResourceList/FoodCounter
+@onready var wood_counter_label: Label = $TopRightStats/ResourceList/WoodCounter
+@onready var zombie_counter_label: Label = $TopRightStats/ResourceList/ZombieCounter
+@onready var tower_health_label: Label = $TopRightStats/ResourceList/TowerHealthLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
 var weather_system: WeatherSystem
 var inventory_system: InventorySystem
 var tower_health_system: TowerHealthSystem
+var zombie_system: ZombieSystem
 var _weight_unit: String = "lbs"
 var _latest_weight_lbs: float = 0.0
 var _latest_weight_category: String = "average"
@@ -43,6 +47,8 @@ func _ready():
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
     weather_label.add_theme_color_override("font_color", Color.WHITE)
     food_counter_label.add_theme_color_override("font_color", Color.WHITE)
+    wood_counter_label.add_theme_color_override("font_color", Color.WHITE)
+    zombie_counter_label.add_theme_color_override("font_color", Color.WHITE)
     tower_health_label.add_theme_color_override("font_color", Color.WHITE)
 
     if game_manager == null:
@@ -85,9 +91,13 @@ func _ready():
     inventory_system = game_manager.get_inventory_system()
     if inventory_system:
         inventory_system.food_total_changed.connect(_on_food_total_changed)
+        inventory_system.item_added.connect(_on_inventory_item_added)
+        inventory_system.item_consumed.connect(_on_inventory_item_consumed)
         _on_food_total_changed(inventory_system.get_total_food_units())
+        _update_wood_counter()
     else:
         food_counter_label.text = "Food: --"
+        wood_counter_label.text = "Wood: --"
 
     tower_health_system = game_manager.get_tower_health_system()
     if tower_health_system:
@@ -95,6 +105,13 @@ func _ready():
         _on_tower_health_changed(tower_health_system.get_health(), tower_health_system.get_health())
     else:
         tower_health_label.text = "Tower: --"
+
+    zombie_system = game_manager.get_zombie_system()
+    if zombie_system:
+        zombie_system.zombies_changed.connect(_on_zombie_count_changed)
+        _update_zombie_counter(zombie_system.get_active_zombies())
+    else:
+        zombie_counter_label.text = "Zombies: --"
 
 func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
@@ -147,10 +164,36 @@ func _on_food_total_changed(new_total: float):
         return
     food_counter_label.text = "Food: %s" % _format_food_amount(new_total)
 
+func _on_inventory_item_added(item_id: String, _quantity_added: int, _food_gained: float, _total_food_units: float):
+    if item_id == "wood":
+        _update_wood_counter()
+
+func _on_inventory_item_consumed(item_id: String, _quantity_removed: int, _food_lost: float, _total_food_units: float):
+    if item_id == "wood":
+        _update_wood_counter()
+
 func _on_tower_health_changed(new_health: float, _previous_health: float):
     if !is_instance_valid(tower_health_label):
         return
     tower_health_label.text = _format_tower_health(new_health)
+
+func _update_wood_counter():
+    if !is_instance_valid(wood_counter_label):
+        return
+    var count = inventory_system.get_item_count("wood") if inventory_system else 0
+    wood_counter_label.text = "Wood: %d" % count
+
+func _update_zombie_counter(count: int = -1):
+    if !is_instance_valid(zombie_counter_label):
+        return
+    if zombie_system == null:
+        zombie_counter_label.text = "Zombies: --"
+        return
+    var current = count if count >= 0 else zombie_system.get_active_zombies()
+    zombie_counter_label.text = "Zombies: %d" % max(current, 0)
+
+func _on_zombie_count_changed(count: int):
+    _update_zombie_counter(count)
 
 func _on_weight_unit_button_pressed():
     if sleep_system:

@@ -77,41 +77,42 @@ custom_constants/margin_top = 16
 custom_constants/margin_right = 24
 custom_constants/margin_bottom = 24
 
-[node name="WeightHeader" type="Label" parent="UI/HUD"]
+[node name="TopRightStats" type="VBoxContainer" parent="UI/HUD"]
 anchor_left = 1.0
 anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 0.0
-offset_left = -208.0
-offset_top = 0.0
+offset_left = -260.0
+offset_top = 16.0
 offset_right = -32.0
-offset_bottom = 40.0
+offset_bottom = 148.0
+theme_override_constants/separation = 6
+
+[node name="WeightHeader" type="Label" parent="UI/HUD/TopRightStats"]
 horizontal_alignment = 2
 vertical_alignment = 1
 text = "175.0 LBS [Healthy]"
 
-[node name="FoodCounter" type="Label" parent="UI/HUD"]
-anchor_left = 1.0
-anchor_top = 0.0
-anchor_right = 1.0
-anchor_bottom = 0.0
-offset_left = -160.0
-offset_top = 40.0
-offset_right = -32.0
-offset_bottom = 76.0
+[node name="ResourceList" type="VBoxContainer" parent="UI/HUD/TopRightStats"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="FoodCounter" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
 horizontal_alignment = 2
 vertical_alignment = 1
 text = "Food: 5.0"
 
-[node name="TowerHealthLabel" type="Label" parent="UI/HUD"]
-anchor_left = 1.0
-anchor_top = 0.0
-anchor_right = 1.0
-anchor_bottom = 0.0
-offset_left = -160.0
-offset_top = 72.0
-offset_right = -32.0
-offset_bottom = 108.0
+[node name="WoodCounter" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Wood: 0"
+
+[node name="ZombieCounter" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Zombies: 0"
+
+[node name="TowerHealthLabel" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
 horizontal_alignment = 2
 vertical_alignment = 1
 text = "Tower: 100/100"
@@ -255,6 +256,15 @@ size_flags_horizontal = 3
 autowrap_mode = 1
 text = "Forging ready (-15% rest | Food 5.0)"
 
+[node name="LeadAwayButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
+text = "Lead Away Undead"
+
+[node name="LeadAwayResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
+horizontal_alignment = 1
+size_flags_horizontal = 3
+autowrap_mode = 1
+text = "Lead Away -> 80% per 🧟 (Have 0)"
+
 [node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Panel/VBox"]
 alignment = 1
 custom_constants/separation = 8
@@ -330,6 +340,7 @@ text = "Close"
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/SleepButton" to="UI/TaskMenu" method="_on_sleep_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/ForgingButton" to="UI/TaskMenu" method="_on_forging_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/LeadAwayButton" to="UI/TaskMenu" method="_on_lead_away_button_pressed"]
 [connection signal="item_selected" from="UI/TaskMenu/Panel/VBox/MealRow/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/EatButton" to="UI/TaskMenu" method="_on_eat_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Panel/VBox/RepairButton" to="UI/TaskMenu" method="_on_repair_button_pressed"]

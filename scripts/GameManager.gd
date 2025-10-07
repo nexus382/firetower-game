@@ -7,8 +7,10 @@ const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const NewsBroadcastSystem = preload("res://scripts/systems/NewsBroadcastSystem.gd")
+const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
+const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
 
 const MEAL_PORTIONS := {
     "small": {
@@ -45,6 +47,7 @@ var time_system: TimeSystem = TimeSystem.new()
 var weather_system: WeatherSystem = WeatherSystem.new()
 var tower_health_system: TowerHealthSystem = TowerHealthSystem.new()
 var news_system: NewsBroadcastSystem = NewsBroadcastSystem.new()
+var zombie_system: ZombieSystem = ZombieSystem.new()
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -68,6 +71,8 @@ func _ready():
         tower_health_system = TowerHealthSystem.new()
     if news_system == null:
         news_system = NewsBroadcastSystem.new()
+    if zombie_system == null:
+        zombie_system = ZombieSystem.new()
     if _rng == null:
         _rng = RandomNumberGenerator.new()
     _rng.randomize()
@@ -82,6 +87,7 @@ func _ready():
             time_system.time_advanced.connect(Callable(weather_system, "on_time_advanced"))
             time_system.day_rolled_over.connect(Callable(weather_system, "on_day_rolled_over"))
             weather_system.initialize_clock_offset(time_system.get_minutes_since_daybreak())
+        time_system.time_advanced.connect(_on_time_advanced_by_minutes)
     if weather_system:
         weather_system.weather_changed.connect(_on_weather_system_changed)
         weather_system.weather_hour_elapsed.connect(_on_weather_hour_elapsed)
@@ -90,6 +96,9 @@ func _ready():
         tower_health_system.set_initial_weather_state(weather_system.get_state())
     if news_system:
         news_system.reset_day(current_day)
+    if zombie_system:
+        zombie_system.zombies_damaged_tower.connect(_on_zombie_damage_tower)
+        zombie_system.start_day(current_day, _rng)
 
 func pause_game():
     game_paused = true
@@ -120,6 +129,9 @@ func get_tower_health_system() -> TowerHealthSystem:
 
 func get_news_system() -> NewsBroadcastSystem:
     return news_system
+
+func get_zombie_system() -> ZombieSystem:
+    return zombie_system
 
 func get_sleep_percent() -> float:
     """Convenience accessor for tired meter value."""
@@ -225,7 +237,7 @@ func perform_eating(portion_key: String) -> Dictionary:
     return result
 
 func repair_tower(materials: Dictionary = {}) -> Dictionary:
-    if not time_system or not sleep_system or tower_health_system == null:
+    if not time_system or not sleep_system or tower_health_system == null or inventory_system == null:
         return {
             "success": false,
             "reason": "systems_unavailable",
@@ -240,13 +252,36 @@ func repair_tower(materials: Dictionary = {}) -> Dictionary:
             "health": tower_health_system.get_health()
         }
 
+    var required_wood: int = 1
+    var wood_available = inventory_system.get_item_count("wood") if inventory_system else 0
+    if wood_available < required_wood:
+        return {
+            "success": false,
+            "reason": "insufficient_wood",
+            "action": "repair",
+            "wood_required": required_wood,
+            "wood_available": wood_available
+        }
+
     var time_report = _spend_activity_time(1.0, "repair")
     if !time_report.get("success", false):
         time_report["action"] = "repair"
         return time_report
 
+    var consume_report = inventory_system.consume_item("wood", required_wood) if inventory_system else {"success": false}
+    if !consume_report.get("success", false):
+        return {
+            "success": false,
+            "reason": "wood_consume_failed",
+            "action": "repair",
+            "wood_required": required_wood,
+            "wood_available": wood_available
+        }
+
     var before = tower_health_system.get_health()
-    var repaired = tower_health_system.apply_repair(TowerHealthSystem.REPAIR_HEALTH_PER_ACTION, "manual_repair", materials)
+    var material_report := materials.duplicate() if typeof(materials) == TYPE_DICTIONARY else {}
+    material_report["wood"] = material_report.get("wood", 0) + required_wood
+    var repaired = tower_health_system.apply_repair(TowerHealthSystem.REPAIR_HEALTH_PER_ACTION, "manual_repair", material_report)
     var result := time_report.duplicate()
     result["action"] = "repair"
     result["health_before"] = before
@@ -258,6 +293,8 @@ func repair_tower(materials: Dictionary = {}) -> Dictionary:
     result["daily_calories_used"] = calorie_burn
     result["rest_granted_percent"] = rest_bonus.get("percent_granted", 0.0)
     result["sleep_percent_remaining"] = rest_bonus.get("new_percent", sleep_system.get_sleep_percent())
+    result["wood_spent"] = required_wood
+    result["wood_remaining"] = inventory_system.get_item_count("wood") if inventory_system else 0
 
     print("🔧 Tower repair -> +%.1f (%.1f/%.1f)" % [result["health_restored"], repaired, tower_health_system.get_max_health()])
     return result
@@ -322,6 +359,14 @@ func perform_forging() -> Dictionary:
             "action": "forging"
         }
 
+    if zombie_system and zombie_system.has_active_zombies():
+        return {
+            "success": false,
+            "reason": "zombies_present",
+            "action": "forging",
+            "zombie_count": zombie_system.get_active_zombies()
+        }
+
     var time_report = _spend_activity_time(1.0, "forging")
     if !time_report.get("success", false):
         var failure := time_report.duplicate()
@@ -332,57 +377,131 @@ func perform_forging() -> Dictionary:
         return failure
 
     var rest_spent = sleep_system.consume_sleep(15.0)
-    var roll = _rng.randf()
-    var outcome = _resolve_forging_outcome(roll)
+    var loot_roll = _roll_forging_loot()
     var result := time_report.duplicate()
     result["action"] = "forging"
-    result["chance_roll"] = roll
     result["status"] = result.get("status", "applied")
     result["rest_spent_percent"] = rest_spent
     result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
 
-    if outcome.is_empty():
+    if loot_roll.is_empty():
         result["success"] = false
         result["reason"] = "nothing_found"
-        print("🌲 Forging yielded nothing (roll %.2f)" % roll)
+        print("🌲 Forging yielded nothing")
         return result
 
-    var loot_report = inventory_system.add_item(outcome.get("item_id", ""), outcome.get("quantity", 1))
-    for key in loot_report.keys():
-        result[key] = loot_report[key]
+    var loot_reports: Array = []
+    for item in loot_roll:
+        var report = inventory_system.add_item(item.get("item_id", ""), item.get("quantity", 1))
+        report["roll"] = item.get("roll", 0.0)
+        report["chance"] = item.get("chance", 0.0)
+        loot_reports.append(report)
+
     result["success"] = true
+    result["loot"] = loot_reports
+    result["items_found"] = loot_reports.size()
+    result["total_food_units"] = inventory_system.get_total_food_units()
     print("🌲 Forging success: %s" % result)
     return result
 
-func _resolve_forging_outcome(roll: float) -> Dictionary:
-    var thresholds = [
+func perform_lead_away_undead() -> Dictionary:
+    if time_system == null or sleep_system == null or zombie_system == null or _rng == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "lead_away"
+        }
+
+    if !zombie_system.has_active_zombies():
+        return {
+            "success": false,
+            "reason": "no_zombies",
+            "action": "lead_away",
+            "zombies_before": zombie_system.get_active_zombies()
+        }
+
+    var time_report = _spend_activity_time(1.0, "lead_away")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "lead_away"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(15.0)
+    var before = zombie_system.get_active_zombies()
+    var attempt = zombie_system.attempt_lead_away(LEAD_AWAY_ZOMBIE_CHANCE, _rng)
+    var removed = int(attempt.get("removed", 0))
+    var remaining = int(attempt.get("remaining", zombie_system.get_active_zombies()))
+
+    var result := time_report.duplicate()
+    result["action"] = "lead_away"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["zombies_before"] = before
+    result["removed"] = removed
+    result["remaining"] = remaining
+    result["rolls"] = int(attempt.get("rolls", before))
+    result["rolls_failed"] = int(attempt.get("rolls_failed", max(before - removed, 0)))
+    result["chance"] = float(attempt.get("chance", LEAD_AWAY_ZOMBIE_CHANCE))
+    result["success"] = removed > 0
+    if removed <= 0:
+        var attempt_reason = str(attempt.get("reason", "stayed"))
+        result["reason"] = "zombies_stayed" if attempt_reason == "stayed" else attempt_reason
+
+    if removed > 0:
+        print("🧟‍♂️ Lead Away -> removed %d (%.0f%% each, %d remain)" % [removed, result["chance"] * 100.0, max(remaining, 0)])
+    else:
+        print("🧟‍♂️ Lead Away failed (%.0f%% each, %d tried)" % [result["chance"] * 100.0, result["rolls"]])
+
+    return result
+
+func _roll_forging_loot() -> Array:
+    var table = [
         {
-            "cutoff": 0.25,
             "item_id": "mushrooms",
+            "chance": 0.25,
             "quantity": 1
         },
         {
-            "cutoff": 0.50,
             "item_id": "berries",
+            "chance": 0.25,
             "quantity": 1
         },
         {
-            "cutoff": 0.75,
             "item_id": "walnuts",
+            "chance": 0.25,
             "quantity": 1
         },
         {
-            "cutoff": 0.95,
             "item_id": "grubs",
+            "chance": 0.20,
+            "quantity": 1
+        },
+        {
+            "item_id": "wood",
+            "chance": 0.20,
             "quantity": 1
         }
     ]
 
-    for entry in thresholds:
-        if roll < entry.get("cutoff", 0.0):
-            return entry
-
-    return {}
+    var rewards: Array = []
+    for entry in table:
+        var chance = float(entry.get("chance", 0.0))
+        if chance <= 0.0:
+            continue
+        var quantity = int(entry.get("quantity", 1))
+        if quantity <= 0:
+            continue
+        var roll = _rng.randf()
+        if roll < chance:
+            rewards.append({
+                "item_id": entry.get("item_id", ""),
+                "quantity": quantity,
+                "chance": chance,
+                "roll": roll
+            })
+    return rewards
 
 func _on_day_rolled_over():
     current_day += 1
@@ -395,6 +514,8 @@ func _on_day_rolled_over():
         tower_health_system.on_day_completed(current_state)
     if news_system:
         news_system.reset_day(current_day)
+    if zombie_system:
+        zombie_system.start_day(current_day, _rng)
     day_changed.emit(current_day)
 
 func _on_weather_system_changed(new_state: String, previous_state: String, hours_remaining: int):
@@ -405,6 +526,19 @@ func _on_weather_system_changed(new_state: String, previous_state: String, hours
 func _on_weather_hour_elapsed(state: String):
     if tower_health_system:
         tower_health_system.register_weather_hour(state)
+
+func _on_time_advanced_by_minutes(minutes: int, _rolled_over: bool):
+    if zombie_system == null or tower_health_system == null:
+        return
+    var report = zombie_system.advance_time(minutes)
+    if report.get("ticks", 0) <= 0:
+        return
+    var damage = float(report.get("total_damage", 0.0))
+    if damage > 0.0:
+        tower_health_system.apply_damage(damage, "zombie_presence")
+
+func _on_zombie_damage_tower(damage: float, count: int):
+    print("🧟 Zombies inflicted %.2f damage (%d active)" % [damage, count])
 
 func _apply_awake_time_up_to(current_minutes: int):
     if not sleep_system or not time_system:
