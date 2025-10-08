@@ -104,7 +104,7 @@ func _build_recipe_list():
         var recipe: Dictionary = _recipes.get(key, {})
         var recipe_id := String(key)
         var row = HBoxContainer.new()
-        row.theme_override_constants["separation"] = 8
+        row.add_theme_constant_override("separation", 8)
 
         var button = Button.new()
         button.text = recipe.get("display_name", key.capitalize())
