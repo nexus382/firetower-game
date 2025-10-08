@@ -1,6 +1,7 @@
 extends Control
 
 @export var max_sleep_hours: int = 12
+@export var forging_results_panel_path: NodePath
 
 const SLEEP_PERCENT_PER_HOUR: int = 10
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
@@ -8,6 +9,7 @@ const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
+const ForgingResultsPanel = preload("res://scripts/ui/ForgingResultsPanel.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_CHANCE_PERCENT: int = int(round(ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE * 100.0))
@@ -48,19 +50,57 @@ var _lead_feedback_state: String = "status"
 var _lead_feedback_locked: bool = false
 
 @onready var game_manager: GameManager = _resolve_game_manager()
-@onready var hours_value_label: Label = $Panel/VBox/HourSelector/HoursValue
-@onready var summary_label: Label = $Panel/VBox/SummaryLabel
-@onready var forging_result_label: Label = $Panel/VBox/ForgingResult
-@onready var meal_size_option: OptionButton = $Panel/VBox/MealRow/MealSizeOption
-@onready var meal_summary_label: Label = $Panel/VBox/MealSummary
-@onready var meal_result_label: Label = $Panel/VBox/MealResult
-@onready var repair_summary_label: Label = $Panel/VBox/RepairSummary
-@onready var repair_result_label: Label = $Panel/VBox/RepairResult
-@onready var lead_result_label: Label = $Panel/VBox/LeadAwayResult
+@onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/HoursValue
+@onready var summary_label: Label = $Layout/DescriptionPanel/Margin/DescriptionList/SummaryLabel
+@onready var forging_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingResult
+@onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption
+@onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSummary
+@onready var meal_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/MealResult
+@onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSummary
+@onready var repair_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/RepairResult
+@onready var lead_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadAwayResult
+@onready var description_title_label: Label = $Layout/DescriptionPanel/Margin/DescriptionList/DescriptionTitle
+@onready var description_hint_label: Label = $Layout/DescriptionPanel/Margin/DescriptionList/DescriptionHint
+@onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
+
+const DESCRIPTION_DEFAULT := {
+    "title": "Task Details",
+    "hint": "Hover or focus an action to see its requirements."
+}
+
+const TASK_DESCRIPTION_META := {
+    "sleep": {
+        "title": "Rest",
+        "hint": "Spend time to recover rest and calories."
+    },
+    "forging": {
+        "title": "Forge",
+        "hint": "Search the forest for supplies."
+    },
+    "lead": {
+        "title": "Lead Away",
+        "hint": "Draw undead from the tower."
+    },
+    "meal": {
+        "title": "Eat",
+        "hint": "Convert stored food into calories."
+    },
+    "repair": {
+        "title": "Repair",
+        "hint": "Spend wood to restore tower health."
+    }
+}
+
+var _current_description: String = "sleep"
 
 func _ready():
     set_process_unhandled_input(true)
     _close_menu()
+
+    if is_instance_valid(description_title_label):
+        description_title_label.text = DESCRIPTION_DEFAULT.get("title", "Task Details")
+    if is_instance_valid(description_hint_label):
+        description_hint_label.text = DESCRIPTION_DEFAULT.get("hint", "Hover an action to see more.")
 
     if game_manager:
         time_system = game_manager.get_time_system()
@@ -87,7 +127,18 @@ func _ready():
         _set_lead_feedback("Lead Away unavailable", "offline")
 
     _setup_meal_size_options()
+    _setup_description_targets()
+    _set_description("sleep", true)
     _refresh_display()
+
+    if forging_results_panel == null:
+        var tree = get_tree()
+        if tree:
+            var root = tree.get_root()
+            if root:
+                var candidate: Node = root.get_node_or_null("Main/UI/ForgingResultsPanel")
+                if candidate is ForgingResultsPanel:
+                    forging_results_panel = candidate
 
 func _input(event):
     if event.is_action_pressed("action_menu") and !event.is_echo():
@@ -116,25 +167,184 @@ func _refresh_display():
 
     _update_meal_summary()
     _update_repair_summary()
+    _update_description_body()
 
-    if selected_hours == 0:
-        var lines: PackedStringArray = []
-        lines.append("Each hour: +10%% rest / -%d cal" % SleepSystem.CALORIES_PER_SLEEP_HOUR)
-        lines.append("Forging -> -15%% rest | Rolls: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛 / 20%% 🪵")
-        lines.append("Lead -> -15%% rest | %d%% per 🧟 (1 hr)" % LEAD_AWAY_CHANCE_PERCENT)
-        lines.append("Time x%.1f | Left %s" % [multiplier, _format_duration(minutes_remaining)])
-        summary_label.text = "\n".join(lines)
+func _setup_description_targets():
+    var paths := {
+        "sleep": [
+            "Layout/ActionsPanel/Margin/ActionList/SleepRow",
+            "Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepLabel",
+            "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector",
+            "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/DecreaseButton",
+            "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/IncreaseButton",
+            "Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepButton"
+        ],
+        "forging": [
+            "Layout/ActionsPanel/Margin/ActionList/ForgingRow",
+            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingButton",
+            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingResult"
+        ],
+        "lead": [
+            "Layout/ActionsPanel/Margin/ActionList/LeadRow",
+            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadAwayButton",
+            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadAwayResult"
+        ],
+        "meal": [
+            "Layout/ActionsPanel/Margin/ActionList/MealRow",
+            "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption",
+            "Layout/ActionsPanel/Margin/ActionList/MealRow/EatButton",
+            "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSummary",
+            "Layout/ActionsPanel/Margin/ActionList/MealResult"
+        ],
+        "repair": [
+            "Layout/ActionsPanel/Margin/ActionList/RepairRow",
+            "Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairButton",
+            "Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSummary",
+            "Layout/ActionsPanel/Margin/ActionList/RepairResult"
+        ]
+    }
+
+    for key in paths.keys():
+        for path in paths[key]:
+            var node = get_node_or_null(path)
+            if node and node is Control:
+                _register_description_target(node, key)
+
+func _register_description_target(control: Control, key: String):
+    if control == null:
         return
+    if control.has_signal("mouse_entered"):
+        control.mouse_entered.connect(func(): _set_description(key))
+    if control.has_signal("focus_entered"):
+        control.focus_entered.connect(func(): _set_description(key))
 
-    var rest_gain = selected_hours * SLEEP_PERCENT_PER_HOUR
-    var calories = selected_hours * SleepSystem.CALORIES_PER_SLEEP_HOUR
-    var preview_minutes = int(ceil(selected_hours * 60.0 * multiplier))
-    var detail_parts: PackedStringArray = []
-    detail_parts.append("Takes %s" % _format_duration(preview_minutes))
-    if time_system and preview_minutes <= minutes_remaining and minutes_remaining > 0:
-        detail_parts.append("Ends %s" % time_system.get_formatted_time_after(preview_minutes))
-    summary_label.text = "%d hr -> +%d%% rest / -%d cal\n%s" % [selected_hours, rest_gain, calories, " | ".join(detail_parts)]
+func _set_description(key: String, force: bool = false):
+    if key.is_empty():
+        key = _current_description
+    if !TASK_DESCRIPTION_META.has(key):
+        key = "sleep"
+    var changed = key != _current_description
+    _current_description = key
+    var meta = TASK_DESCRIPTION_META.get(key, DESCRIPTION_DEFAULT)
+    if changed or force:
+        if is_instance_valid(description_title_label):
+            description_title_label.text = meta.get("title", DESCRIPTION_DEFAULT.get("title", "Task Details"))
+        if is_instance_valid(description_hint_label):
+            description_hint_label.text = meta.get("hint", DESCRIPTION_DEFAULT.get("hint", "Hover or focus an action to see its requirements."))
+    _update_description_body()
 
+func _update_description_body():
+    if !is_instance_valid(summary_label):
+        return
+    summary_label.text = _get_description_body(_current_description)
+
+func _get_description_body(key: String) -> String:
+    match key:
+        "sleep":
+            return _build_sleep_description()
+        "forging":
+            return _build_forging_description()
+        "lead":
+            return _build_lead_description()
+        "meal":
+            return _build_meal_description()
+        "repair":
+            return _build_repair_description()
+        _:
+            return "Select an action to learn more."
+
+func _build_sleep_description() -> String:
+    var lines: PackedStringArray = []
+    lines.append("Each hour: +%d%% rest / -%d cal" % [SLEEP_PERCENT_PER_HOUR, SleepSystem.CALORIES_PER_SLEEP_HOUR])
+    var multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes_remaining = _get_minutes_left_today()
+    if selected_hours > 0:
+        var rest_gain = selected_hours * SLEEP_PERCENT_PER_HOUR
+        var calories = selected_hours * SleepSystem.CALORIES_PER_SLEEP_HOUR
+        var preview_minutes = int(ceil(selected_hours * 60.0 * multiplier))
+        lines.append("%d hr -> +%d%% / -%d cal" % [selected_hours, rest_gain, calories])
+        lines.append("Uses %s (x%.1f)" % [_format_duration(preview_minutes), multiplier])
+        if time_system and minutes_remaining > 0 and preview_minutes <= minutes_remaining:
+            lines.append("Ends at %s" % time_system.get_formatted_time_after(preview_minutes))
+    else:
+        if minutes_remaining > 0:
+            var fractional_hours = minutes_remaining / (60.0 * multiplier)
+            var rest_gain_partial = fractional_hours * SLEEP_PERCENT_PER_HOUR
+            var calories_partial = fractional_hours * SleepSystem.CALORIES_PER_SLEEP_HOUR
+            lines.append("Rest to 6:00 -> +%s%% / -%d cal" % [_format_percent_value(rest_gain_partial), int(round(calories_partial))])
+            lines.append("Uses %s (%.2f hr @ x%.1f)" % [_format_duration(minutes_remaining), fractional_hours, multiplier])
+        else:
+            lines.append("No time left before 6:00 AM.")
+    lines.append("Day left: %s" % _format_duration(minutes_remaining))
+    return "\n".join(lines)
+
+func _build_forging_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(60.0 * multiplier))
+    lines.append("Spend 1 hr (x%.1f) to search the woods." % multiplier)
+    lines.append("Costs 15%% rest | Loot: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛 / 20%% 🪵 / 15%% 🩹 / 17.5%% 🌿")
+    lines.append("Takes %s" % _format_duration(minutes))
+    if zombie_system and zombie_system.has_active_zombies():
+        lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
+    else:
+        lines.append("Ready while the area is clear")
+    return "\n".join(lines)
+
+func _build_lead_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(60.0 * multiplier))
+    lines.append("Spend 1 hr (x%.1f) guiding undead away." % multiplier)
+    lines.append("Costs 15%% rest | %d%% success per 🧟" % LEAD_AWAY_CHANCE_PERCENT)
+    lines.append("Takes %s" % _format_duration(minutes))
+    if zombie_system:
+        var count = zombie_system.get_active_zombies()
+        if count > 0:
+            lines.append("Active undead: %d" % count)
+        else:
+            lines.append("Needs at least 1 undead present")
+    return "\n".join(lines)
+
+func _build_meal_description() -> String:
+    var lines: PackedStringArray = []
+    var option = _resolve_meal_option(selected_meal_key)
+    var food_units = option.get("food_units", 1.0)
+    var calories = int(round(food_units * CALORIES_PER_FOOD_UNIT))
+    lines.append("Spend 1 hr to eat a %s meal." % option.get("display", selected_meal_key.capitalize()))
+    lines.append("Consumes %s food (-%d cal debt)" % [_format_food(food_units), calories])
+    if inventory_system:
+        lines.append("Food on hand: %s" % _format_food(inventory_system.get_total_food_units()))
+    else:
+        lines.append("Inventory offline")
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(60.0 * multiplier))
+    lines.append("Takes %s" % _format_duration(minutes))
+    return "\n".join(lines)
+
+func _build_repair_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(60.0 * multiplier))
+    lines.append("Spend 1 hr (x%.1f) restoring the tower." % multiplier)
+    lines.append("Costs 10%% rest / -350 cal")
+    lines.append("Restores +%s hp" % _format_health_value(TowerHealthSystem.REPAIR_HEALTH_PER_ACTION))
+    if inventory_system:
+        var wood_stock = inventory_system.get_item_count("wood")
+        lines.append("Needs 1 wood (Stock %d)" % wood_stock)
+    else:
+        lines.append("Needs 1 wood")
+    if tower_health_system:
+        lines.append("Tower %s" % _format_health_snapshot(tower_health_system.get_health()))
+    else:
+        lines.append("Tower status offline")
+    lines.append("Takes %s" % _format_duration(minutes))
+    return "\n".join(lines)
 func _on_decrease_button_pressed():
     selected_hours = max(selected_hours - 1, 0)
     _refresh_display()
@@ -150,19 +360,34 @@ func _on_increase_button_pressed():
     _refresh_display()
 
 func _on_sleep_button_pressed():
-    if game_manager and selected_hours > 0:
-        var result = game_manager.schedule_sleep(selected_hours)
-        if result.get("accepted", false):
-            print("✅ Sleep applied: %s" % result)
-            selected_hours = 0
-            _refresh_display()
-            _close_menu()
-        else:
-            var minutes_left = result.get("minutes_available", _get_minutes_left_today())
-            var fallback_multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
-            var rejection_multiplier = result.get("time_multiplier", fallback_multiplier)
-            summary_label.text = "Not enough time (x%.1f, left: %s)" % [rejection_multiplier, _format_duration(minutes_left)]
-            print("⚠️ Sleep rejected: %s" % result)
+    if game_manager == null:
+        return
+
+    var multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var hours_requested = float(selected_hours)
+    var minutes_remaining = _get_minutes_left_today()
+
+    if hours_requested <= 0.0:
+        if minutes_remaining <= 0:
+            _set_description("sleep", true)
+            summary_label.text = "%s\n\nNo time left before 6:00 AM." % _build_sleep_description()
+            return
+        hours_requested = minutes_remaining / (60.0 * multiplier)
+
+    var result = game_manager.schedule_sleep(hours_requested)
+    if result.get("accepted", false):
+        print("✅ Sleep applied: %s" % result)
+        selected_hours = 0
+        _refresh_display()
+        _close_menu()
+    else:
+        var minutes_left = result.get("minutes_available", _get_minutes_left_today())
+        var rejection_multiplier = result.get("time_multiplier", multiplier)
+        var message = "Not enough time (x%.1f, left: %s)" % [rejection_multiplier, _format_duration(minutes_left)]
+        _set_description("sleep", true)
+        summary_label.text = "%s\n\n%s" % [_build_sleep_description(), message]
+        print("⚠️ Sleep rejected: %s" % result)
 
 func _on_forging_button_pressed():
     if game_manager == null:
@@ -172,6 +397,8 @@ func _on_forging_button_pressed():
     _lock_forging_feedback()
     var result = game_manager.perform_forging()
     _set_forging_feedback(_format_forging_result(result), "result")
+    if forging_results_panel:
+        forging_results_panel.show_result(result)
     _refresh_display()
 
 func _on_lead_away_button_pressed():
@@ -434,6 +661,12 @@ func _format_food(value: float) -> String:
     if is_equal_approx(value, round(value)):
         return "%d" % int(round(value))
     return "%.1f" % value
+
+func _format_percent_value(value: float) -> String:
+    var rounded = round(value * 10.0) / 10.0
+    if is_equal_approx(rounded, round(rounded)):
+        return "%d" % int(round(rounded))
+    return "%.1f" % rounded
 
 func _format_lead_ready(count: int) -> String:
     return "Lead Away -> %d%% per 🧟 (Have %d)" % [LEAD_AWAY_CHANCE_PERCENT, max(count, 0)]

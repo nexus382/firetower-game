@@ -6,6 +6,7 @@ var tower_bounds: Rect2
 var catwalk_width: float = 0.05  # 5% of tower width
 
 const Radio = preload("res://scripts/objects/Radio.gd")
+const CraftingTable = preload("res://scripts/objects/CraftingTable.gd")
 
 # Room configurations (public for other scripts to access)
 var living_area_rect: Rect2
@@ -67,6 +68,9 @@ func setup_tower_layout():
 
     # Create radio station in living area
     create_radio_station()
+
+    # Create crafting table in the kitchen
+    create_crafting_table()
 
     # Create visual walls and collision
     create_walls_and_collision()
@@ -346,6 +350,62 @@ func create_radio_station():
     radio.add_to_group("interactable")
     living_node.add_child(radio)
     print("📻 Created radio at: %s" % radio_pos)
+
+func create_crafting_table():
+    """Create a crafting table inside the kitchen."""
+    if CraftingTable == null:
+        return
+
+    var kitchen_node: Node = inside_view.get_node_or_null("Kitchen")
+    if kitchen_node == null:
+        return
+
+    var table: CraftingTable = CraftingTable.new()
+    table.name = "CraftingTable"
+
+    var table_pos = Vector2(
+        kitchen_rect.position.x + kitchen_rect.size.x * 0.55,
+        kitchen_rect.position.y + kitchen_rect.size.y * 0.45
+    )
+    table.position = table_pos
+
+    var surface = ColorRect.new()
+    surface.name = "Surface"
+    surface.size = Vector2(72, 40)
+    surface.position = Vector2(-36, -20)
+    surface.color = Color(0.35, 0.18, 0.08)
+    surface.z_index = 2
+    table.add_child(surface)
+
+    var prompt = Label.new()
+    prompt.name = "PromptLabel"
+    prompt.position = Vector2(-60, -52)
+    prompt.add_theme_color_override("font_color", Color.WHITE)
+    prompt.add_theme_font_size_override("font_size", 12)
+    prompt.visible = false
+    table.add_child(prompt)
+
+    var name_label = Label.new()
+    name_label.name = "NameLabel"
+    name_label.text = "Crafting Table"
+    name_label.position = Vector2(-48, -72)
+    name_label.custom_minimum_size = Vector2(96, 16)
+    name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    name_label.add_theme_color_override("font_color", Color.WHITE)
+    name_label.add_theme_font_size_override("font_size", 12)
+    name_label.z_index = 3
+    table.add_child(name_label)
+
+    var collision = CollisionShape2D.new()
+    collision.name = "InteractShape"
+    var shape = RectangleShape2D.new()
+    shape.size = Vector2(80, 48)
+    collision.shape = shape
+    table.add_child(collision)
+
+    table.add_to_group("interactable")
+    kitchen_node.add_child(table)
+    print("🛠️ Crafting table placed at: %s" % table_pos)
 
 func create_vertical_wall_with_doorway(x: float, y: float, height: float, doorway_size: float, wall_thickness: float):
     """Create a vertical wall with a doorway gap in the middle"""

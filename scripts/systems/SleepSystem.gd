@@ -86,10 +86,10 @@ func get_time_multiplier() -> float:
         _:
             return 1.0
 
-func apply_sleep(hours: int) -> Dictionary:
+func apply_sleep(hours: float) -> Dictionary:
     """Increase rest by scheduled sleep hours and track calorie burn."""
-    hours = max(hours, 0)
-    if hours == 0:
+    hours = max(hours, 0.0)
+    if is_zero_approx(hours):
         return {
             "hours": 0,
             "percent_gained": 0.0,
@@ -109,7 +109,12 @@ func apply_sleep(hours: int) -> Dictionary:
 
     sleep_percent_changed.emit(sleep_percent)
 
-    print("🛌 Slept %d hour(s): +%.0f%% rest, %.0f%% total" % [hours, actual_gain, sleep_percent])
+    var hours_text = "%.2f" % hours
+    while hours_text.ends_with("0") and hours_text.find(".") != -1:
+        hours_text = hours_text.substr(0, hours_text.length() - 1)
+    if hours_text.ends_with("."):
+        hours_text = hours_text.substr(0, hours_text.length() - 1)
+    print("🛌 Slept %s hr: +%.0f%% rest, %.0f%% total" % [hours_text, actual_gain, sleep_percent])
     print("🔥 Daily calories used: %.0f" % daily_calories_used)
 
     return {

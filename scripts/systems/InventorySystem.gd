@@ -37,10 +37,95 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.5,
         KEY_STACK_LIMIT: 99
     })
+    register_item_definition("fishing_bait", {
+        KEY_DISPLAY_NAME: "Fishing Bait",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("fishing_rod", {
+        KEY_DISPLAY_NAME: "Fishing Rod",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 1
+    })
     register_item_definition("wood", {
         KEY_DISPLAY_NAME: "Wood",
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 999
+    })
+    register_item_definition("spear", {
+        KEY_DISPLAY_NAME: "The Spear",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 1
+    })
+    register_item_definition("spike_trap", {
+        KEY_DISPLAY_NAME: "Spike Trap",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 10
+    })
+    register_item_definition("ripped_cloth", {
+        KEY_DISPLAY_NAME: "Ripped Cloth",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("string", {
+        KEY_DISPLAY_NAME: "String",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("rock", {
+        KEY_DISPLAY_NAME: "Rock",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("vines", {
+        KEY_DISPLAY_NAME: "Vines",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("rope", {
+        KEY_DISPLAY_NAME: "Rope",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("plastic_sheet", {
+        KEY_DISPLAY_NAME: "Plastic Sheet",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("metal_scrap", {
+        KEY_DISPLAY_NAME: "Metal Scrap",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("nails", {
+        KEY_DISPLAY_NAME: "Nails",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 999
+    })
+    register_item_definition("duct_tape", {
+        KEY_DISPLAY_NAME: "Duct Tape",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("medicinal_herbs", {
+        KEY_DISPLAY_NAME: "Medicinal Herbs",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("fuel", {
+        KEY_DISPLAY_NAME: "Fuel",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("mechanical_parts", {
+        KEY_DISPLAY_NAME: "Mechanical Parts",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("electrical_parts", {
+        KEY_DISPLAY_NAME: "Electrical Parts",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
     })
 
 func register_item_definition(item_id: String, definition: Dictionary) -> Dictionary:
@@ -71,6 +156,9 @@ func get_item_display_name(item_id: String) -> String:
 
 func get_item_count(item_id: String) -> int:
     return _item_counts.get(item_id, 0)
+
+func get_item_counts() -> Dictionary:
+    return _item_counts.duplicate(true)
 
 func get_total_food_units() -> float:
     return _total_food_units
