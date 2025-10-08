@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://clrcv081gblwd"]
+[gd_scene load_steps=9 format=3 uid="uid://clrcv081gblwd"]
 
 [ext_resource type="Script" path="res://scripts/GameManager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/Player.gd" id="2"]
@@ -7,6 +7,9 @@
 [ext_resource type="Script" path="res://scripts/ui/HUD.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/ui/TaskMenu.gd" id="6"]
 [ext_resource type="Script" path="res://scripts/ui/RadioPanel.gd" id="7"]
+[ext_resource type="Script" path="res://scripts/ui/CraftingPanel.gd" id="8"]
+[ext_resource type="Script" path="res://scripts/ui/InventoryPanel.gd" id="9"]
+[ext_resource type="Script" path="res://scripts/ui/ForgingResultsPanel.gd" id="10"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(32, 32)
@@ -192,113 +195,202 @@ horizontal_alignment = 2
 text = "Average (x1.0)"
 
 [node name="TaskMenu" type="Control" parent="UI"]
+forging_results_panel_path = NodePath("../ForgingResultsPanel")
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 visible = false
-offset_left = -160.0
-offset_top = -120.0
-offset_right = 160.0
-offset_bottom = 120.0
+offset_left = -230.0
+offset_top = -150.0
+offset_right = 230.0
+offset_bottom = 150.0
 script = ExtResource("6")
 
-[node name="Panel" type="Panel" parent="UI/TaskMenu"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-
-[node name="VBox" type="VBoxContainer" parent="UI/TaskMenu/Panel"]
+[node name="Layout" type="VBoxContainer" parent="UI/TaskMenu"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 custom_constants/separation = 12
-offset_left = 16.0
-offset_top = 16.0
-offset_right = -16.0
-offset_bottom = -16.0
 
-[node name="TitleLabel" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-text = "Sleep Task"
+[node name="InfoPanel" type="Panel" parent="UI/TaskMenu/Layout"]
+size_flags_horizontal = 3
+
+[node name="InfoMargin" type="MarginContainer" parent="UI/TaskMenu/Layout/InfoPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="InfoList" type="VBoxContainer" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+custom_constants/separation = 6
+
+[node name="DescriptionTitle" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+text = "Task Details"
 horizontal_alignment = 1
 
-[node name="HourSelector" type="HBoxContainer" parent="UI/TaskMenu/Panel/VBox"]
+[node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
 size_flags_horizontal = 3
-alignment = 1
+size_flags_vertical = 3
+autowrap_mode = 2
+text = "Each hour: +10% rest / -100 cal"
+
+[node name="InfoStatus" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+text = ""
+
+[node name="DescriptionHint" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+autowrap_mode = 2
+text = "Hover or focus an action to see its requirements."
+
+[node name="GoRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+alignment = 2
+
+[node name="GoButton" type="Button" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/GoRow"]
+custom_minimum_size = Vector2(80, 0)
+text = "Go"
+
+[node name="ActionsPanel" type="Panel" parent="UI/TaskMenu/Layout"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Margin" type="MarginContainer" parent="UI/TaskMenu/Layout/ActionsPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="ActionList" type="VBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
 custom_constants/separation = 12
 
-[node name="DecreaseButton" type="Button" parent="UI/TaskMenu/Panel/VBox/HourSelector"]
+[node name="TitleLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+text = "Tower Tasks"
+horizontal_alignment = 1
+
+[node name="SleepRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+custom_constants/separation = 12
+size_flags_horizontal = 3
+
+[node name="SleepLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow"]
+custom_minimum_size = Vector2(72, 0)
+text = "Rest"
+vertical_alignment = 1
+
+[node name="HourSelector" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow"]
+size_flags_horizontal = 3
+custom_constants/separation = 8
+
+[node name="DecreaseButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector"]
 text = "<"
 
-[node name="HoursValue" type="Label" parent="UI/TaskMenu/Panel/VBox/HourSelector"]
+[node name="HoursValue" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector"]
 custom_minimum_size = Vector2(48, 0)
 horizontal_alignment = 1
 vertical_alignment = 1
 text = "0"
 
-[node name="IncreaseButton" type="Button" parent="UI/TaskMenu/Panel/VBox/HourSelector"]
+[node name="IncreaseButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector"]
 text = ">"
 
-[node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-text = "Each hour: +10% rest / -100 cal"
-horizontal_alignment = 1
+[node name="SleepSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow"]
+size_flags_horizontal = 1
+text = "Select"
+
+[node name="ForgingRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+custom_constants/separation = 12
 size_flags_horizontal = 3
-size_flags_vertical = 1
-autowrap_mode = 1
 
-[node name="SleepButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
-text = "Rest"
+[node name="ForgingLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ForgingRow"]
+custom_minimum_size = Vector2(72, 0)
+text = "Forge"
+vertical_alignment = 1
 
-[node name="ForgingButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
-text = "Start Forging"
-
-[node name="ForgingResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-horizontal_alignment = 1
-size_flags_horizontal = 3
-autowrap_mode = 1
-text = "Forging ready (-15% rest | Food 5.0)"
-
-[node name="LeadAwayButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
-text = "Lead Away Undead"
-
-[node name="LeadAwayResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-horizontal_alignment = 1
+[node name="ForgingStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ForgingRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
-text = "Lead Away -> 80% per 🧟 (Have 0)"
+text = "Forging ready"
 
-[node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Panel/VBox"]
-alignment = 1
+[node name="ForgingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ForgingRow"]
+text = "Select"
+
+[node name="LeadRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+custom_constants/separation = 12
+size_flags_horizontal = 3
+
+[node name="LeadLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/LeadRow"]
+custom_minimum_size = Vector2(72, 0)
+text = "Lead"
+vertical_alignment = 1
+
+[node name="LeadStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/LeadRow"]
+size_flags_horizontal = 3
+autowrap_mode = 1
+text = "Lead Away ->"
+
+[node name="LeadSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/LeadRow"]
+text = "Select"
+
+[node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
 custom_constants/separation = 8
-
-[node name="MealSizeOption" type="OptionButton" parent="UI/TaskMenu/Panel/VBox/MealRow"]
 size_flags_horizontal = 3
 
-[node name="EatButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
-text = "Eat Meal"
+[node name="MealLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
+custom_minimum_size = Vector2(72, 0)
+text = "Eat"
+vertical_alignment = 1
 
-[node name="MealSummary" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-horizontal_alignment = 1
+[node name="MealSizeOption" type="OptionButton" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
+size_flags_horizontal = 3
+
+[node name="MealSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
 text = "Meal ->"
 
-[node name="MealResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-horizontal_alignment = 1
-size_flags_horizontal = 3
-autowrap_mode = 1
+[node name="MealSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
+text = "Select"
 
-[node name="RepairSummary" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-horizontal_alignment = 1
+[node name="RepairRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+custom_constants/separation = 12
+size_flags_horizontal = 3
+
+[node name="RepairLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/RepairRow"]
+custom_minimum_size = Vector2(72, 0)
+text = "Repair"
+vertical_alignment = 1
+
+[node name="RepairSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/RepairRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
 text = "Repair ->"
 
-[node name="RepairButton" type="Button" parent="UI/TaskMenu/Panel/VBox"]
-text = "Repair Tower"
+[node name="RepairSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/RepairRow"]
+text = "Select"
 
-[node name="RepairResult" type="Label" parent="UI/TaskMenu/Panel/VBox"]
-horizontal_alignment = 1
+[node name="ReinforceRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+custom_constants/separation = 12
+size_flags_horizontal = 3
+
+[node name="ReinforceLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReinforceRow"]
+custom_minimum_size = Vector2(72, 0)
+text = "Reinforce"
+vertical_alignment = 1
+
+[node name="ReinforceSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReinforceRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
+text = "Reinforce ->"
+
+[node name="ReinforceSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReinforceRow"]
+text = "Select"
 
 [node name="RadioPanel" type="Control" parent="UI"]
 anchor_left = 0.5
@@ -333,15 +425,164 @@ horizontal_alignment = 1
 text = "Static hums in the speaker."
 autowrap_mode = 3
 
+[node name="CraftingPanel" type="Control" parent="UI"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -160.0
+offset_right = 240.0
+offset_bottom = 160.0
+visible = false
+script = ExtResource("8")
+
+[node name="Panel" type="Panel" parent="UI/CraftingPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Margin" type="MarginContainer" parent="UI/CraftingPanel/Panel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="UI/CraftingPanel/Panel/Margin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+text = "Crafting"
+horizontal_alignment = 1
+
+[node name="RecipeList" type="VBoxContainer" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+custom_constants/separation = 8
+
+[node name="DetailLabel" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+size_flags_vertical = 3
+autowrap_mode = 2
+
+[node name="StatusLabel" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+autowrap_mode = 2
+
+[node name="ButtonRow" type="HBoxContainer" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+alignment = 2
+
+[node name="CloseButton" type="Button" parent="UI/CraftingPanel/Panel/Margin/VBox/ButtonRow"]
+text = "Close"
+
+[node name="InventoryPanel" type="Control" parent="UI"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -160.0
+offset_right = 220.0
+offset_bottom = 160.0
+visible = false
+script = ExtResource("9")
+
+[node name="Panel" type="Panel" parent="UI/InventoryPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Margin" type="MarginContainer" parent="UI/InventoryPanel/Panel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="UI/InventoryPanel/Panel/Margin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="UI/InventoryPanel/Panel/Margin/VBox"]
+text = "Inventory"
+horizontal_alignment = 1
+
+[node name="ItemScroll" type="ScrollContainer" parent="UI/InventoryPanel/Panel/Margin/VBox"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Items" type="VBoxContainer" parent="UI/InventoryPanel/Panel/Margin/VBox/ItemScroll"]
+size_flags_horizontal = 3
+custom_constants/separation = 6
+
+[node name="Placeholder" type="Label" parent="UI/InventoryPanel/Panel/Margin/VBox/ItemScroll/Items"]
+text = "Inventory offline"
+autowrap_mode = 2
+
+[node name="ButtonRow" type="HBoxContainer" parent="UI/InventoryPanel/Panel/Margin/VBox"]
+alignment = 2
+
+[node name="CloseButton" type="Button" parent="UI/InventoryPanel/Panel/Margin/VBox/ButtonRow"]
+text = "Close"
+
+[node name="ForgingResultsPanel" type="Control" parent="UI"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -170.0
+offset_right = 240.0
+offset_bottom = 170.0
+visible = false
+script = ExtResource("10")
+
+[node name="Panel" type="Panel" parent="UI/ForgingResultsPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Margin" type="MarginContainer" parent="UI/ForgingResultsPanel/Panel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="UI/ForgingResultsPanel/Panel/Margin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="UI/ForgingResultsPanel/Panel/Margin/VBox"]
+text = "Forge Finds"
+horizontal_alignment = 1
+
+[node name="MessageLabel" type="Label" parent="UI/ForgingResultsPanel/Panel/Margin/VBox"]
+autowrap_mode = 2
+
+[node name="ItemScroll" type="ScrollContainer" parent="UI/ForgingResultsPanel/Panel/Margin/VBox"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Items" type="VBoxContainer" parent="UI/ForgingResultsPanel/Panel/Margin/VBox/ItemScroll"]
+size_flags_horizontal = 3
+custom_constants/separation = 8
+
+[node name="Placeholder" type="Label" parent="UI/ForgingResultsPanel/Panel/Margin/VBox/ItemScroll/Items"]
+text = "No items collected."
+autowrap_mode = 2
+
+[node name="ButtonRow" type="HBoxContainer" parent="UI/ForgingResultsPanel/Panel/Margin/VBox"]
+alignment = 2
+
+[node name="CloseButton" type="Button" parent="UI/ForgingResultsPanel/Panel/Margin/VBox/ButtonRow"]
+text = "Close"
+
 [node name="CloseButton" type="Button" parent="UI/RadioPanel/Panel/VBox"]
 text = "Close"
 
-[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
-[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
-[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/SleepButton" to="UI/TaskMenu" method="_on_sleep_button_pressed"]
-[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/ForgingButton" to="UI/TaskMenu" method="_on_forging_button_pressed"]
-[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/LeadAwayButton" to="UI/TaskMenu" method="_on_lead_away_button_pressed"]
-[connection signal="item_selected" from="UI/TaskMenu/Panel/VBox/MealRow/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
-[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/EatButton" to="UI/TaskMenu" method="_on_eat_button_pressed"]
-[connection signal="pressed" from="UI/TaskMenu/Panel/VBox/RepairButton" to="UI/TaskMenu" method="_on_repair_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
+[connection signal="item_selected" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
 [connection signal="pressed" from="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]
