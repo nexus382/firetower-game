@@ -3,10 +3,13 @@ class_name CraftingTable
 
 @export var prompt_text: String = "Press [%s] to craft"
 
+const CraftingPanelScript := preload("res://scripts/ui/CraftingPanel.gd")
+const CRAFTING_PANEL_PATH := NodePath("Main/UI/CraftingPanel")
+
 @onready var prompt_label: Label = $PromptLabel
 
 var _player_in_range: bool = false
-var _crafting_panel: CraftingPanel
+var _crafting_panel: Control = null
 var _prompt_template: String = ""
 
 func _ready():
@@ -27,8 +30,11 @@ func _resolve_dependencies():
     var root = get_tree().get_root()
     if root == null:
         return
-    var panel_node = root.get_node_or_null("Main/UI/CraftingPanel")
-    _crafting_panel = panel_node if panel_node is CraftingPanel else null
+    var panel_node = root.get_node_or_null(CRAFTING_PANEL_PATH)
+    if panel_node and panel_node is Control and panel_node.get_script() == CraftingPanelScript:
+        _crafting_panel = panel_node
+    else:
+        _crafting_panel = null
 
 func _unhandled_input(event):
     if !_player_in_range:
