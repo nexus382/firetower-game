@@ -470,6 +470,32 @@ func _build_repair_description() -> String:
         lines.append("Tower status offline")
     lines.append("Takes %s" % _format_duration(minutes))
     return "\n".join(lines)
+
+func _build_reinforce_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(120.0 * multiplier))
+    lines.append("Spend 2 hr (x%.1f) fortifying the tower." % multiplier)
+    lines.append("Costs 20%% rest / -450 cal")
+    lines.append("Adds +%s hp (cap %s)" % [
+        _format_health_value(25.0),
+        _format_health_value(TowerHealthSystem.REINFORCED_MAX_HEALTH)
+    ])
+    if inventory_system:
+        var wood_stock = inventory_system.get_item_count("wood")
+        var nails_stock = inventory_system.get_item_count("nails")
+        lines.append("Needs 3 wood (Stock %d)" % wood_stock)
+        lines.append("Needs 5 nails (Stock %d)" % nails_stock)
+    else:
+        lines.append("Needs 3 wood & 5 nails")
+    if tower_health_system:
+        lines.append("Tower %s" % _format_health_snapshot(tower_health_system.get_health()))
+    else:
+        lines.append("Tower status offline")
+    lines.append("Takes %s" % _format_duration(minutes))
+    return "\n".join(lines)
+
 func _on_decrease_button_pressed():
     selected_hours = max(selected_hours - 1, 0)
     _refresh_display()
