@@ -49,19 +49,32 @@ var _forging_feedback_locked: bool = false
 var _lead_feedback_state: String = "status"
 var _lead_feedback_locked: bool = false
 
+var _selected_action: String = "sleep"
+var _action_status_text: Dictionary = {}
+var _action_defaults: Dictionary = {}
+var _action_results_active: Dictionary = {}
+var _action_buttons: Dictionary = {}
+
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/HoursValue
-@onready var summary_label: Label = $Layout/DescriptionPanel/Margin/DescriptionList/SummaryLabel
-@onready var forging_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingResult
+@onready var info_title_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionTitle
+@onready var info_body_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/SummaryLabel
+@onready var info_status_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStatus
+@onready var info_hint_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionHint
+@onready var go_button: Button = $Layout/InfoPanel/InfoMargin/InfoList/GoRow/GoButton
+@onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
 @onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption
 @onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSummary
-@onready var meal_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/MealResult
 @onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSummary
-@onready var repair_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/RepairResult
-@onready var lead_result_label: Label = $Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadAwayResult
-@onready var description_title_label: Label = $Layout/DescriptionPanel/Margin/DescriptionList/DescriptionTitle
-@onready var description_hint_label: Label = $Layout/DescriptionPanel/Margin/DescriptionList/DescriptionHint
-@onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
+@onready var forging_status_label: Label = $Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingStatus
+@onready var lead_status_label: Label = $Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadStatus
+@onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSummary
+@onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepSelectButton
+@onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingSelectButton
+@onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadSelectButton
+@onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSelectButton
+@onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSelectButton
+@onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSelectButton
 
 const DESCRIPTION_DEFAULT := {
     "title": "Task Details",
@@ -88,19 +101,33 @@ const TASK_DESCRIPTION_META := {
     "repair": {
         "title": "Repair",
         "hint": "Spend wood to restore tower health."
+    },
+    "reinforce": {
+        "title": "Reinforce",
+        "hint": "Fortify the tower past its base strength."
     }
 }
-
-var _current_description: String = "sleep"
 
 func _ready():
     set_process_unhandled_input(true)
     _close_menu()
 
-    if is_instance_valid(description_title_label):
-        description_title_label.text = DESCRIPTION_DEFAULT.get("title", "Task Details")
-    if is_instance_valid(description_hint_label):
-        description_hint_label.text = DESCRIPTION_DEFAULT.get("hint", "Hover an action to see more.")
+    if is_instance_valid(info_title_label):
+        info_title_label.text = DESCRIPTION_DEFAULT.get("title", "Task Details")
+    if is_instance_valid(info_hint_label):
+        info_hint_label.text = DESCRIPTION_DEFAULT.get("hint", "Hover or focus an action to see its requirements.")
+    if is_instance_valid(info_status_label):
+        info_status_label.text = ""
+
+    if go_button:
+        go_button.pressed.connect(_on_go_button_pressed)
+
+    _register_action_selector(sleep_select_button, "sleep")
+    _register_action_selector(forging_select_button, "forging")
+    _register_action_selector(lead_select_button, "lead")
+    _register_action_selector(meal_select_button, "meal")
+    _register_action_selector(repair_select_button, "repair")
+    _register_action_selector(reinforce_select_button, "reinforce")
 
     if game_manager:
         time_system = game_manager.get_time_system()
@@ -111,6 +138,8 @@ func _ready():
             time_system.day_rolled_over.connect(_on_time_system_changed)
         if inventory_system:
             inventory_system.food_total_changed.connect(_on_inventory_food_total_changed)
+            inventory_system.item_added.connect(_on_inventory_item_changed)
+            inventory_system.item_consumed.connect(_on_inventory_item_changed)
             _set_forging_feedback(_format_forging_ready(inventory_system.get_total_food_units()), "ready")
         else:
             _set_forging_feedback("Forging offline", "offline")
@@ -128,7 +157,7 @@ func _ready():
 
     _setup_meal_size_options()
     _setup_description_targets()
-    _set_description("sleep", true)
+    _select_action("sleep", true)
     _refresh_display()
 
     if forging_results_panel == null:
@@ -167,7 +196,9 @@ func _refresh_display():
 
     _update_meal_summary()
     _update_repair_summary()
+    _update_reinforce_summary()
     _update_description_body()
+    _update_info_status()
 
 func _setup_description_targets():
     var paths := {
@@ -177,30 +208,33 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector",
             "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/DecreaseButton",
             "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/IncreaseButton",
-            "Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepButton"
+            "Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepSelectButton"
         ],
         "forging": [
             "Layout/ActionsPanel/Margin/ActionList/ForgingRow",
-            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingButton",
-            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingResult"
+            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingStatus",
+            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingSelectButton"
         ],
         "lead": [
             "Layout/ActionsPanel/Margin/ActionList/LeadRow",
-            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadAwayButton",
-            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadAwayResult"
+            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadStatus",
+            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadSelectButton"
         ],
         "meal": [
             "Layout/ActionsPanel/Margin/ActionList/MealRow",
             "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption",
-            "Layout/ActionsPanel/Margin/ActionList/MealRow/EatButton",
             "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSummary",
-            "Layout/ActionsPanel/Margin/ActionList/MealResult"
+            "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSelectButton"
         ],
         "repair": [
             "Layout/ActionsPanel/Margin/ActionList/RepairRow",
-            "Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairButton",
             "Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSummary",
-            "Layout/ActionsPanel/Margin/ActionList/RepairResult"
+            "Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSelectButton"
+        ],
+        "reinforce": [
+            "Layout/ActionsPanel/Margin/ActionList/ReinforceRow",
+            "Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSummary",
+            "Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSelectButton"
         ]
     }
 
@@ -219,24 +253,12 @@ func _register_description_target(control: Control, key: String):
         control.focus_entered.connect(func(): _set_description(key))
 
 func _set_description(key: String, force: bool = false):
-    if key.is_empty():
-        key = _current_description
-    if !TASK_DESCRIPTION_META.has(key):
-        key = "sleep"
-    var changed = key != _current_description
-    _current_description = key
-    var meta = TASK_DESCRIPTION_META.get(key, DESCRIPTION_DEFAULT)
-    if changed or force:
-        if is_instance_valid(description_title_label):
-            description_title_label.text = meta.get("title", DESCRIPTION_DEFAULT.get("title", "Task Details"))
-        if is_instance_valid(description_hint_label):
-            description_hint_label.text = meta.get("hint", DESCRIPTION_DEFAULT.get("hint", "Hover or focus an action to see its requirements."))
-    _update_description_body()
+    _select_action(key, force)
 
 func _update_description_body():
-    if !is_instance_valid(summary_label):
+    if !is_instance_valid(info_body_label):
         return
-    summary_label.text = _get_description_body(_current_description)
+    info_body_label.text = _get_description_body(_selected_action)
 
 func _get_description_body(key: String) -> String:
     match key:
@@ -250,8 +272,103 @@ func _get_description_body(key: String) -> String:
             return _build_meal_description()
         "repair":
             return _build_repair_description()
+        "reinforce":
+            return _build_reinforce_description()
         _:
             return "Select an action to learn more."
+func _select_action(key: String, force: bool = false):
+    if key.is_empty():
+        key = _selected_action
+    if !TASK_DESCRIPTION_META.has(key):
+        key = "sleep"
+    var changed = force or key != _selected_action
+    _selected_action = key
+    var meta = TASK_DESCRIPTION_META.get(key, DESCRIPTION_DEFAULT)
+    if is_instance_valid(info_title_label):
+        info_title_label.text = meta.get("title", DESCRIPTION_DEFAULT.get("title", "Task Details"))
+    if is_instance_valid(info_hint_label):
+        info_hint_label.text = meta.get("hint", DESCRIPTION_DEFAULT.get("hint", "Hover or focus an action to see its requirements."))
+    _update_description_body()
+    _update_info_status()
+    if changed or force:
+        _update_action_highlights()
+
+func _register_action_selector(button: BaseButton, action: String):
+    if button == null:
+        return
+    button.toggle_mode = true
+    button.button_pressed = action == _selected_action
+    button.pressed.connect(func():
+        _select_action(action)
+    )
+    _action_buttons[action] = button
+
+func _update_action_highlights():
+    for key in _action_buttons.keys():
+        var button: BaseButton = _action_buttons[key]
+        if button and is_instance_valid(button):
+            button.button_pressed = key == _selected_action
+
+func _update_info_status():
+    if !is_instance_valid(info_status_label):
+        return
+    var text = _action_status_text.get(_selected_action, "")
+    info_status_label.text = text
+    info_status_label.visible = !text.is_empty()
+
+func _set_action_status(action: String, text: String, update_row: bool = false):
+    _action_status_text[action] = text
+    if update_row:
+        match action:
+            "forging":
+                if is_instance_valid(forging_status_label):
+                    forging_status_label.text = text
+            "lead":
+                if is_instance_valid(lead_status_label):
+                    lead_status_label.text = text
+            "meal":
+                if is_instance_valid(meal_summary_label):
+                    meal_summary_label.text = text
+            "repair":
+                if is_instance_valid(repair_summary_label):
+                    repair_summary_label.text = text
+            "reinforce":
+                if is_instance_valid(reinforce_summary_label):
+                    reinforce_summary_label.text = text
+    if action == _selected_action:
+        _update_info_status()
+
+func _set_action_default(action: String, text: String, update_row: bool = false):
+    _action_defaults[action] = text
+    if !_action_results_active.get(action, false):
+        _set_action_status(action, text, update_row)
+
+func _set_action_result(action: String, text: String, update_row: bool = false):
+    var active = !text.is_empty()
+    _action_results_active[action] = active
+    if active:
+        _set_action_status(action, text, update_row)
+    else:
+        _set_action_status(action, _action_defaults.get(action, ""), update_row)
+
+func _trigger_selected_action():
+    match _selected_action:
+        "sleep":
+            _execute_sleep_action()
+        "forging":
+            _execute_forging_action()
+        "lead":
+            _execute_lead_action()
+        "meal":
+            _execute_meal_action()
+        "repair":
+            _execute_repair_action()
+        "reinforce":
+            _execute_reinforce_action()
+
+func _on_go_button_pressed():
+    _trigger_selected_action()
+
 
 func _build_sleep_description() -> String:
     var lines: PackedStringArray = []
@@ -285,7 +402,8 @@ func _build_forging_description() -> String:
     multiplier = max(multiplier, 0.01)
     var minutes = int(ceil(60.0 * multiplier))
     lines.append("Spend 1 hr (x%.1f) to search the woods." % multiplier)
-    lines.append("Costs 15%% rest | Loot: 25%% 🍄 / 25%% 🍓 / 25%% 🌰 / 20%% 🐛 / 20%% 🪵 / 15%% 🩹 / 17.5%% 🌿")
+    lines.append("Costs 15%% rest | Basic: 🍄25%% / 🍓25%% / 🌰25%% / 🐛20%% / 🧵15%% / 🪨30%% / 🌿17.5%% / 🪵20%%")
+    lines.append("Advanced finds (10%%): Plastic Sheet, Metal Scrap, Nails x3, Duct Tape, Medicinal Herbs, Fuel (3-5), Mechanical Parts, Electrical Parts")
     lines.append("Takes %s" % _format_duration(minutes))
     if zombie_system and zombie_system.has_active_zombies():
         lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
@@ -359,8 +477,9 @@ func _on_increase_button_pressed():
     selected_hours = min(selected_hours + 1, hours_available)
     _refresh_display()
 
-func _on_sleep_button_pressed():
+func _execute_sleep_action():
     if game_manager == null:
+        _set_action_result("sleep", "Sleep unavailable")
         return
 
     var multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
@@ -370,8 +489,8 @@ func _on_sleep_button_pressed():
 
     if hours_requested <= 0.0:
         if minutes_remaining <= 0:
-            _set_description("sleep", true)
-            summary_label.text = "%s\n\nNo time left before 6:00 AM." % _build_sleep_description()
+            _select_action("sleep", true)
+            _set_action_result("sleep", "No time left before 6:00 AM.")
             return
         hours_requested = minutes_remaining / (60.0 * multiplier)
 
@@ -379,17 +498,18 @@ func _on_sleep_button_pressed():
     if result.get("accepted", false):
         print("✅ Sleep applied: %s" % result)
         selected_hours = 0
+        _set_action_result("sleep", "")
         _refresh_display()
         _close_menu()
     else:
         var minutes_left = result.get("minutes_available", _get_minutes_left_today())
         var rejection_multiplier = result.get("time_multiplier", multiplier)
         var message = "Not enough time (x%.1f, left: %s)" % [rejection_multiplier, _format_duration(minutes_left)]
-        _set_description("sleep", true)
-        summary_label.text = "%s\n\n%s" % [_build_sleep_description(), message]
+        _select_action("sleep", true)
+        _set_action_result("sleep", message)
         print("⚠️ Sleep rejected: %s" % result)
 
-func _on_forging_button_pressed():
+func _execute_forging_action():
     if game_manager == null:
         _set_forging_feedback("Forging unavailable", "offline")
         return
@@ -401,7 +521,7 @@ func _on_forging_button_pressed():
         forging_results_panel.show_result(result)
     _refresh_display()
 
-func _on_lead_away_button_pressed():
+func _execute_lead_action():
     if game_manager == null:
         _set_lead_feedback("Lead Away unavailable", "offline")
         return
@@ -419,24 +539,26 @@ func _on_meal_size_option_item_selected(index: int):
         selected_meal_key = key
     _update_meal_summary()
 
-func _on_eat_button_pressed():
+func _execute_meal_action():
     if game_manager == null:
-        meal_result_label.text = "Eating unavailable"
+        _set_action_result("meal", "Eating unavailable")
         return
 
     var result = game_manager.perform_eating(selected_meal_key)
     if !result.get("success", false):
         var reason = result.get("reason", "failed")
+        var message: String
         match reason:
             "insufficient_food":
                 var required = result.get("required_food", 0.0)
                 var available = result.get("total_food_units", 0.0)
-                meal_result_label.text = "Need %s food (Have %s)" % [_format_food(required), _format_food(available)]
+                message = "Need %s food (Have %s)" % [_format_food(required), _format_food(available)]
             "exceeds_day":
                 var minutes_available = result.get("minutes_available", 0)
-                meal_result_label.text = _format_daybreak_warning(minutes_available)
+                message = _format_daybreak_warning(minutes_available)
             _:
-                meal_result_label.text = "Meal failed"
+                message = "Meal failed"
+        _set_action_result("meal", message)
         return
 
     var calories = int(round(result.get("calories_consumed", 0.0)))
@@ -447,29 +569,32 @@ func _on_eat_button_pressed():
     message_parts.append("-%s food" % _format_food(food_spent))
     if ended_at != "":
         message_parts.append("End %s" % ended_at)
-    meal_result_label.text = "%s meal -> %s" % [result.get("portion", selected_meal_key).capitalize(), " | ".join(message_parts)]
+    var message = "%s meal -> %s" % [result.get("portion", selected_meal_key).capitalize(), " | ".join(message_parts)]
+    _set_action_result("meal", message)
     _refresh_display()
 
-func _on_repair_button_pressed():
+func _execute_repair_action():
     if game_manager == null:
-        repair_result_label.text = "Repair unavailable"
+        _set_action_result("repair", "Repair unavailable")
         return
 
     var result = game_manager.repair_tower({})
     if !result.get("success", false):
         var reason = result.get("reason", "failed")
+        var message: String
         match reason:
             "tower_full_health":
-                repair_result_label.text = "Tower already stable"
+                message = "Tower already stable"
             "exceeds_day":
                 var minutes_available = result.get("minutes_available", 0)
-                repair_result_label.text = _format_daybreak_warning(minutes_available)
+                message = _format_daybreak_warning(minutes_available)
             "insufficient_wood":
                 var required = int(result.get("wood_required", 1))
                 var available = int(result.get("wood_available", 0))
-                repair_result_label.text = "Need %d wood (Have %d)" % [required, available]
+                message = "Need %d wood (Have %d)" % [required, available]
             _:
-                repair_result_label.text = "Repair failed"
+                message = "Repair failed"
+        _set_action_result("repair", message)
         return
 
     var restored = result.get("health_restored", 0.0)
@@ -487,8 +612,82 @@ func _on_repair_button_pressed():
         parts.append("+%d%% rest" % int(round(rest_bonus)))
     if ended_at != "":
         parts.append("End %s" % ended_at)
-    repair_result_label.text = "Repair -> %s" % " | ".join(parts)
+    var message = "Repair -> %s" % " | ".join(parts)
+    _set_action_result("repair", message)
     _refresh_display()
+func _execute_reinforce_action():
+    if game_manager == null:
+        _set_action_result("reinforce", "Reinforce unavailable")
+        return
+
+    var result = game_manager.reinforce_tower({})
+    if !result.get("success", false):
+        var reason = result.get("reason", "failed")
+        var message: String
+        match reason:
+            "exceeds_day":
+                var minutes_available = result.get("minutes_available", 0)
+                message = _format_daybreak_warning(minutes_available)
+            "insufficient_material":
+                var need: PackedStringArray = []
+                var required_wood = int(result.get("wood_required", 3))
+                var wood_available = int(result.get("wood_available", 0))
+                if wood_available < required_wood:
+                    need.append("Need %d wood (Have %d)" % [required_wood, wood_available])
+                var required_nails = int(result.get("nails_required", 5))
+                var nails_available = int(result.get("nails_available", 0))
+                if nails_available < required_nails:
+                    need.append("Need %d nails (Have %d)" % [required_nails, nails_available])
+                if need.is_empty():
+                    need.append("Materials missing")
+                message = " / ".join(need)
+            "reinforced_cap":
+                var cap_value = int(round(result.get("health", TowerHealthSystem.REINFORCED_MAX_HEALTH)))
+                message = "Tower fully fortified (%d)" % cap_value
+            "tower_full_health":
+                var cap = int(round(result.get("health", TowerHealthSystem.REINFORCED_MAX_HEALTH)))
+                message = "Tower already fortified (%d)" % cap
+            "wood_consume_failed":
+                message = "Wood spend failed"
+            "nails_consume_failed":
+                message = "Nails spend failed"
+            "systems_unavailable":
+                message = "Systems offline"
+            _:
+                message = "Reinforce failed"
+        _set_action_result("reinforce", message)
+        return
+
+    var added = result.get("health_added", 0.0)
+    var after = result.get("health_after", 0.0)
+    var ended_at = result.get("ended_at_time", "")
+    var rest_spent = result.get("rest_spent_percent", 0.0)
+    var calories = int(round(result.get("calories_spent", 0.0)))
+    var wood_spent = int(result.get("wood_spent", 0))
+    var nails_spent = int(result.get("nails_spent", 0))
+    var wood_remaining = int(result.get("wood_remaining", 0))
+    var nails_remaining = int(result.get("nails_remaining", 0))
+    var parts: PackedStringArray = []
+    parts.append("+%s hp" % _format_health_value(added))
+    parts.append("%s" % _format_health_snapshot(after))
+    if rest_spent > 0.0:
+        parts.append("-%d%% rest" % int(round(rest_spent)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    if wood_spent > 0:
+        var wood_fragment = "-%d wood" % wood_spent
+        wood_fragment += " (Stock %d)" % max(wood_remaining, 0)
+        parts.append(wood_fragment)
+    if nails_spent > 0:
+        var nail_fragment = "-%d nails" % nails_spent
+        nail_fragment += " (Stock %d)" % max(nails_remaining, 0)
+        parts.append(nail_fragment)
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    var message = "Reinforce -> %s" % " | ".join(parts)
+    _set_action_result("reinforce", message)
+    _refresh_display()
+
 
 func _format_forging_ready(total_food: float) -> String:
     return "Forging ready (-15% rest | Food %.1f)" % total_food
@@ -565,10 +764,11 @@ func _format_daybreak_warning(minutes_available: int) -> String:
     return "Daybreak soon (Left %s)" % _format_duration(minutes_available)
 
 func _set_forging_feedback(text: String, state: String):
-    if !is_instance_valid(forging_result_label):
-        return
-    forging_result_label.text = text
     _forging_feedback_state = state
+    if state == "result":
+        _set_action_result("forging", text, true)
+    else:
+        _set_action_default("forging", text, true)
 
 func _lock_forging_feedback():
     _forging_feedback_locked = true
@@ -578,10 +778,11 @@ func _unlock_forging_feedback():
     _forging_feedback_locked = false
 
 func _set_lead_feedback(text: String, state: String):
-    if !is_instance_valid(lead_result_label):
-        return
-    lead_result_label.text = text
     _lead_feedback_state = state
+    if state == "result":
+        _set_action_result("lead", text, true)
+    else:
+        _set_action_default("lead", text, true)
 
 func _lock_lead_feedback():
     _lead_feedback_locked = true
@@ -630,7 +831,9 @@ func _update_meal_summary():
         lines.append("Stock: %s food" % _format_food(inventory_system.get_total_food_units()))
     else:
         lines.append("Inventory offline")
-    meal_summary_label.text = "\n".join(lines)
+    var summary = "\n".join(lines)
+    meal_summary_label.text = summary
+    _set_action_default("meal", summary)
 
 func _update_repair_summary():
     if !is_instance_valid(repair_summary_label):
@@ -648,7 +851,31 @@ func _update_repair_summary():
         lines.append("Needs 1 wood")
     if tower_health_system:
         lines.append("Tower %s" % _format_health_snapshot(tower_health_system.get_health()))
-    repair_summary_label.text = " | ".join(lines)
+    var summary = " | ".join(lines)
+    repair_summary_label.text = summary
+    _set_action_default("repair", summary)
+func _update_reinforce_summary():
+    if !is_instance_valid(reinforce_summary_label):
+        return
+    var lines: PackedStringArray = []
+    lines.append("Reinforce -> +25 hp (cap 150)")
+    lines.append("-20% rest / -450 cal")
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    var minutes = int(ceil(120.0 * max(multiplier, 0.01)))
+    lines.append("Takes %s" % _format_duration(minutes))
+    if inventory_system:
+        var wood_stock = inventory_system.get_item_count("wood")
+        var nail_stock = inventory_system.get_item_count("nails")
+        lines.append("Needs 3 wood (Stock %d)" % wood_stock)
+        lines.append("Needs 5 nails (Stock %d)" % nail_stock)
+    else:
+        lines.append("Needs 3 wood & 5 nails")
+    if tower_health_system:
+        lines.append("Tower %s" % _format_health_snapshot(tower_health_system.get_health()))
+    var summary = " | ".join(lines)
+    reinforce_summary_label.text = summary
+    _set_action_default("reinforce", summary)
+
 
 func _resolve_meal_option(key: String) -> Dictionary:
     var normalized = key.to_lower()
@@ -732,9 +959,14 @@ func _on_inventory_food_total_changed(new_total: float):
     if _forging_feedback_state == "offline":
         return
     _set_forging_feedback(_format_forging_ready(new_total), "ready")
+func _on_inventory_item_changed(_item_id: String, _quantity_delta: int, _food_delta: float, _total_food_units: float):
+    _update_repair_summary()
+    _update_reinforce_summary()
+
 
 func _on_tower_health_changed(_new: float, _old: float):
     _update_repair_summary()
+    _update_reinforce_summary()
 
 func _on_lead_zombie_count_changed(count: int):
     if _lead_feedback_locked:

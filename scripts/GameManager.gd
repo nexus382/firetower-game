@@ -321,7 +321,7 @@ func repair_tower(materials: Dictionary = {}) -> Dictionary:
             "action": "repair"
         }
 
-    if tower_health_system.is_at_max_health():
+    if tower_health_system.is_at_repair_cap():
         return {
             "success": false,
             "reason": "tower_full_health",
@@ -375,6 +375,96 @@ func repair_tower(materials: Dictionary = {}) -> Dictionary:
 
     print("🔧 Tower repair -> +%.1f (%.1f/%.1f)" % [result["health_restored"], repaired, tower_health_system.get_max_health()])
     return result
+
+func reinforce_tower(materials: Dictionary = {}) -> Dictionary:
+    if not time_system or not sleep_system or tower_health_system == null or inventory_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "reinforce"
+        }
+
+    if tower_health_system.is_at_reinforced_cap():
+        return {
+            "success": false,
+            "reason": "reinforced_cap",
+            "action": "reinforce",
+            "health": tower_health_system.get_health()
+        }
+
+    var required_wood: int = 3
+    var required_nails: int = 5
+    var wood_available = inventory_system.get_item_count("wood") if inventory_system else 0
+    var nails_available = inventory_system.get_item_count("nails") if inventory_system else 0
+    if wood_available < required_wood or nails_available < required_nails:
+        return {
+            "success": false,
+            "reason": "insufficient_material",
+            "action": "reinforce",
+            "wood_required": required_wood,
+            "wood_available": wood_available,
+            "nails_required": required_nails,
+            "nails_available": nails_available
+        }
+
+    var time_report = _spend_activity_time(2.0, "reinforce")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "reinforce"
+        return failure
+
+    var wood_consume = inventory_system.consume_item("wood", required_wood)
+    if !wood_consume.get("success", false):
+        return {
+            "success": false,
+            "reason": "wood_consume_failed",
+            "action": "reinforce",
+            "wood_required": required_wood,
+            "wood_available": wood_available
+        }
+
+    var nails_consume = inventory_system.consume_item("nails", required_nails)
+    if !nails_consume.get("success", false):
+        inventory_system.add_item("wood", required_wood)
+        return {
+            "success": false,
+            "reason": "nails_consume_failed",
+            "action": "reinforce",
+            "nails_required": required_nails,
+            "nails_available": nails_available,
+            "wood_refunded": required_wood
+        }
+
+    var rest_spent = sleep_system.consume_sleep(20.0)
+    var calorie_cost = 450.0
+    var calorie_burn = sleep_system.adjust_daily_calories(calorie_cost)
+    var before = tower_health_system.get_health()
+    var material_report := materials.duplicate() if typeof(materials) == TYPE_DICTIONARY else {}
+    material_report["wood"] = material_report.get("wood", 0) + required_wood
+    material_report["nails"] = material_report.get("nails", 0) + required_nails
+    var reinforced = tower_health_system.apply_reinforcement(25.0, "manual_reinforce", material_report)
+    var added = reinforced - before
+
+    var result := time_report.duplicate()
+    result["action"] = "reinforce"
+    result["success"] = true
+    result["status"] = result.get("status", "applied")
+    result["health_before"] = before
+    result["health_after"] = reinforced
+    result["health_added"] = added
+    result["rest_spent_percent"] = rest_spent
+    result["calories_spent"] = calorie_cost
+    result["daily_calories_used"] = calorie_burn
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["wood_spent"] = required_wood
+    result["wood_remaining"] = inventory_system.get_item_count("wood") if inventory_system else 0
+    result["nails_spent"] = required_nails
+    result["nails_remaining"] = inventory_system.get_item_count("nails") if inventory_system else 0
+    result["reinforced_cap"] = tower_health_system.get_max_health()
+
+    print("🧱 Tower reinforcement -> +%.1f (%.1f/%.1f)" % [added, reinforced, tower_health_system.get_max_health()])
+    return result
+
 
 func schedule_sleep(hours: float) -> Dictionary:
     """Apply sleep hours while advancing the daily clock."""
