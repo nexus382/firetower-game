@@ -102,15 +102,16 @@ func _build_recipe_list():
         _active_recipe = ""
     for key in keys:
         var recipe: Dictionary = _recipes.get(key, {})
+        var recipe_id := String(key)
         var row = HBoxContainer.new()
         row.theme_override_constants["separation"] = 8
 
         var button = Button.new()
         button.text = recipe.get("display_name", key.capitalize())
         button.focus_mode = Control.FOCUS_ALL
-        button.pressed.connect(func(): _attempt_craft(key))
-        button.mouse_entered.connect(func(): _on_recipe_hovered(key))
-        button.focus_entered.connect(func(): _on_recipe_hovered(key))
+        button.pressed.connect(Callable(self, "_attempt_craft").bind(recipe_id))
+        button.mouse_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
+        button.focus_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
         row.add_child(button)
 
         var cost_label = Label.new()
