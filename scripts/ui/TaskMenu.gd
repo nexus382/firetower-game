@@ -109,6 +109,7 @@ const TASK_DESCRIPTION_META := {
 }
 
 func _ready():
+    set_process_input(true)
     set_process_unhandled_input(true)
     _close_menu()
 

@@ -1,7 +1,7 @@
 extends Area2D
 class_name Radio
 
-@export var prompt_text: String = "Press [I] to tune"
+@export var prompt_text: String = "Press [%s] to tune"
 @export var static_text: String = "Only static crackles tonight."
 
 @onready var prompt_label: Label = $PromptLabel
@@ -9,6 +9,7 @@ class_name Radio
 var _player_in_range: bool = false
 var _game_manager: GameManager
 var _radio_panel: Control
+var _prompt_template: String = ""
 
 func _ready():
     monitoring = true
@@ -17,9 +18,10 @@ func _ready():
     body_exited.connect(_on_body_exited)
     set_process_unhandled_input(true)
 
+    _prompt_template = prompt_text
     if prompt_label:
         prompt_label.visible = false
-        prompt_label.text = prompt_text
+    _update_prompt_text()
 
     _resolve_dependencies()
 
@@ -79,6 +81,32 @@ func _show_panel_with_message(payload: Dictionary):
         var title = payload.get("title", "Radio")
         var message = payload.get("text", "")
         print("📻 {0} -> {1}".format(title, message))
+
+func _update_prompt_text():
+    var display = _format_prompt_text(_resolve_interact_key_label())
+    prompt_text = display
+    if prompt_label:
+        prompt_label.text = display
+
+func _resolve_interact_key_label() -> String:
+    var fallback = "E"
+    var events = InputMap.action_get_events("interact")
+    for evt in events:
+        if evt is InputEventKey:
+            var code = evt.keycode
+            if code == Key.KEY_UNKNOWN or code == 0:
+                code = evt.physical_keycode
+            if code != Key.KEY_UNKNOWN and code != 0:
+                var label = OS.get_keycode_string(code)
+                if !label.is_empty():
+                    return label.to_upper()
+    return fallback
+
+func _format_prompt_text(key_label: String) -> String:
+    var template = _prompt_template if !_prompt_template.is_empty() else "Press [%s] to tune"
+    if template.find("%s") != -1:
+        return template % key_label
+    return template
 
 func _on_body_entered(body):
     if body is Player:
