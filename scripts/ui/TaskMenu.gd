@@ -171,6 +171,12 @@ func _ready():
                     forging_results_panel = candidate
 
 func _input(event):
+    _handle_menu_input(event)
+
+func _unhandled_input(event):
+    _handle_menu_input(event)
+
+func _handle_menu_input(event):
     if event.is_action_pressed("action_menu") and !event.is_echo():
         if visible:
             _close_menu()

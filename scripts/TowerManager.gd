@@ -360,7 +360,12 @@ func create_crafting_table():
     if kitchen_node == null:
         return
 
-    var table: CraftingTable = CraftingTable.new()
+    var table_node := Area2D.new()
+    table_node.set_script(CraftingTable)
+    var table: CraftingTable = table_node as CraftingTable
+    if table == null:
+        table_node.queue_free()
+        return
     table.name = "CraftingTable"
 
     var table_pos = Vector2(
