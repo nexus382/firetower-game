@@ -719,7 +719,9 @@ func craft_item(recipe_id: String) -> Dictionary:
         return failure
 
     var rest_cost = max(float(recipe.get("rest_cost_percent", 0.0)), 0.0)
-    var rest_spent = rest_cost > 0.0 ? sleep_system.consume_sleep(rest_cost) : 0.0
+    var rest_spent = 0.0
+    if rest_cost > 0.0:
+        rest_spent = sleep_system.consume_sleep(rest_cost)
 
     var materials_spent: Array = []
     for requirement in requirements:

@@ -94,7 +94,7 @@ func _populate_message(loot: Array):
     if summary.is_empty():
         message_label.text = "Nothing new surfaced."
         return
-    var pool = advanced_found ? ADVANCED_FIND_MESSAGES : BASIC_FIND_MESSAGES
+    var pool = ADVANCED_FIND_MESSAGES if advanced_found else BASIC_FIND_MESSAGES
     var prefix = pool[_rng.randi_range(0, pool.size() - 1)] if pool.size() > 0 else "Found"
     message_label.text = "%s %s." % [prefix, ", ".join(summary)]
 
@@ -148,8 +148,8 @@ func _apply_theme_overrides():
     if panel:
         var backdrop := StyleBoxFlat.new()
         backdrop.bg_color = Color(0.08, 0.08, 0.08, 1.0)
-        backdrop.corner_radius_all = 8
-        backdrop.border_width_all = 2
+        backdrop.set_corner_radius_all(8)
+        backdrop.set_border_width_all(2)
         backdrop.border_color = Color(0.3, 0.3, 0.3, 1.0)
         panel.add_theme_stylebox_override("panel", backdrop)
     if close_button:
