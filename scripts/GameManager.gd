@@ -27,6 +27,11 @@ const FISHING_CALORIE_COST: float = 650.0
 const FISHING_GRUB_LOSS_CHANCE: float = 0.5
 const FORGING_REST_COST_PERCENT: float = 12.5
 const FORGING_CALORIE_COST: float = 500.0
+const TRAP_DEPLOY_HOURS: float = 2.0
+const TRAP_CALORIE_COST: float = 500.0
+const TRAP_REST_COST_PERCENT: float = 15.0
+const TRAP_BREAK_CHANCE: float = 0.5
+const TRAP_ITEM_ID := "spike_trap"
 const FISHING_SIZE_TABLE := [
     {
         "size": "small",
@@ -138,6 +143,7 @@ signal day_changed(new_day: int)
 signal weather_changed(new_state: String, previous_state: String, hours_remaining: int)
 signal weather_multiplier_changed(new_multiplier: float, state: String)
 signal lure_status_changed(status: Dictionary)
+signal trap_state_changed(active: bool, state: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -160,6 +166,15 @@ var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _lure_target: Dictionary = {}
 var _last_lure_status: Dictionary = {}
+var _trap_state: Dictionary = {
+    "active": false,
+    "status": "idle",
+    "break_chance": TRAP_BREAK_CHANCE,
+    "kills": 0,
+    "deployed_day": 0,
+    "deployed_at_minutes": -1,
+    "deployed_at_time": ""
+}
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -209,9 +224,11 @@ func _ready():
         news_system.reset_day(current_day)
     if zombie_system:
         zombie_system.zombies_damaged_tower.connect(_on_zombie_damage_tower)
+        zombie_system.zombies_spawned.connect(_on_zombies_spawned)
         zombie_system.start_day(current_day, _rng)
 
     _refresh_lure_status(true)
+    _broadcast_trap_state()
 
 func pause_game():
     game_paused = true
@@ -281,6 +298,15 @@ func get_zombie_system() -> ZombieSystem:
 
 func get_lure_status() -> Dictionary:
     return _refresh_lure_status(false).duplicate(true)
+
+func has_active_trap() -> bool:
+    return _trap_state.get("active", false)
+
+func get_trap_state() -> Dictionary:
+    return _trap_state.duplicate(true)
+
+func _broadcast_trap_state():
+    trap_state_changed.emit(_trap_state.get("active", false), _trap_state.duplicate(true))
 
 func get_crafting_recipes() -> Dictionary:
     var copy := {}
@@ -911,6 +937,86 @@ func perform_lure_incoming_zombies() -> Dictionary:
     print("🪤 Lure success -> diverted %d approaching undead" % max(prevented, 0))
     return result
 
+func perform_trap_deployment() -> Dictionary:
+    if time_system == null or sleep_system == null or inventory_system == null or _rng == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "trap"
+        }
+
+    if has_active_trap():
+        return {
+            "success": false,
+            "reason": "trap_active",
+            "action": "trap",
+            "state": get_trap_state()
+        }
+
+    var trap_stock = inventory_system.get_item_count(TRAP_ITEM_ID) if inventory_system else 0
+    if trap_stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_traps",
+            "action": "trap",
+            "trap_stock": trap_stock
+        }
+
+    var time_report = _spend_activity_time(TRAP_DEPLOY_HOURS, "trap_deploy")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "trap"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(TRAP_REST_COST_PERCENT)
+    var calorie_total = sleep_system.adjust_daily_calories(TRAP_CALORIE_COST)
+    var consume_report = inventory_system.consume_item(TRAP_ITEM_ID, 1)
+    if !consume_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "trap"
+        failure["success"] = false
+        failure["reason"] = "consume_failed"
+        failure["trap_stock"] = trap_stock
+        failure["consume_report"] = consume_report
+        return failure
+
+    var snapshot := _trap_state.duplicate(true)
+    snapshot["active"] = true
+    snapshot["status"] = "deployed"
+    snapshot["kills"] = 0
+    snapshot["deployed_day"] = current_day
+    snapshot["deployed_at_minutes"] = time_system.get_minutes_since_daybreak() if time_system else -1
+    snapshot["deployed_at_time"] = time_system.get_formatted_time() if time_system else ""
+    snapshot["trap_stock_before"] = trap_stock
+    snapshot["trap_stock_after"] = inventory_system.get_item_count(TRAP_ITEM_ID)
+    snapshot["rest_spent_percent"] = rest_spent
+    snapshot["calories_spent"] = TRAP_CALORIE_COST
+    snapshot["daily_calories_used"] = calorie_total
+    snapshot["break_chance"] = TRAP_BREAK_CHANCE
+    snapshot.erase("last_kill_day")
+    snapshot.erase("last_kill_time")
+    snapshot.erase("last_kill_minutes")
+    snapshot.erase("break_roll")
+    snapshot.erase("broken")
+    snapshot.erase("returned_to_inventory")
+    _trap_state = snapshot
+    _broadcast_trap_state()
+
+    var result := time_report.duplicate()
+    result["success"] = true
+    result["action"] = "trap"
+    result["rest_spent_percent"] = rest_spent
+    result["calories_spent"] = TRAP_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["trap_stock_before"] = trap_stock
+    result["trap_stock_after"] = snapshot.get("trap_stock_after", trap_stock - 1)
+    result["break_chance"] = TRAP_BREAK_CHANCE
+    result["trap_consume_report"] = consume_report
+
+    print("🪤 Trap deployed -> stock %d" % int(result.get("trap_stock_after", 0)))
+    return result
+
 func perform_recon() -> Dictionary:
     if time_system == null or sleep_system == null or weather_system == null or zombie_system == null or _rng == null:
         return {
@@ -1301,6 +1407,48 @@ func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
     if damage > 0.0:
         tower_health_system.apply_damage(damage, "zombie_presence")
     _refresh_lure_status(true)
+
+func _on_zombies_spawned(added: int, _total: int, day: int):
+    if added <= 0:
+        return
+    if !_trap_state.get("active", false):
+        return
+    if zombie_system == null:
+        return
+
+    var removed = zombie_system.remove_zombies(1)
+    if removed <= 0:
+        return
+
+    var roll = _rng.randf() if _rng else 1.0
+    var broke = roll < TRAP_BREAK_CHANCE
+    var snapshot := _trap_state.duplicate(true)
+    snapshot["active"] = false
+    snapshot["status"] = "triggered"
+    snapshot["kills"] = snapshot.get("kills", 0) + removed
+    snapshot["last_kill_day"] = day
+    snapshot["last_kill_minutes"] = time_system.get_minutes_since_daybreak() if time_system else -1
+    snapshot["last_kill_time"] = time_system.get_formatted_time() if time_system else ""
+    snapshot["break_roll"] = roll
+    snapshot["broken"] = broke
+    snapshot["zombies_after"] = zombie_system.get_active_zombies()
+    var stock_before = inventory_system.get_item_count(TRAP_ITEM_ID) if inventory_system else 0
+    snapshot["trap_stock_before_trigger"] = stock_before
+    if !broke and inventory_system:
+        var add_report = inventory_system.add_item(TRAP_ITEM_ID, 1)
+        snapshot["trap_return_report"] = add_report
+        snapshot["returned_to_inventory"] = true
+        snapshot["trap_stock_after"] = inventory_system.get_item_count(TRAP_ITEM_ID)
+    else:
+        snapshot["returned_to_inventory"] = false
+        snapshot["trap_stock_after"] = stock_before
+    _trap_state = snapshot
+    _broadcast_trap_state()
+
+    if broke:
+        print("🪤 Trap snapped after intercept (roll %.2f)" % roll)
+    else:
+        print("🪤 Trap held, returned to inventory (roll %.2f)" % roll)
 
 func _on_zombie_damage_tower(damage: float, count: int):
     print("🧟 Zombies inflicted %.2f damage (%d active)" % [damage, count])

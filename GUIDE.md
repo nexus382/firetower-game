@@ -16,10 +16,12 @@
   - `weather_changed(new_state, previous_state, hours_remaining)` – fired from `_on_weather_system_changed`.
   - `weather_multiplier_changed(new_multiplier, state)` – exposes weather activity scaling to UI.
   - `lure_status_changed(status)` – delivers pre-emptive lure readiness data to the HUD/task menu.
+  - `trap_state_changed(active, state)` – announces trap deployment, arming, and trigger payloads to HUD/task panels.
 * **Key constants**
   - `CALORIES_PER_FOOD_UNIT = 1000` (1 food unit equals 1,000 calories).
   - `LEAD_AWAY_ZOMBIE_CHANCE = 0.80` (80% success per zombie).
   - `RECON_CALORIE_COST = 150` (burned during recon).
+  - Trap profile: `TRAP_DEPLOY_HOURS = 2.0`, `TRAP_REST_COST_PERCENT = 15.0`, `TRAP_CALORIE_COST = 500`, `TRAP_BREAK_CHANCE = 0.5`.
   - Recon window bounds: `start_minute = 0` (6:00 AM), `end_minute = 1080` (12:00 AM) relative to daybreak.
 * **Lifecycle**
   - `_ready()` – seeds RNG, spawns systems, hooks listeners, starts Day 1 spawn planning.
@@ -42,6 +44,7 @@
   - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls, applies grub loss, and grants food per fish size.
   - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1000 calories, cancels the pending wave, and clears lure state.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
+  - `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, and flags HUD/task menu state updates.
   - `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, and returns six-hour weather and zombie forecasts.
   - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% energy bonus, restores 5 tower health (capped at 100).
   - `reinforce_tower(materials)` – costs 2 hours, 3 wood, 5 nails, burns 450 calories, spends 20% energy, adds 25 health up to 150 cap.
@@ -56,6 +59,7 @@
   - `_resolve_meal_portion(portion_key)` – normalizes meal presets and computes calorie totals.
   - `_forecast_zombie_activity(minutes_horizon, rng)` – assembles recon zombie outlook including pending same-day spawns and next-day previews when horizon crosses 6:00 AM.
   - `_spend_activity_time(hours, activity)` – enforces daybreak cutoff, multiplies requested duration by combined activity multiplier, advances `TimeSystem`, and records awake calorie burn.
+  - `_broadcast_trap_state()` – synchronizes trap deployment/trigger dictionaries to HUD and action menu listeners.
 
 ### SleepSystem (`scripts/systems/SleepSystem.gd`)
 * **Role**: track energy/rest %, daily calories, and weight-based activity multipliers.
@@ -71,30 +75,6 @@
   - Energy management: `apply_sleep(hours)`, `consume_sleep(percent)`, `apply_rest_bonus(percent)`.
   - Calorie handling: `apply_awake_minutes(minutes)`, `adjust_daily_calories(delta)`, `reset_daily_counters()`.
 * **Internals** – `_apply_calorie_delta(calorie_delta)` adjusts weight, `_update_weight(new_weight_lbs)` fires signals, `_determine_weight_category(weight_lbs)` maps thresholds.
-* **Role**: Survival coordinator; spawns systems, executes player tasks, and relays signals/UI payloads.
-* **Signals**: `day_changed(new_day)`, `weather_changed(new_state, previous_state, hours_remaining)`, `weather_multiplier_changed(new_multiplier, state)`.
-* **Key Constants**:
-  - `CALORIES_PER_FOOD_UNIT = 1000` (1 food unit ⇒ 1,000 calories).
-  - `LEAD_AWAY_ZOMBIE_CHANCE = 0.80` (per-undead lure success).
-  - `RECON_CALORIE_COST = 150` (flat burn per recon task).
-  - Recon window minutes: start `0` (6:00 AM), end `1080` (12:00 AM) relative to daybreak.
-* **Lifecycle Hooks**:
-  - `_ready()` seeds RNG, instantiates subsystems, connects listeners, primes Day 1 spawn planning.
-  - `pause_game()` / `resume_game()` toggle `game_paused` guard for all task processing.
-* **System Accessors**: `get_sleep_system()`, `get_time_system()`, `get_inventory_system()`, `get_weather_system()`, `get_tower_health_system()`, `get_news_system()`, `get_zombie_system()`, `get_crafting_recipes()` (deep copy).
-* **Player Status Queries**: `get_sleep_percent()`, `get_daily_calories_used()`, `get_player_weight_lbs()`, `get_player_weight_kg()`, `get_weight_unit()`, weight unit setters, and multiplier getters (`time`, `weather`, `combined`).
-* **Radio/Narrative**: `request_radio_broadcast()` surfaces cached `NewsBroadcastSystem` text or static fallback.
-* **Task Actions Overview**:
-  - `perform_eating(portion_key)`: 60 minutes, converts food units → calories, updates weight and hunger stats.
-  - `schedule_sleep(hours)`: Rest `+10%` per hour, burns `100 cal/hr`, respects combined multipliers, truncates before crossing daybreak.
-  - `perform_forging()`: Requires zero active undead, consumes 60 minutes + 15% rest, resolves `_roll_forging_loot()` using stored RNG.
-  - `perform_lead_away_undead()`: See **Task Blueprint: Lead Away** for full breakdown.
-  - `perform_recon()`: Enforces recon window, spends 60 minutes + 150 calories, clones RNG for six-hour weather/zombie forecast.
-  - `repair_tower(materials)`: 60 minutes + 1 wood, burns 350 calories, grants +10% rest bonus, restores 5 HP (capped at 100 base).
-  - `reinforce_tower(materials)`: 120 minutes + 3 wood + 5 nails, burns 450 calories, costs 20% rest, adds 25 HP up to 150 reinforced cap.
-  - `craft_item(recipe_id)`: Validates materials, consumes recipe minutes × combined multiplier, applies optional rest cost, awards crafted item.
-* **Internal Utilities**: `_roll_forging_loot()`, `_on_day_rolled_over()`, `_on_weather_system_changed()`, `_on_weather_hour_elapsed()`, `_on_time_advanced_by_minutes()`, `_on_zombie_damage_tower()`, `_apply_awake_time_up_to()`, `_resolve_meal_portion()`, `_forecast_zombie_activity()`, `_spend_activity_time()`.
-
 ### Task Blueprint: Lead Away (`GameManager.perform_lead_away_undead`)
 * **Prerequisites**: Requires live `TimeSystem`, `SleepSystem`, `ZombieSystem`, and seeded RNG. Aborts with `systems_unavailable` when any link is absent.
 * **Availability Check**: Fails fast if `ZombieSystem.has_active_zombies()` returns false, flagging `no_zombies` and recording pre-action totals for UI context.
@@ -109,21 +89,6 @@
   - Appends rest delta (`-15%`), zombie count before/after, and roll breakdown (`attempts`, `successes`, `failures`).
   - Includes `success` boolean (true when at least one undead departs) plus descriptive `reason` values such as `zombies_stayed` for zero-success outcomes.
 * **Logging**: Emits debug prints summarizing zombies removed and attempts made to simplify QA verification.
-
-### SleepSystem (`scripts/systems/SleepSystem.gd`)
-* **Role**: Tracks rest %, daily calories burned, and weight-driven activity multipliers.
-* **Key Ranges**:
-  - Rest bounds `0–100%`, recovery rate `+10%` per hour slept.
-  - Energy costs `100 cal/hr` while sleeping, `23 cal/hr` baseline while awake.
-  - Weight conversion `1,000 cal → 1 lb`.
-  - Weight categories (lbs): `≤149` malnourished, `150–200` average, `≥201` overweight.
-* **Signals**: `sleep_percent_changed`, `daily_calories_used_changed`, `weight_changed`, `weight_category_changed`, `weight_unit_changed`.
-* **Public API Highlights**:
-  - Rest: `apply_sleep(hours)`, `consume_sleep(percent)`, `apply_rest_bonus(percent)`.
-  - Calories: `apply_awake_minutes(minutes)`, `adjust_daily_calories(delta)`, `reset_daily_counters()`.
-  - Weight: getters for pounds/kilograms/display unit, `set_weight_unit(unit)`, `toggle_weight_unit()`.
-  - Multipliers: `get_time_multiplier()` resolves to `2.0` (malnourished), `1.0` (average), `1.5` (overweight).
-* **Internals**: `_apply_calorie_delta()`, `_update_weight()`, `_determine_weight_category()` manage weight drift and signal propagation.
 
 ### BodyWeightSystem (`scripts/systems/BodyWeightSystem.gd`)
 * **Role**: Optional calorie-to-weight ledger for future health features (not wired into core loop yet).
@@ -198,21 +163,9 @@
   - Lifecycle: `start_day(day_index, rng)` – runs spawn rolls, caches pending event, resolves immediate waves.
   - Simulation: `advance_time(minutes, current_minutes_since_daybreak, rolled_over)` – resolves scheduled waves and returns damage summary.
   - Pre-emption: `cancel_pending_spawn(day, minute)` removes a scheduled wave (returns event payload) and `restore_pending_spawn(event)` re-queues a cancelled wave.
-  - Player actions: `attempt_lead_away(chance, rng)` – per-zombie roll with 0-1 outcome; `clear_zombies()` wipes active count.
+  - Player actions: `attempt_lead_away(chance, rng)` – per-zombie roll with 0-1 outcome; `clear_zombies()` wipes active count; `remove_zombies(count)` deducts kills from traps or scripted events and emits `zombies_changed`.
   - Forecast: `preview_day_spawn(day_index, rng)` – mirrors `start_day` without mutating state.
 * **Internals** – `_resolve_spawn_rolls(day)`, `_resolve_spawn_chance(day)`, `_pick_spawn_minute(rng)` (hour * 60), `_did_cross_marker(...)` handles wraparound, `_minutes_until_marker(...)`, `_resolve_pending_spawn(payload)` mutates counts.
-* **Role**: Oversees daily spawn rolls, hourly tower damage, lead-away execution, and recon previews.
-* **Signals**: `zombies_changed(count)`, `zombies_spawned(added, total, day)`, `zombies_damaged_tower(damage, count)`.
-* **Spawn Cadence**:
-  - Days `1–5`: no waves.
-  - Days `6–15`: `3` rolls @ `10%` each (uniform wave hour `0–23`).
-  - Days `16–24`: `5` rolls @ `15%` each.
-  - Day `25+`: `5` rolls @ `15%` each (steady pressure).
-  - Minute `0` waves spawn instantly at 6:00 AM; others queue via pending payload.
-* **Damage Loop**: Every `360 minutes` with active undead applies `active * 0.5` tower damage, then resets tick accumulator.
-* **Public API**: Active count queries, `start_day(day_index, rng)`, `advance_time(minutes, current_minutes_since_daybreak, rolled_over)`, player actions (`attempt_lead_away`, `clear_zombies()`), recon helper `preview_day_spawn(day_index, rng)`.
-* **Internals**: `_resolve_spawn_rolls(day)`, `_resolve_spawn_chance(day)`, `_pick_spawn_minute(rng)`, `_did_cross_marker(...)`, `_minutes_until_marker(...)`, `_resolve_pending_spawn(payload)` maintain scheduling integrity.
-
 ### Weather-Aware Tower Interplay
 * Precipitation ticks call `TowerHealthSystem.register_weather_hour(state)` each hour, applying wear according to intensity tables.
 * Dry days leave `_had_precipitation_today` false; `on_day_completed()` then applies `5 HP` attrition to mimic structural fatigue.
@@ -227,6 +180,7 @@
 | Fish (`perform_fishing`) | 1h | -10% energy | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each -> Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
 | Lure (`perform_lure_incoming_zombies`) | 4h | None | +1000 cal burned | Recon-scouted wave ≤120 min away, 4h window free | Cancels pending spawn at 100% success, clears lure target. |
 | Lead Away (`perform_lead_away_undead`) | 1h | -15% energy | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
+| Place Trap (`perform_trap_deployment`) | 2h | -15% energy | +500 cal burned | Spike Trap ×1 crafted, daylight remaining | Arms trap that kills the next zombie, 50% break chance, returns to inventory if intact, emits trap HUD status. |
 | Recon (`perform_recon`) | 1h | None | +150 cal burned (`adjust_daily_calories`) | Time within 6 AM–12 AM | Returns six-hour forecast for weather and zombie spawns. |
 | Repair (`repair_tower`) | 1h | +10% energy bonus | +350 cal burned | ≥1 wood, tower below 100 HP | Restores 5 HP, records materials used, updates health. |
 | Reinforce (`reinforce_tower`) | 2h | -20% energy | +450 cal burned | ≥3 wood & 5 nails, tower below 150 HP | Adds 25 HP up to 150 cap, logs material spend. |
@@ -321,6 +275,7 @@
 * Recon lure workflow: when the forecast shows a wave arriving within 120 minutes, `get_lure_status()` unlocks the 4h lure action. Completing it spends 1,000 calories, cancels the pending spawn, and resets lure readiness.
 * Active zombie damage fires every 6 hours (360 minutes) of accumulated time after the last attack or spawn resolution.
 * Lead Away is the only direct mitigation outside of tower defenses—each zombie has an independent 80% chance to leave per attempt.
+* Traps: `perform_trap_deployment()` arms a spike trap (2h, -15% rest, -500 cal); `GameManager._on_zombies_spawned` immediately calls `ZombieSystem.remove_zombies(1)` to kill the first zombie, rolls a 50% break chance, and returns the trap to inventory when intact.
 
 ## Radio & Narrative
 * Radio interaction pulls `NewsBroadcastSystem` output for the current day. If the day's schedule misses its 25% roll (Day 11+), the player hears static text: "Only static crackles tonight.".
@@ -337,12 +292,14 @@
 ## Interaction Objects & UI
 * **CraftingTable** – shows `Press [E] to craft` prompt, resolves `CraftingPanel` node, and opens panel on interaction. Leaves panel if player exits area.
 * **Radio** – similar prompt, resolves `GameManager` and `RadioPanel`, displays broadcast text or static fallback.
-* **HUD** – wires to all systems, exposes toggles like weight unit button (lbs/kg), and displays tower health, food, wood, zombie counts, weather, clock, and energy meter.
+* **HUD** – wires to all systems, exposes toggles like weight unit button (lbs/kg), displays tower health, food, wood, zombie counts, weather, clock, energy meter, and shows a 🪤 trap indicator while a trap is armed; the label surfaces break chance and deployment time straight from `trap_state_changed` payloads and hides automatically when traps are offline.
 * **TaskMenu** – central action hub:
-  - Sleep slider up to `max_sleep_hours` (default 12).
+  - Grid layout presents four columns (label, summary text, control column, action button) so rows align cleanly; summary fonts use 13pt to fit long descriptions while keeping everything left-aligned for quick scanning.
+  - Sleep slider up to `max_sleep_hours` (default 12) with a dedicated summary line (`+10% rest/hr | -100 cal/hr`) that previews queued hours, finish time, and remaining daylight.
   - Meal sizes: Small (0.5), Normal (1.0), Large (1.5) food units.
   - Recon row indicates availability window and disables outside 6 AM–12 AM.
   - Lead/Lure row swaps between lure readiness summaries (when scouted) and lead-away details, keeping zombie count feedback and success/failure states visible.
+  - Trap row activates when at least one spike trap exists, summarizes rest/calorie cost, break chance, and shows armed/triggered states via `trap_state_changed`.
   - Forging row shows food totals and opens `ForgingResultsPanel` for loot summaries.
 * **ForgingResultsPanel** – rotates flavor text pools for basic/advanced finds, lists each item with quantity and contextual description (e.g., nails show bundle size, fuel notes total units).
 
