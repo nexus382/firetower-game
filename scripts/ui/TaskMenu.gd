@@ -1,5 +1,6 @@
 # TaskMenu.gd overview:
 # - Purpose: queue survivor tasks (sleep, meals, repairs, forging, lead-away) and feed results back to systems.
+# - Layout: outer panel splits info + assignments with a scroll container keeping action rows readable when the list grows.
 # - Sections: exports tune UI ranges, preloads cache systems, onready grabs controls, handlers manage actions and feedback text.
 extends Control
 
@@ -65,27 +66,27 @@ var _action_buttons: Dictionary = {}
 
 # Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
-@onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/HoursValue
+@onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/HoursValue
 @onready var info_title_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionTitle
 @onready var info_body_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/SummaryLabel
 @onready var info_status_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStatus
 @onready var info_hint_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionHint
 @onready var go_button: Button = $Layout/InfoPanel/InfoMargin/InfoList/GoRow/GoButton
 @onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
-@onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption
-@onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSummary
-@onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSummary
-@onready var forging_status_label: Label = $Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingStatus
-@onready var lead_status_label: Label = $Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadStatus
-@onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSummary
-@onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepSelectButton
-@onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingSelectButton
-@onready var recon_status_label: Label = $Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconStatus
-@onready var recon_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconSelectButton
-@onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadSelectButton
-@onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSelectButton
-@onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSelectButton
-@onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSelectButton
+@onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSizeOption
+@onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSummary
+@onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSummary
+@onready var forging_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingStatus
+@onready var lead_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadStatus
+@onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSummary
+@onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSelectButton
+@onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton
+@onready var recon_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconStatus
+@onready var recon_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton
+@onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton
+@onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSelectButton
+@onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSelectButton
+@onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton
 
 const DESCRIPTION_DEFAULT := {
     "title": "Task Details",
@@ -231,43 +232,43 @@ func _refresh_display():
 func _setup_description_targets():
     var paths := {
         "sleep": [
-            "Layout/ActionsPanel/Margin/ActionList/SleepRow",
-            "Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepLabel",
-            "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector",
-            "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/DecreaseButton",
-            "Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/IncreaseButton",
-            "Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepLabel",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/DecreaseButton",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/IncreaseButton",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSelectButton"
         ],
         "forging": [
-            "Layout/ActionsPanel/Margin/ActionList/ForgingRow",
-            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingStatus",
-            "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton"
         ],
         "recon": [
-            "Layout/ActionsPanel/Margin/ActionList/ReconRow",
-            "Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconStatus",
-            "Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton"
         ],
         "lead": [
-            "Layout/ActionsPanel/Margin/ActionList/LeadRow",
-            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadStatus",
-            "Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton"
         ],
         "meal": [
-            "Layout/ActionsPanel/Margin/ActionList/MealRow",
-            "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption",
-            "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSummary",
-            "Layout/ActionsPanel/Margin/ActionList/MealRow/MealSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSizeOption",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSelectButton"
         ],
         "repair": [
-            "Layout/ActionsPanel/Margin/ActionList/RepairRow",
-            "Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSummary",
-            "Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSelectButton"
         ],
         "reinforce": [
-            "Layout/ActionsPanel/Margin/ActionList/ReinforceRow",
-            "Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSummary",
-            "Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton"
         ]
     }
 
