@@ -28,6 +28,9 @@ const LBS_PER_KG: float = 2.2
 @onready var wood_counter_label: Label = $TopRightStats/ResourceList/WoodCounter
 @onready var zombie_counter_label: Label = $TopRightStats/ResourceList/ZombieCounter
 @onready var tower_health_label: Label = $TopRightStats/ResourceList/TowerHealthLabel
+@onready var trap_indicator: HBoxContainer = $TopRightStats/TrapIndicator
+@onready var trap_icon_label: Label = $TopRightStats/TrapIndicator/TrapIconLabel
+@onready var trap_status_label: Label = $TopRightStats/TrapIndicator/TrapStatusLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
@@ -118,6 +121,12 @@ func _ready():
     else:
         zombie_counter_label.text = "Zombies: --"
 
+    if game_manager.has_signal("trap_state_changed"):
+        game_manager.trap_state_changed.connect(_on_trap_state_changed)
+    _update_trap_indicator(game_manager.get_trap_state())
+    trap_icon_label.add_theme_color_override("font_color", Color.WHITE)
+    trap_status_label.add_theme_color_override("font_color", Color.WHITE)
+
 func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
     tired_value_label.text = "%d%%" % int(round(value))
@@ -199,6 +208,27 @@ func _update_zombie_counter(count: int = -1):
 
 func _on_zombie_count_changed(count: int):
     _update_zombie_counter(count)
+
+func _on_trap_state_changed(_active: bool, state: Dictionary):
+    _update_trap_indicator(state)
+
+func _update_trap_indicator(state: Dictionary):
+    if !is_instance_valid(trap_indicator) or !is_instance_valid(trap_status_label):
+        return
+
+    var active = state.get("active", false)
+    trap_indicator.visible = active
+    if !active:
+        trap_status_label.text = "Trap Idle"
+        return
+
+    var break_percent = int(round(state.get("break_chance", GameManager.TRAP_BREAK_CHANCE) * 100.0))
+    var deployed_time = String(state.get("deployed_at_time", ""))
+    var fragments: PackedStringArray = []
+    fragments.append("%d%% break" % break_percent)
+    if deployed_time != "":
+        fragments.append(deployed_time)
+    trap_status_label.text = "Trap Armed (%s)" % " | ".join(fragments)
 
 func _on_weight_unit_button_pressed():
     if sleep_system:

@@ -33,6 +33,11 @@ const FISHING_GRUB_LOSS_PERCENT: int = int(round(FISHING_GRUB_LOSS_CHANCE * 100.
 const FISHING_SIZE_TABLE := GameManager.FISHING_SIZE_TABLE
 const FORGING_REST_COST_PERCENT: float = GameManager.FORGING_REST_COST_PERCENT
 const FORGING_CALORIE_COST: float = GameManager.FORGING_CALORIE_COST
+const TRAP_CALORIE_COST: float = GameManager.TRAP_CALORIE_COST
+const TRAP_ENERGY_COST_PERCENT: float = GameManager.TRAP_REST_COST_PERCENT
+const TRAP_BREAK_PERCENT: int = int(round(GameManager.TRAP_BREAK_CHANCE * 100.0))
+const TRAP_DEPLOY_HOURS: float = GameManager.TRAP_DEPLOY_HOURS
+const TRAP_ITEM_ID := GameManager.TRAP_ITEM_ID
 const FISHING_SIZE_LABELS := {
     "small": "Small",
     "medium": "Medium",
@@ -82,10 +87,12 @@ var _action_status_text: Dictionary = {}
 var _action_defaults: Dictionary = {}
 var _action_results_active: Dictionary = {}
 var _action_buttons: Dictionary = {}
+var _trap_state: Dictionary = {}
 
 # Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/HoursValue
+@onready var sleep_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSummary
 @onready var info_title_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionTitle
 @onready var info_body_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/SummaryLabel
 @onready var info_status_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStatus
@@ -94,22 +101,24 @@ var _action_buttons: Dictionary = {}
 @onready var info_calorie_value_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStats/CalorieRow/CalorieValue
 @onready var go_button: Button = $Layout/InfoPanel/InfoMargin/InfoList/GoRow/GoButton
 @onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
-@onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSizeOption
+@onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption
 @onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSummary
 @onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSummary
-@onready var forging_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingStatus
-@onready var lead_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadStatus
+@onready var forging_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSummary
+@onready var lead_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSummary
 @onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSummary
 @onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSelectButton
 @onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton
-@onready var fishing_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingStatus
+@onready var fishing_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSummary
 @onready var fishing_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton
-@onready var recon_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconStatus
+@onready var recon_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSummary
 @onready var recon_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton
 @onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton
 @onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSelectButton
 @onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSelectButton
 @onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton
+@onready var trap_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSummary
+@onready var trap_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton
 
 const DESCRIPTION_DEFAULT := {
     "title": "Task Details",
@@ -136,6 +145,10 @@ const TASK_DESCRIPTION_META := {
     "lead": {
         "title": "Lead Away",
         "hint": "Draw undead from the tower."
+    },
+    "trap": {
+        "title": "Place Trap",
+        "hint": "Arm a trap to intercept the next zombie."
     },
     "meal": {
         "title": "Eat",
@@ -172,6 +185,7 @@ func _ready():
     _register_action_selector(fishing_select_button, "fishing")
     _register_action_selector(recon_select_button, "recon")
     _register_action_selector(lead_select_button, "lead")
+    _register_action_selector(trap_select_button, "trap")
     _register_action_selector(meal_select_button, "meal")
     _register_action_selector(repair_select_button, "repair")
     _register_action_selector(reinforce_select_button, "reinforce")
@@ -181,6 +195,9 @@ func _ready():
         inventory_system = game_manager.get_inventory_system()
         tower_health_system = game_manager.get_tower_health_system()
         weather_system = game_manager.get_weather_system()
+        if game_manager.has_signal("trap_state_changed"):
+            game_manager.trap_state_changed.connect(_on_trap_state_changed)
+        _trap_state = game_manager.get_trap_state()
         if time_system:
             time_system.time_advanced.connect(_on_time_system_changed)
             time_system.day_rolled_over.connect(_on_time_system_changed)
@@ -254,11 +271,13 @@ func _refresh_display():
         selected_hours = max(max_hours_today, 0)
         hours_value_label.text = str(selected_hours)
 
+    _update_sleep_summary()
     _update_meal_summary()
     _update_fishing_summary()
     _update_recon_summary()
     _update_repair_summary()
     _update_reinforce_summary()
+    _update_trap_summary()
     _update_description_body()
     _update_info_status()
     _update_info_stats()
@@ -268,6 +287,7 @@ func _setup_description_targets():
         "sleep": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepLabel",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/DecreaseButton",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/IncreaseButton",
@@ -275,29 +295,34 @@ func _setup_description_targets():
         ],
         "forging": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton"
         ],
         "fishing": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton"
         ],
         "recon": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton"
         ],
         "lead": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton"
         ],
         "meal": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSizeOption",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSelectButton"
+        ],
+        "trap": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton"
         ],
         "repair": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow",
@@ -345,6 +370,8 @@ func _get_description_body(key: String) -> String:
             return _build_recon_description()
         "lead":
             return _build_lead_description()
+        "trap":
+            return _build_trap_description()
         "meal":
             return _build_meal_description()
         "repair":
@@ -408,18 +435,24 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
     _action_status_text[action] = text
     if update_row:
         match action:
+            "sleep":
+                if is_instance_valid(sleep_summary_label):
+                    sleep_summary_label.text = text
             "forging":
-                if is_instance_valid(forging_status_label):
-                    forging_status_label.text = text
+                if is_instance_valid(forging_summary_label):
+                    forging_summary_label.text = text
             "fishing":
-                if is_instance_valid(fishing_status_label):
-                    fishing_status_label.text = text
+                if is_instance_valid(fishing_summary_label):
+                    fishing_summary_label.text = text
             "recon":
-                if is_instance_valid(recon_status_label):
-                    recon_status_label.text = text
+                if is_instance_valid(recon_summary_label):
+                    recon_summary_label.text = text
             "lead":
-                if is_instance_valid(lead_status_label):
-                    lead_status_label.text = text
+                if is_instance_valid(lead_summary_label):
+                    lead_summary_label.text = text
+            "trap":
+                if is_instance_valid(trap_summary_label):
+                    trap_summary_label.text = text
             "meal":
                 if is_instance_valid(meal_summary_label):
                     meal_summary_label.text = text
@@ -459,6 +492,8 @@ func _trigger_selected_action():
             _execute_recon_action()
         "lead":
             _execute_lead_action()
+        "trap":
+            _execute_trap_action()
         "meal":
             _execute_meal_action()
         "repair":
@@ -566,6 +601,26 @@ func _build_lead_description() -> String:
     var lure_minutes = int(ceil(LURE_DURATION_HOURS * 60.0 * multiplier))
     lines.append("Lure window: %dh (<=%dh ETA)" % [int(round(LURE_DURATION_HOURS)), int(round(LURE_WINDOW_MINUTES / 60.0))])
     lines.append("Costs %d cal | Takes %s when scouted" % [int(round(LURE_CALORIE_COST)), _format_duration(lure_minutes)])
+    return "\n".join(lines)
+
+func _build_trap_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(TRAP_DEPLOY_HOURS * 60.0 * multiplier))
+    lines.append("Spend %.0f hr (x%.1f) to arm a trap." % [TRAP_DEPLOY_HOURS, multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(TRAP_ENERGY_COST_PERCENT), int(round(TRAP_CALORIE_COST))])
+    if inventory_system:
+        lines.append("Requires spike trap (Stock %d)" % inventory_system.get_item_count(TRAP_ITEM_ID))
+    else:
+        lines.append("Requires spike trap built")
+    lines.append("Kills next zombie | %d%% break chance" % TRAP_BREAK_PERCENT)
+    if _trap_state.get("active", false):
+        var armed_time = String(_trap_state.get("deployed_at_time", ""))
+        if armed_time != "":
+            lines.append("Currently armed since %s" % armed_time)
+    lines.append("Takes %s" % _format_duration(minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
     return "\n".join(lines)
 
 func _build_meal_description() -> String:
@@ -711,6 +766,39 @@ func _execute_lead_action():
         result = game_manager.perform_lead_away_undead()
     _set_lead_feedback(_format_lead_result(result), "result")
     _refresh_display()
+
+func _execute_trap_action():
+    if game_manager == null:
+        _set_action_result("trap", "Trap systems offline", true)
+        return
+
+    var result = game_manager.perform_trap_deployment()
+    if !result.get("success", false):
+        var reason = result.get("reason", "failed")
+        var message: String
+        match reason:
+            "trap_active":
+                message = "Trap already armed"
+            "no_traps":
+                var stock = int(result.get("trap_stock", 0))
+                message = "Need built trap (Stock %d)" % max(stock, 0)
+            "exceeds_day":
+                var minutes_available = int(result.get("minutes_available", 0))
+                message = _format_daybreak_warning(minutes_available)
+            "systems_unavailable":
+                message = "Trap offline"
+            "consume_failed":
+                message = "Trap deployment failed"
+            _:
+                message = "Trap deploy failed"
+        _set_action_result("trap", message, true)
+        _update_trap_summary()
+        return
+
+    var message = _format_trap_deploy_result(result)
+    _set_action_result("trap", message, true)
+    _trap_state = game_manager.get_trap_state()
+    _update_trap_summary()
 
 func _execute_recon_action():
     if game_manager == null:
@@ -1186,6 +1274,38 @@ func _summarize_zombie_forecast(forecast: Dictionary) -> String:
         return "Zombies: Quiet"
     return "Zombies: %s" % " / ".join(fragments)
 
+func _format_trap_deploy_result(result: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    parts.append("Break %d%%" % TRAP_BREAK_PERCENT)
+    var rest_spent = float(result.get("rest_spent_percent", TRAP_ENERGY_COST_PERCENT))
+    if rest_spent > 0.0:
+        parts.append("-%s%% rest" % _format_percent_value(rest_spent))
+    var calories = int(round(result.get("calories_spent", TRAP_CALORIE_COST)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    var stock_after = int(result.get("trap_stock_after", 0))
+    parts.append("Stock %d" % max(stock_after, 0))
+    var ended_at = String(result.get("ended_at_time", ""))
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    return "Trap armed -> %s" % " | ".join(parts)
+
+func _format_trap_trigger_result(state: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    var kills = int(state.get("kills", 1))
+    parts.append("Killed %d" % max(kills, 0))
+    var broke = state.get("broken", false)
+    if broke:
+        parts.append("Trap broke (%d%%)" % TRAP_BREAK_PERCENT)
+    else:
+        parts.append("Trap intact")
+        var stock_after = int(state.get("trap_stock_after", 0))
+        parts.append("Stock %d" % max(stock_after, 0))
+    var time_text = String(state.get("last_kill_time", ""))
+    if time_text != "":
+        parts.append(time_text)
+    return "Trap triggered -> %s" % " | ".join(parts)
+
 func _get_minutes_left_today() -> int:
     if time_system:
         return time_system.get_minutes_until_daybreak()
@@ -1265,6 +1385,35 @@ func _setup_meal_size_options():
         selected_meal_key = meal_size_option.get_item_metadata(0)
     _update_meal_summary()
 
+func _update_sleep_summary():
+    if !is_instance_valid(sleep_summary_label):
+        return
+
+    var lines: PackedStringArray = []
+    lines.append("+%d%% rest/hr | -%d cal/hr" % [SLEEP_PERCENT_PER_HOUR, SleepSystem.CALORIES_PER_SLEEP_HOUR])
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+
+    if selected_hours > 0:
+        var planned_minutes = int(ceil(selected_hours * 60.0 * multiplier))
+        lines.append("%dh queued (%s)" % [selected_hours, _format_duration(planned_minutes)])
+        if time_system and planned_minutes > 0:
+            lines.append("Ends %s" % time_system.get_formatted_time_after(planned_minutes))
+    else:
+        var minutes_remaining = _get_minutes_left_today()
+        if minutes_remaining > 0:
+            var max_hours_today = min(max_sleep_hours, int(floor(minutes_remaining / (60.0 * multiplier))))
+            if max_hours_today > 0:
+                lines.append("Plan up to %dh today" % max_hours_today)
+            else:
+                lines.append("No time before dawn")
+        else:
+            lines.append("No time before dawn")
+
+    var summary = " | ".join(lines)
+    sleep_summary_label.text = summary
+    _set_action_default("sleep", summary, true)
+
 func _update_meal_summary():
     if !is_instance_valid(meal_summary_label):
         return
@@ -1283,7 +1432,7 @@ func _update_meal_summary():
     _refresh_info_stats_if_selected("meal")
 
 func _update_fishing_summary():
-    if !is_instance_valid(fishing_status_label):
+    if !is_instance_valid(fishing_summary_label):
         return
 
     var parts: PackedStringArray = []
@@ -1315,13 +1464,13 @@ func _update_fishing_summary():
             parts.append("Need %s" % " & ".join(needs))
 
     var summary = " | ".join(parts)
-    fishing_status_label.text = summary
+    fishing_summary_label.text = summary
     _set_action_default("fishing", summary, true)
     if is_instance_valid(fishing_select_button):
         fishing_select_button.disabled = !ready
 
 func _update_recon_summary():
-    if !is_instance_valid(recon_status_label):
+    if !is_instance_valid(recon_summary_label):
         return
     var parts: PackedStringArray = []
     parts.append("%dh outlook" % RECON_OUTLOOK_HOURS)
@@ -1354,7 +1503,7 @@ func _update_recon_summary():
     if zombie_system and zombie_system.has_active_zombies():
         parts.append("%d undead near" % zombie_system.get_active_zombies())
     var summary = " | ".join(parts)
-    recon_status_label.text = summary
+    recon_summary_label.text = summary
     _set_action_default("recon", summary, true)
     if is_instance_valid(recon_select_button):
         recon_select_button.disabled = !recon_available
@@ -1400,6 +1549,36 @@ func _update_reinforce_summary():
     reinforce_summary_label.text = summary
     _set_action_default("reinforce", summary)
 
+func _update_trap_summary():
+    if !is_instance_valid(trap_summary_label):
+        return
+    var text: String
+    if game_manager == null:
+        text = "Trap offline"
+    else:
+        if _trap_state.is_empty():
+            _trap_state = game_manager.get_trap_state()
+        var active = _trap_state.get("active", false)
+        if active:
+            var fragments: PackedStringArray = []
+            fragments.append("%d%% break" % TRAP_BREAK_PERCENT)
+            var armed_time = String(_trap_state.get("deployed_at_time", ""))
+            if armed_time != "":
+                fragments.append(armed_time)
+            text = "Armed (%s)" % " | ".join(fragments)
+        else:
+            var stock = inventory_system.get_item_count(TRAP_ITEM_ID) if inventory_system else 0
+            if stock <= 0:
+                text = "Need built trap (Stock 0)"
+            else:
+                text = "%.0fh | -%s%% rest | -%d cal" % [
+                    TRAP_DEPLOY_HOURS,
+                    _format_percent_value(TRAP_ENERGY_COST_PERCENT),
+                    int(round(TRAP_CALORIE_COST))
+                ]
+    trap_summary_label.text = text
+    _set_action_default("trap", text, true)
+
 
 func _resolve_meal_option(key: String) -> Dictionary:
     var normalized = key.to_lower()
@@ -1431,6 +1610,8 @@ func _get_action_energy_text(action: String) -> String:
             if _lure_status.get("available", false):
                 return "0% (Lure intercept)"
             return "-%s%% cost" % _format_percent_value(15.0)
+        "trap":
+            return "-%s%% cost" % _format_percent_value(TRAP_ENERGY_COST_PERCENT)
         "meal":
             return "0% (Energy neutral)"
         "repair":
@@ -1458,6 +1639,8 @@ func _get_action_calorie_text(action: String) -> String:
             if _lure_status.get("available", false):
                 return "+%d burn" % int(round(GameManager.LURE_CALORIE_COST))
             return "Awake burn only"
+        "trap":
+            return "+%d burn" % int(round(TRAP_CALORIE_COST))
         "meal":
             var option = _resolve_meal_option(selected_meal_key)
             var food_units = float(option.get("food_units", 1.0))
@@ -1638,6 +1821,7 @@ func _on_inventory_item_changed(_item_id: String, _quantity_delta: int, _food_de
     _update_fishing_summary()
     _update_repair_summary()
     _update_reinforce_summary()
+    _update_trap_summary()
 
 
 func _on_tower_health_changed(_new: float, _old: float):
@@ -1658,6 +1842,14 @@ func _on_lure_status_changed(status: Dictionary):
     _lure_status = status.duplicate(true)
     _refresh_lead_feedback()
     _refresh_info_stats_if_selected("lead")
+
+func _on_trap_state_changed(_active: bool, state: Dictionary):
+    _trap_state = state.duplicate(true)
+    _update_trap_summary()
+    var status = String(state.get("status", ""))
+    if status == "triggered":
+        _set_action_result("trap", _format_trap_trigger_result(state), true)
+    _refresh_info_stats_if_selected("trap")
 
 func _refresh_lead_feedback():
     if _lead_feedback_locked:

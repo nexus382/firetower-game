@@ -82,6 +82,18 @@ func clear_zombies() -> void:
     _minutes_since_tick = 0
     zombies_changed.emit(_active_zombies)
 
+func remove_zombies(count: int) -> int:
+    count = max(count, 0)
+    if count <= 0 or _active_zombies <= 0:
+        return 0
+
+    var removed = min(count, _active_zombies)
+    _active_zombies -= removed
+    if _active_zombies <= 0:
+        _minutes_since_tick = 0
+    zombies_changed.emit(_active_zombies)
+    return removed
+
 func advance_time(minutes: int, current_minutes_since_daybreak: int, rolled_over: bool) -> Dictionary:
     minutes = max(minutes, 0)
     var previous_stamp = _last_minute_stamp

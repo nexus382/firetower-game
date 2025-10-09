@@ -152,6 +152,21 @@ horizontal_alignment = 2
 vertical_alignment = 1
 text = "Tower: 100/100"
 
+[node name="TrapIndicator" type="HBoxContainer" parent="UI/HUD/TopRightStats"]
+visible = false
+alignment = 2
+custom_constants/separation = 6
+
+[node name="TrapIconLabel" type="Label" parent="UI/HUD/TopRightStats/TrapIndicator"]
+theme_override_font_sizes/font_size = 22
+text = "🪤"
+
+[node name="TrapStatusLabel" type="Label" parent="UI/HUD/TopRightStats/TrapIndicator"]
+size_flags_horizontal = 3
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 14
+text = "Trap Armed (50% break)"
+
 [node name="Metrics" type="HBoxContainer" parent="UI/HUD/StatsBar"]
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -372,19 +387,28 @@ horizontal_alignment = 0
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="SleepRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="SleepRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="SleepLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Rest"
 vertical_alignment = 1
 
+[node name="SleepSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
+text = "+10% rest/hr | -100 cal/hr"
+
 [node name="HourSelector" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow"]
-size_flags_horizontal = 4
+size_flags_horizontal = 3
 custom_constants/separation = 8
 
 [node name="DecreaseButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector"]
@@ -414,22 +438,29 @@ text = "Assign"
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="ForgingRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="ForgingRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="ForgingLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Forge"
 vertical_alignment = 1
 
-[node name="ForgingStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
+[node name="ForgingSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 15
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
 text = "Forge ready"
+
+[node name="ForgingSpacer" type="Control" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
 
 [node name="ForgingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
 custom_minimum_size = Vector2(138, 44)
@@ -440,22 +471,29 @@ text = "Assign"
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="FishingRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="FishingRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="FishingLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Fish"
 vertical_alignment = 1
 
-[node name="FishingStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
+[node name="FishingSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 15
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
 text = "Fishing ready"
+
+[node name="FishingSpacer" type="Control" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
 
 [node name="FishingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
 custom_minimum_size = Vector2(138, 44)
@@ -466,22 +504,29 @@ text = "Assign"
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="ReconRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="ReconRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="ReconLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Recon"
 vertical_alignment = 1
 
-[node name="ReconStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
+[node name="ReconSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 15
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
 text = "Recon ready"
+
+[node name="ReconSpacer" type="Control" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
 
 [node name="ReconSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
 custom_minimum_size = Vector2(138, 44)
@@ -492,24 +537,64 @@ text = "Assign"
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="LeadRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="LeadRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="LeadLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Lead"
 vertical_alignment = 1
 
-[node name="LeadStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
+[node name="LeadSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 15
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
 text = "Lead Away ->"
 
+[node name="LeadSpacer" type="Control" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
+
 [node name="LeadSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
+custom_minimum_size = Vector2(138, 44)
+theme_override_font_sizes/font_size = 16
+text = "Assign"
+
+[node name="TrapSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="TrapRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
+size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
+
+[node name="TrapLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow"]
+custom_minimum_size = Vector2(116, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
+text = "Place Trap"
+vertical_alignment = 1
+
+[node name="TrapSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
+text = "Trap ready"
+
+[node name="TrapSpacer" type="Control" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="TrapSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow"]
 custom_minimum_size = Vector2(138, 44)
 theme_override_font_sizes/font_size = 16
 text = "Assign"
@@ -518,27 +603,34 @@ text = "Assign"
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="MealRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="MealLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Eat"
 vertical_alignment = 1
-
-[node name="MealSizeOption" type="OptionButton" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(150, 0)
-theme_override_font_sizes/font_size = 16
 
 [node name="MealSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 15
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
 text = "Meal ->"
+
+[node name="MealControls" type="VBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
+size_flags_horizontal = 3
+custom_constants/separation = 4
+
+[node name="MealSizeOption" type="OptionButton" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls"]
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(150, 0)
+theme_override_font_sizes/font_size = 16
 
 [node name="MealSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
 custom_minimum_size = Vector2(138, 44)
@@ -549,22 +641,29 @@ text = "Assign"
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="RepairRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="RepairRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="RepairLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Repair"
 vertical_alignment = 1
 
 [node name="RepairSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 15
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
 text = "Repair ->"
+
+[node name="RepairSpacer" type="Control" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
 
 [node name="RepairSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
 custom_minimum_size = Vector2(138, 44)
@@ -575,22 +674,29 @@ text = "Assign"
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
-[node name="ReinforceRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 12
+[node name="ReinforceRow" type="GridContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+columns = 4
 size_flags_horizontal = 3
+theme_override_constants/hseparation = 14
+theme_override_constants/vseparation = 6
 
 [node name="ReinforceLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
-custom_minimum_size = Vector2(104, 0)
+custom_minimum_size = Vector2(116, 0)
 size_flags_horizontal = 1
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "Reinforce"
 vertical_alignment = 1
 
 [node name="ReinforceSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 15
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
 text = "Reinforce ->"
+
+[node name="ReinforceSpacer" type="Control" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
+size_flags_horizontal = 3
+mouse_filter = 2
 
 [node name="ReinforceSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
 custom_minimum_size = Vector2(138, 44)
