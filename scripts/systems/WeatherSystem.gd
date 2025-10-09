@@ -96,12 +96,16 @@ func forecast_precipitation(hours_ahead: int) -> Dictionary:
     """Predict precipitation changes for the requested window without mutating live state."""
     hours_ahead = max(hours_ahead, 0)
     var minutes_horizon = hours_ahead * MINUTES_PER_HOUR
+    var minutes_until_next_tick = MINUTES_PER_HOUR - _minute_accumulator
+    if _minute_accumulator == 0:
+        minutes_until_next_tick = MINUTES_PER_HOUR
+
     var forecast := {
         "hours_requested": hours_ahead,
         "minutes_horizon": minutes_horizon,
         "current_state": _current_state,
         "current_hours_remaining": max(_hour_timer, 0),
-        "minutes_until_next_tick": (_minute_accumulator == 0) ? MINUTES_PER_HOUR : MINUTES_PER_HOUR - _minute_accumulator,
+        "minutes_until_next_tick": minutes_until_next_tick,
         "events": []
     }
 
