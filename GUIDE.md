@@ -36,8 +36,8 @@
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – applies rest (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
-  - `perform_forging()` – requires no active zombies, consumes 1 hour plus 15% rest, rolls `_roll_forging_loot()`, and awards inventory loot.
-  - `perform_lead_away_undead()` – spends 1 hour plus 15% rest, rolls each zombie at 80% success, and updates counts.
+  - `perform_forging()` – requires no active zombies, consumes 1 hour plus 12.5% energy, burns 500 calories, rolls `_roll_forging_loot()`, and awards inventory loot.
+  - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
   - `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, and returns six-hour weather and zombie forecasts.
   - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% rest bonus, restores 5 tower health (capped at 100).
   - `reinforce_tower(materials)` – costs 2 hours, 3 wood, 5 nails, burns 450 calories, spends 20% rest, adds 25 health up to 150 cap.
@@ -165,8 +165,9 @@
 | --- | --- | --- | --- | --- | --- |
 | Sleep (`schedule_sleep`) | Input hours (auto-truncated) | +10% rest per hour (clamped 0-100) | -100 cal/hour (burn) | Open time before daybreak | Advances clock, updates rest %, burns calories, triggers awake calorie catch-up. |
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
-| Forge (`perform_forging`) | 1h | -15% rest | Baseline awake burn (23 cal/h via `_spend_activity_time`) | No active zombies | Rolls loot table, adds items, updates food totals. |
-| Lead Away (`perform_lead_away_undead`) | 1h | -15% rest | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
+| Forge (`perform_forging`) | 1h | -12.5% energy | +500 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals. |
+| Fish (`perform_fishing`) | 1h | -10% rest | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each -> Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
+| Lead Away (`perform_lead_away_undead`) | 1h | -15% energy | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
 | Recon (`perform_recon`) | 1h | None | +150 cal burned (`adjust_daily_calories`) | Time within 6 AM–12 AM | Returns six-hour forecast for weather and zombie spawns. |
 | Repair (`repair_tower`) | 1h | +10% rest bonus | +350 cal burned | ≥1 wood, tower below 100 HP | Restores 5 HP, records materials used, updates health. |
 | Reinforce (`reinforce_tower`) | 2h | -20% rest | +450 cal burned | ≥3 wood & 5 nails, tower below 150 HP | Adds 25 HP up to 150 cap, logs material spend. |
@@ -192,6 +193,10 @@
 | Berries | 25% | 1 | Basic | +1.0 food unit. |
 | Walnuts | 25% | 1 | Basic | +0.5 food unit. |
 | Grubs | 20% | 1 | Basic | +0.5 food unit. |
+| Apples | 20% | 1 | Basic | +0.5 food unit. |
+| Oranges | 20% | 1 | Basic | +0.5 food unit. |
+| Raspberries | 20% | 1 | Basic | +0.5 food unit. |
+| Blueberries | 20% | 1 | Basic | +0.5 food unit. |
 | Ripped Cloth | 15% | 1 | Basic | Crafting fiber. |
 | Rock | 30% | 1 | Basic | Tool material. |
 | Vines | 17.5% | 1 | Basic | Rope input. |
@@ -210,6 +215,10 @@
 | --- | --- | --- | --- |
 | mushrooms | Mushrooms | 1.0 | 99 |
 | berries | Berries | 1.0 | 99 |
+| apples | Apples | 0.5 | 99 |
+| oranges | Oranges | 0.5 | 99 |
+| raspberries | Raspberries | 0.5 | 99 |
+| blueberries | Blueberries | 0.5 | 99 |
 | walnuts | Walnuts | 0.5 | 99 |
 | grubs | Grubs | 0.5 | 99 |
 | fishing_bait | Fishing Bait | 0.0 | 99 |

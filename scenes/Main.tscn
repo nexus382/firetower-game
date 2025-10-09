@@ -166,7 +166,7 @@ size_flags_horizontal = 3
 size_flags_vertical = 1
 
 [node name="TiredLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/TiredStat"]
-text = "Tired"
+text = "Energy"
 
 [node name="TiredMeter" type="HBoxContainer" parent="UI/HUD/StatsBar/Metrics/TiredStat"]
 size_flags_horizontal = 3
@@ -274,6 +274,38 @@ theme_override_font_sizes/font_size = 22
 text = "Task Details"
 horizontal_alignment = 0
 
+[node name="InfoStats" type="VBoxContainer" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+size_flags_horizontal = 3
+custom_constants/separation = 4
+
+[node name="EnergyRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/InfoStats"]
+custom_constants/separation = 8
+
+[node name="EnergyLabel" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/InfoStats/EnergyRow"]
+theme_override_font_sizes/font_size = 15
+text = "Energy"
+
+[node name="EnergyValue" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/InfoStats/EnergyRow"]
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="CalorieRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/InfoStats"]
+custom_constants/separation = 8
+
+[node name="CalorieLabel" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/InfoStats/CalorieRow"]
+theme_override_font_sizes/font_size = 15
+text = "Calories"
+
+[node name="CalorieValue" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/InfoStats/CalorieRow"]
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
+text = "--"
+
+[node name="DescriptionHeader" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+theme_override_font_sizes/font_size = 16
+text = "Description"
+
 [node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -329,7 +361,7 @@ follow_focus = true
 anchor_right = 1.0
 anchor_bottom = 1.0
 size_flags_horizontal = 3
-custom_constants/separation = 16
+custom_constants/separation = 14
 
 [node name="TitleLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
 theme_override_font_sizes/font_size = 24
@@ -341,7 +373,7 @@ size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
 [node name="SleepRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 16
+custom_constants/separation = 12
 size_flags_horizontal = 3
 
 [node name="SleepLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow"]
@@ -383,7 +415,7 @@ size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
 [node name="ForgingRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 16
+custom_constants/separation = 12
 size_flags_horizontal = 3
 
 [node name="ForgingLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
@@ -396,10 +428,36 @@ vertical_alignment = 1
 [node name="ForgingStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Forge ready"
 
 [node name="ForgingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
+custom_minimum_size = Vector2(138, 44)
+theme_override_font_sizes/font_size = 16
+text = "Assign"
+
+[node name="FishingSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="FishingRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 12
+size_flags_horizontal = 3
+
+[node name="FishingLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
+custom_minimum_size = Vector2(104, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 17
+text = "Fish"
+vertical_alignment = 1
+
+[node name="FishingStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Fishing ready"
+
+[node name="FishingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow"]
 custom_minimum_size = Vector2(138, 44)
 theme_override_font_sizes/font_size = 16
 text = "Assign"
@@ -409,7 +467,7 @@ size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
 [node name="ReconRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 16
+custom_constants/separation = 12
 size_flags_horizontal = 3
 
 [node name="ReconLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
@@ -422,7 +480,7 @@ vertical_alignment = 1
 [node name="ReconStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Recon ready"
 
 [node name="ReconSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
@@ -435,7 +493,7 @@ size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
 [node name="LeadRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 16
+custom_constants/separation = 12
 size_flags_horizontal = 3
 
 [node name="LeadLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
@@ -448,7 +506,7 @@ vertical_alignment = 1
 [node name="LeadStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Lead Away ->"
 
 [node name="LeadSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
@@ -461,7 +519,7 @@ size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
 [node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 16
+custom_constants/separation = 12
 size_flags_horizontal = 3
 
 [node name="MealLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
@@ -479,7 +537,7 @@ theme_override_font_sizes/font_size = 16
 [node name="MealSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Meal ->"
 
 [node name="MealSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
@@ -492,7 +550,7 @@ size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
 [node name="RepairRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 16
+custom_constants/separation = 12
 size_flags_horizontal = 3
 
 [node name="RepairLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
@@ -505,7 +563,7 @@ vertical_alignment = 1
 [node name="RepairSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Repair ->"
 
 [node name="RepairSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
@@ -518,7 +576,7 @@ size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
 
 [node name="ReinforceRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
-custom_constants/separation = 16
+custom_constants/separation = 12
 size_flags_horizontal = 3
 
 [node name="ReinforceLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
@@ -531,7 +589,7 @@ vertical_alignment = 1
 [node name="ReinforceSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
 size_flags_horizontal = 3
 autowrap_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Reinforce ->"
 
 [node name="ReinforceSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]

@@ -191,7 +191,12 @@ func apply_awake_minutes(minutes: int) -> Dictionary:
 func adjust_daily_calories(calorie_delta: float) -> float:
     """Apply external calorie changes (e.g. meals) to the daily total."""
     var weight_delta = _apply_calorie_delta(calorie_delta)
-    print("📊 Daily calorie delta adjusted by %.1f (total: %.0f, Δlbs: %.2f)" % [calorie_delta, daily_calories_used, weight_delta])
+    var report := {
+        "delta": calorie_delta,
+        "total": daily_calories_used,
+        "weight": weight_delta
+    }
+    print("📊 Daily calorie delta adjusted by {delta:.1f} (total: {total:.0f}, Δlbs: {weight:.2f})".format(report))
     return daily_calories_used
 
 func reset_daily_counters():
