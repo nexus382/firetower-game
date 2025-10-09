@@ -17,6 +17,33 @@ const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
 const RECON_CALORIE_COST: float = 150.0
 const RECON_WINDOW_START_MINUTE: int = 0
 const RECON_WINDOW_END_MINUTE: int = 18 * 60
+const LURE_WINDOW_MINUTES: int = 120
+const LURE_DURATION_HOURS: float = 4.0
+const LURE_CALORIE_COST: float = 1000.0
+const FISHING_ROLLS_PER_HOUR: int = 5
+const FISHING_ROLL_SUCCESS_CHANCE: float = 0.30
+const FISHING_REST_COST_PERCENT: float = 10.0
+const FISHING_CALORIE_COST: float = 650.0
+const FISHING_GRUB_LOSS_CHANCE: float = 0.5
+const FORGING_REST_COST_PERCENT: float = 12.5
+const FORGING_CALORIE_COST: float = 500.0
+const FISHING_SIZE_TABLE := [
+    {
+        "size": "small",
+        "chance": 0.50,
+        "food_units": 0.5
+    },
+    {
+        "size": "medium",
+        "chance": 0.35,
+        "food_units": 1.0
+    },
+    {
+        "size": "large",
+        "chance": 0.15,
+        "food_units": 1.5
+    }
+]
 
 # Crafting recipes advertised to the UI with pre-baked cost and time data.
 const CRAFTING_RECIPES := {
@@ -110,6 +137,7 @@ const MEAL_PORTIONS := {
 signal day_changed(new_day: int)
 signal weather_changed(new_state: String, previous_state: String, hours_remaining: int)
 signal weather_multiplier_changed(new_multiplier: float, state: String)
+signal lure_status_changed(status: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -130,6 +158,8 @@ var news_system: NewsBroadcastSystem = NewsBroadcastSystem.new()
 var zombie_system: ZombieSystem = ZombieSystem.new()
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _lure_target: Dictionary = {}
+var _last_lure_status: Dictionary = {}
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -180,6 +210,8 @@ func _ready():
     if zombie_system:
         zombie_system.zombies_damaged_tower.connect(_on_zombie_damage_tower)
         zombie_system.start_day(current_day, _rng)
+
+    _refresh_lure_status(true)
 
 func pause_game():
     game_paused = true
@@ -246,6 +278,9 @@ func get_news_system() -> NewsBroadcastSystem:
 
 func get_zombie_system() -> ZombieSystem:
     return zombie_system
+
+func get_lure_status() -> Dictionary:
+    return _refresh_lure_status(false).duplicate(true)
 
 func get_crafting_recipes() -> Dictionary:
     var copy := {}
@@ -582,6 +617,113 @@ func schedule_sleep(hours: float) -> Dictionary:
 
     return result
 
+func perform_fishing() -> Dictionary:
+    if inventory_system == null or _rng == null or time_system == null or sleep_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "fishing"
+        }
+
+    var rod_stock = inventory_system.get_item_count("fishing_rod") if inventory_system else 0
+    if rod_stock <= 0:
+        return {
+            "success": false,
+            "reason": "missing_rod",
+            "action": "fishing",
+            "rod_stock": rod_stock
+        }
+
+    var grub_stock = inventory_system.get_item_count("grubs") if inventory_system else 0
+    if grub_stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_grubs",
+            "action": "fishing",
+            "grub_stock": grub_stock
+        }
+
+    var time_report = _spend_activity_time(1.0, "fishing")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "fishing"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(FISHING_REST_COST_PERCENT)
+    var calorie_total = sleep_system.adjust_daily_calories(FISHING_CALORIE_COST)
+
+    var catches: Array = []
+    var total_food: float = 0.0
+    var success_chance = FISHING_ROLL_SUCCESS_CHANCE
+    for i in range(FISHING_ROLLS_PER_HOUR):
+        var roll = _rng.randf()
+        if roll < success_chance:
+            var size_roll = _rng.randf()
+            var size_entry = _pick_fishing_size(size_roll)
+            var catch_report := {
+                "size": size_entry.get("size", "small"),
+                "food_units": float(size_entry.get("food_units", 0.5)),
+                "chance": success_chance,
+                "roll": roll,
+                "size_roll": size_roll,
+                "size_chance": float(size_entry.get("chance", 0.0))
+            }
+            catches.append(catch_report)
+            total_food += float(size_entry.get("food_units", 0.5))
+
+    if total_food > 0.0:
+        inventory_system.add_food_units(total_food)
+
+    var grub_roll = _rng.randf()
+    var grub_lost = false
+    var grubs_consumed = 0
+    var grub_consume_report: Dictionary = {}
+    if grub_roll < FISHING_GRUB_LOSS_CHANCE:
+        grub_consume_report = inventory_system.consume_item("grubs", 1)
+        if grub_consume_report.get("success", false):
+            grub_lost = true
+            grubs_consumed = 1
+        else:
+            grub_consume_report["requested"] = 1
+            grub_consume_report["stock_before"] = grub_stock
+
+    var result := time_report.duplicate()
+    result["action"] = "fishing"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["calories_spent"] = FISHING_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["rolls"] = FISHING_ROLLS_PER_HOUR
+    result["roll_chance"] = success_chance
+    result["successful_rolls"] = catches.size()
+    result["grub_loss_chance"] = FISHING_GRUB_LOSS_CHANCE
+    result["catches"] = catches
+    result["food_units_gained"] = total_food
+    result["total_food_units"] = inventory_system.get_total_food_units()
+    result["grub_roll"] = grub_roll
+    result["grub_lost"] = grub_lost
+    result["grubs_consumed"] = grubs_consumed
+    result["grubs_before"] = grub_stock
+    result["grubs_remaining"] = inventory_system.get_item_count("grubs") if inventory_system else 0
+    if !grub_consume_report.is_empty():
+        result["grub_consume_report"] = grub_consume_report
+        result["grub_consume_failed"] = !grub_consume_report.get("success", false)
+
+    if catches.is_empty():
+        result["success"] = false
+        result["reason"] = "no_catch"
+        print("🎣 Fishing trip yielded no catch (rolls %d @ %.0f%%)" % [FISHING_ROLLS_PER_HOUR, success_chance * 100.0])
+    else:
+        result["success"] = true
+        print("🎣 Fishing caught %d fish (+%.1f food)" % [catches.size(), total_food])
+
+    if grub_lost:
+        print("🐛 Grub consumed (stock %d)" % result.get("grubs_remaining", 0))
+
+    return result
+
 func perform_forging() -> Dictionary:
     if inventory_system == null or _rng == null or time_system == null or sleep_system == null:
         return {
@@ -607,13 +749,16 @@ func perform_forging() -> Dictionary:
         failure["status"] = failure.get("status", "rejected")
         return failure
 
-    var rest_spent = sleep_system.consume_sleep(15.0)
+    var rest_spent = sleep_system.consume_sleep(FORGING_REST_COST_PERCENT)
+    var calorie_burn = sleep_system.adjust_daily_calories(FORGING_CALORIE_COST)
     var loot_roll = _roll_forging_loot()
     var result := time_report.duplicate()
     result["action"] = "forging"
     result["status"] = result.get("status", "applied")
     result["rest_spent_percent"] = rest_spent
     result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["calories_spent"] = FORGING_CALORIE_COST
+    result["daily_calories_used"] = calorie_burn
 
     if loot_roll.is_empty():
         result["success"] = false
@@ -687,6 +832,83 @@ func perform_lead_away_undead() -> Dictionary:
     else:
         print("🧟‍♂️ Lead Away failed (%.0f%% each, %d tried)" % [result["chance"] * 100.0, result["rolls"]])
 
+    _refresh_lure_status(true)
+    return result
+
+func perform_lure_incoming_zombies() -> Dictionary:
+    if time_system == null or sleep_system == null or zombie_system == null or _rng == null:
+        var failure := {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "lure"
+        }
+        _refresh_lure_status(true)
+        return failure
+
+    var status = get_lure_status()
+    if !status.get("scouted", false):
+        status["success"] = false
+        status["action"] = "lure"
+        status["reason"] = status.get("reason", "no_target")
+        _refresh_lure_status(true)
+        return status
+
+    if !status.get("available", false):
+        var failure := status.duplicate(true)
+        failure["success"] = false
+        failure["action"] = "lure"
+        failure["reason"] = status.get("reason", "not_ready")
+        _refresh_lure_status(true)
+        return failure
+
+    var preview = _preview_activity_time(LURE_DURATION_HOURS)
+    if !preview.get("success", false):
+        preview["action"] = "lure"
+        preview["success"] = false
+        preview["reason"] = preview.get("reason", "time_rejected")
+        _refresh_lure_status(true)
+        return preview
+
+    var expected_day = int(status.get("spawn_day", current_day))
+    var expected_minute = int(status.get("spawn_minute", -1))
+    var cancel_report = zombie_system.cancel_pending_spawn(expected_day, expected_minute)
+    if !cancel_report.get("success", false):
+        var failure := status.duplicate(true)
+        failure["success"] = false
+        failure["action"] = "lure"
+        failure["reason"] = String(cancel_report.get("reason", "cancel_failed"))
+        _refresh_lure_status(true)
+        return failure
+
+    var cancelled_event: Dictionary = cancel_report.get("event", {})
+    var time_report = _spend_activity_time(LURE_DURATION_HOURS, "lure")
+    if !time_report.get("success", false):
+        if !cancelled_event.is_empty():
+            zombie_system.restore_pending_spawn(cancelled_event)
+        var failure := time_report.duplicate(true)
+        failure["action"] = "lure"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        _refresh_lure_status(true)
+        return failure
+
+    var calorie_total = sleep_system.adjust_daily_calories(LURE_CALORIE_COST)
+    var prevented = int(status.get("quantity", cancelled_event.get("quantity", cancelled_event.get("spawns", 0))))
+    var minutes_remaining = int(status.get("minutes_remaining", 0))
+    var result := time_report.duplicate()
+    result["action"] = "lure"
+    result["status"] = result.get("status", "applied")
+    result["success"] = true
+    result["calories_spent"] = LURE_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["minutes_required"] = int(preview.get("requested_minutes", result.get("minutes_spent", 0)))
+    result["zombies_prevented"] = max(prevented, 0)
+    result["spawn_minutes_remaining"] = minutes_remaining
+    result["spawn_prevented_clock"] = status.get("clock_time", time_report.get("ended_at_time", ""))
+    result["window_minutes"] = LURE_WINDOW_MINUTES
+    result["calorie_cost"] = LURE_CALORIE_COST
+
+    _clear_lure_target("completed")
+    print("🪤 Lure success -> diverted %d approaching undead" % max(prevented, 0))
     return result
 
 func perform_recon() -> Dictionary:
@@ -733,6 +955,7 @@ func perform_recon() -> Dictionary:
     result["zombie_forecast"] = zombie_outlook
     result["window_status"] = get_recon_window_status()
 
+    _update_lure_target_from_forecast(result.get("zombie_forecast", {}))
     print("🔭 Recon outlook -> %s" % result)
     return result
 
@@ -870,6 +1093,20 @@ func craft_item(recipe_id: String) -> Dictionary:
     print("🛠️ Crafted %s -> +%d (%s)" % [result.get("display_name", key.capitalize()), result.get("quantity_added", quantity), ", ".join(material_summary)])
     return result
 
+func _pick_fishing_size(roll: float) -> Dictionary:
+    roll = clamp(roll, 0.0, 1.0)
+    var cumulative = 0.0
+    for entry in FISHING_SIZE_TABLE:
+        var chance = float(entry.get("chance", 0.0))
+        if chance <= 0.0:
+            continue
+        cumulative += chance
+        if roll <= cumulative + 0.00001:
+            return entry
+    if FISHING_SIZE_TABLE.size() > 0:
+        return FISHING_SIZE_TABLE[FISHING_SIZE_TABLE.size() - 1]
+    return {}
+
 func _roll_forging_loot() -> Array:
     var table = [
         {
@@ -892,6 +1129,30 @@ func _roll_forging_loot() -> Array:
         },
         {
             "item_id": "grubs",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "apples",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "oranges",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "raspberries",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "blueberries",
             "chance": 0.20,
             "quantity": 1,
             "tier": "basic"
@@ -1012,6 +1273,7 @@ func _on_day_rolled_over():
         news_system.reset_day(current_day)
     if zombie_system:
         zombie_system.start_day(current_day, _rng)
+    _clear_lure_target("day_rollover")
     day_changed.emit(current_day)
 
 func _on_weather_system_changed(new_state: String, previous_state: String, hours_remaining: int):
@@ -1038,6 +1300,7 @@ func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
     var damage = float(report.get("total_damage", 0.0))
     if damage > 0.0:
         tower_health_system.apply_damage(damage, "zombie_presence")
+    _refresh_lure_status(true)
 
 func _on_zombie_damage_tower(damage: float, count: int):
     print("🧟 Zombies inflicted %.2f damage (%d active)" % [damage, count])
@@ -1174,3 +1437,184 @@ func _spend_activity_time(hours: float, activity: String) -> Dictionary:
         "minutes_required": requested_minutes,
         "status": "applied"
     }
+
+func _preview_activity_time(hours: float) -> Dictionary:
+    var result := {
+        "success": false,
+        "reason": "systems_unavailable",
+        "status": "unavailable",
+        "requested_minutes": 0,
+        "time_multiplier": 1.0
+    }
+
+    if time_system == null or sleep_system == null:
+        return result
+
+    hours = max(hours, 0.0)
+    if is_zero_approx(hours):
+        result["reason"] = "no_duration"
+        result["status"] = "rejected"
+        return result
+
+    var multiplier = get_combined_activity_multiplier()
+    multiplier = max(multiplier, 0.01)
+    var requested_minutes = int(ceil(hours * 60.0 * multiplier))
+    requested_minutes = max(requested_minutes, 1)
+    var minutes_available = time_system.get_minutes_until_daybreak()
+
+    result["time_multiplier"] = multiplier
+    result["requested_minutes"] = requested_minutes
+    result["minutes_available"] = minutes_available
+
+    if requested_minutes > minutes_available:
+        result["reason"] = "exceeds_day"
+        result["status"] = "blocked"
+        result["blocker"] = "daybreak"
+        return result
+
+    result["success"] = true
+    result["reason"] = "ready"
+    result["status"] = "ready"
+    return result
+
+func _compute_minutes_until_spawn(spawn_day: int, spawn_minute: int) -> int:
+    if time_system == null:
+        return -1
+    var current_minutes = time_system.get_minutes_since_daybreak()
+    var day_delta = spawn_day - current_day
+    if day_delta < 0:
+        return -1
+    var total_minutes = spawn_minute - current_minutes
+    if day_delta > 0:
+        total_minutes += day_delta * TimeSystem.MINUTES_PER_DAY
+    return total_minutes
+
+func _update_lure_target_from_forecast(forecast: Dictionary):
+    if typeof(forecast) != TYPE_DICTIONARY:
+        _refresh_lure_status(true)
+        return
+
+    var events: Array = forecast.get("events", [])
+    var candidate: Dictionary = {}
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        if String(event.get("type", "")) != "scheduled_spawn":
+            continue
+        var spawns = int(event.get("spawns", event.get("quantity", 0)))
+        if spawns <= 0:
+            continue
+        var minutes_ahead = int(event.get("minutes_ahead", LURE_WINDOW_MINUTES + 1))
+        if minutes_ahead > LURE_WINDOW_MINUTES:
+            continue
+        candidate = event.duplicate(true)
+        break
+
+    if candidate.is_empty():
+        if !_lure_target.is_empty():
+            _clear_lure_target("forecast_clear")
+        else:
+            _refresh_lure_status(true)
+        return
+
+    var pending = zombie_system.get_pending_spawn() if zombie_system else {}
+    if typeof(pending) != TYPE_DICTIONARY or pending.is_empty():
+        _clear_lure_target("pending_missing")
+        return
+
+    var target_day = int(candidate.get("day", current_day))
+    var target_minute = int(candidate.get("minute", -1))
+    if int(pending.get("day", -1)) != target_day or int(pending.get("minute", -1)) != target_minute:
+        _clear_lure_target("forecast_mismatch")
+        return
+
+    _lure_target = {
+        "day": target_day,
+        "minute": target_minute,
+        "quantity": int(candidate.get("quantity", candidate.get("spawns", 0))),
+        "source": "recon",
+        "scouted_at_day": current_day,
+        "scouted_at_minute": time_system.get_minutes_since_daybreak() if time_system else 0,
+        "clock_time": String(candidate.get("clock_time", ""))
+    }
+    _refresh_lure_status(true)
+
+func _clear_lure_target(_reason: String = ""):
+    _lure_target = {}
+    _refresh_lure_status(true)
+
+func _refresh_lure_status(emit_signal: bool) -> Dictionary:
+    var status := {
+        "available": false,
+        "status": "unavailable",
+        "window_minutes": LURE_WINDOW_MINUTES,
+        "calorie_cost": LURE_CALORIE_COST,
+        "hours_required": LURE_DURATION_HOURS,
+        "scouted": !_lure_target.is_empty()
+    }
+
+    if time_system == null or zombie_system == null:
+        status["reason"] = "systems_unavailable"
+    else:
+        var preview = _preview_activity_time(LURE_DURATION_HOURS)
+        status["minutes_required"] = int(preview.get("requested_minutes", 0))
+        status["time_multiplier"] = float(preview.get("time_multiplier", get_combined_activity_multiplier()))
+        status["minutes_available"] = int(preview.get("minutes_available", time_system.get_minutes_until_daybreak()))
+
+        if _lure_target.is_empty():
+            status["reason"] = "no_target"
+        else:
+            var pending = zombie_system.get_pending_spawn()
+            if typeof(pending) != TYPE_DICTIONARY or pending.is_empty():
+                status["reason"] = "pending_cleared"
+                status["scouted"] = false
+                _lure_target = {}
+            else:
+                var target_day = int(_lure_target.get("day", -1))
+                var target_minute = int(_lure_target.get("minute", -1))
+                if int(pending.get("day", -1)) != target_day or int(pending.get("minute", -1)) != target_minute:
+                    status["reason"] = "spawn_mismatch"
+                    status["scouted"] = false
+                    _lure_target = {}
+                else:
+                    var quantity = int(pending.get("quantity", _lure_target.get("quantity", 0)))
+                    if quantity <= 0:
+                        status["reason"] = "no_quantity"
+                        status["scouted"] = false
+                        _lure_target = {}
+                    else:
+                        var minutes_remaining = _compute_minutes_until_spawn(target_day, target_minute)
+                        status["minutes_remaining"] = minutes_remaining
+                        status["clock_time"] = time_system.get_formatted_time_after(max(minutes_remaining, 0))
+                        status["quantity"] = quantity
+                        status["spawn_day"] = target_day
+                        status["spawn_minute"] = target_minute
+                        status["scouted_at_day"] = _lure_target.get("scouted_at_day", current_day)
+                        status["scouted_at_minute"] = _lure_target.get("scouted_at_minute", 0)
+                        status["source"] = _lure_target.get("source", "recon")
+                        if minutes_remaining < 0:
+                            status["reason"] = "expired"
+                            status["scouted"] = false
+                            _lure_target = {}
+                        elif minutes_remaining > LURE_WINDOW_MINUTES:
+                            status["reason"] = "outside_window"
+                            status["status"] = "scouted"
+                        elif !preview.get("success", false):
+                            status["reason"] = preview.get("reason", "exceeds_day")
+                            status["status"] = preview.get("status", "blocked")
+                        else:
+                            status["reason"] = "ready"
+                            status["status"] = "ready"
+                            status["available"] = true
+
+    if status.get("reason", "") == "no_target" and !_lure_target.is_empty():
+        status["scouted"] = true
+
+    if status != _last_lure_status:
+        _last_lure_status = status.duplicate(true)
+        if emit_signal:
+            lure_status_changed.emit(_last_lure_status.duplicate(true))
+    elif emit_signal and _last_lure_status.is_empty():
+        lure_status_changed.emit(status.duplicate(true))
+
+    return _last_lure_status

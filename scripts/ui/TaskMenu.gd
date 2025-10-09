@@ -20,6 +20,24 @@ const ForgingResultsPanel = preload("res://scripts/ui/ForgingResultsPanel.gd")
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_CHANCE_PERCENT: int = int(round(ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE * 100.0))
 const RECON_OUTLOOK_HOURS: int = 6
+const LURE_WINDOW_MINUTES: int = GameManager.LURE_WINDOW_MINUTES
+const LURE_CALORIE_COST: float = GameManager.LURE_CALORIE_COST
+const LURE_DURATION_HOURS: float = GameManager.LURE_DURATION_HOURS
+const FISHING_ROLLS_PER_HOUR: int = GameManager.FISHING_ROLLS_PER_HOUR
+const FISHING_SUCCESS_CHANCE: float = GameManager.FISHING_ROLL_SUCCESS_CHANCE
+const FISHING_SUCCESS_PERCENT: int = int(round(FISHING_SUCCESS_CHANCE * 100.0))
+const FISHING_REST_COST_PERCENT: float = GameManager.FISHING_REST_COST_PERCENT
+const FISHING_CALORIE_COST: float = GameManager.FISHING_CALORIE_COST
+const FISHING_GRUB_LOSS_CHANCE: float = GameManager.FISHING_GRUB_LOSS_CHANCE
+const FISHING_GRUB_LOSS_PERCENT: int = int(round(FISHING_GRUB_LOSS_CHANCE * 100.0))
+const FISHING_SIZE_TABLE := GameManager.FISHING_SIZE_TABLE
+const FORGING_REST_COST_PERCENT: float = GameManager.FORGING_REST_COST_PERCENT
+const FORGING_CALORIE_COST: float = GameManager.FORGING_CALORIE_COST
+const FISHING_SIZE_LABELS := {
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large"
+}
 
 # Meal presets surfaced to the menu; food_units mirror GameManager expectations.
 const MEAL_OPTIONS := [
@@ -57,6 +75,7 @@ var _forging_feedback_state: String = "ready"
 var _forging_feedback_locked: bool = false
 var _lead_feedback_state: String = "status"
 var _lead_feedback_locked: bool = false
+var _lure_status: Dictionary = {}
 
 var _selected_action: String = "sleep"
 var _action_status_text: Dictionary = {}
@@ -71,6 +90,8 @@ var _action_buttons: Dictionary = {}
 @onready var info_body_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/SummaryLabel
 @onready var info_status_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStatus
 @onready var info_hint_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionHint
+@onready var info_energy_value_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStats/EnergyRow/EnergyValue
+@onready var info_calorie_value_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStats/CalorieRow/CalorieValue
 @onready var go_button: Button = $Layout/InfoPanel/InfoMargin/InfoList/GoRow/GoButton
 @onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
 @onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSizeOption
@@ -81,6 +102,8 @@ var _action_buttons: Dictionary = {}
 @onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSummary
 @onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSelectButton
 @onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton
+@onready var fishing_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingStatus
+@onready var fishing_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton
 @onready var recon_status_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconStatus
 @onready var recon_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton
 @onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton
@@ -101,6 +124,10 @@ const TASK_DESCRIPTION_META := {
     "forging": {
         "title": "Forge",
         "hint": "Search the forest for supplies."
+    },
+    "fishing": {
+        "title": "Fish",
+        "hint": "Cast bait for fresh meals."
     },
     "recon": {
         "title": "Recon",
@@ -142,6 +169,7 @@ func _ready():
 
     _register_action_selector(sleep_select_button, "sleep")
     _register_action_selector(forging_select_button, "forging")
+    _register_action_selector(fishing_select_button, "fishing")
     _register_action_selector(recon_select_button, "recon")
     _register_action_selector(lead_select_button, "lead")
     _register_action_selector(meal_select_button, "meal")
@@ -171,6 +199,10 @@ func _ready():
             _set_lead_feedback(_format_lead_ready(zombie_system.get_active_zombies()), "status")
         else:
             _set_lead_feedback("Lead Away offline", "offline")
+        if game_manager.has_signal("lure_status_changed"):
+            game_manager.lure_status_changed.connect(_on_lure_status_changed)
+            _lure_status = game_manager.get_lure_status()
+            _refresh_lead_feedback()
     else:
         _set_forging_feedback("Forging unavailable", "offline")
         _set_lead_feedback("Lead Away unavailable", "offline")
@@ -223,11 +255,13 @@ func _refresh_display():
         hours_value_label.text = str(selected_hours)
 
     _update_meal_summary()
+    _update_fishing_summary()
     _update_recon_summary()
     _update_repair_summary()
     _update_reinforce_summary()
     _update_description_body()
     _update_info_status()
+    _update_info_stats()
 
 func _setup_description_targets():
     var paths := {
@@ -243,6 +277,11 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingStatus",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton"
+        ],
+        "fishing": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingStatus",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton"
         ],
         "recon": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow",
@@ -300,6 +339,8 @@ func _get_description_body(key: String) -> String:
             return _build_sleep_description()
         "forging":
             return _build_forging_description()
+        "fishing":
+            return _build_fishing_description()
         "recon":
             return _build_recon_description()
         "lead":
@@ -326,6 +367,7 @@ func _select_action(key: String, force: bool = false):
         info_hint_label.text = meta.get("hint", DESCRIPTION_DEFAULT.get("hint", "Hover or focus an action to see its requirements."))
     _update_description_body()
     _update_info_status()
+    _update_info_stats()
     if changed or force:
         _update_action_highlights()
 
@@ -352,6 +394,16 @@ func _update_info_status():
     info_status_label.text = text
     info_status_label.visible = !text.is_empty()
 
+func _update_info_stats():
+    if !is_instance_valid(info_energy_value_label) or !is_instance_valid(info_calorie_value_label):
+        return
+    info_energy_value_label.text = _get_action_energy_text(_selected_action)
+    info_calorie_value_label.text = _get_action_calorie_text(_selected_action)
+
+func _refresh_info_stats_if_selected(action: String):
+    if _selected_action == action:
+        _update_info_stats()
+
 func _set_action_status(action: String, text: String, update_row: bool = false):
     _action_status_text[action] = text
     if update_row:
@@ -359,6 +411,9 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "forging":
                 if is_instance_valid(forging_status_label):
                     forging_status_label.text = text
+            "fishing":
+                if is_instance_valid(fishing_status_label):
+                    fishing_status_label.text = text
             "recon":
                 if is_instance_valid(recon_status_label):
                     recon_status_label.text = text
@@ -376,11 +431,13 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
                     reinforce_summary_label.text = text
     if action == _selected_action:
         _update_info_status()
+    _refresh_info_stats_if_selected(action)
 
 func _set_action_default(action: String, text: String, update_row: bool = false):
     _action_defaults[action] = text
     if !_action_results_active.get(action, false):
         _set_action_status(action, text, update_row)
+    _refresh_info_stats_if_selected(action)
 
 func _set_action_result(action: String, text: String, update_row: bool = false):
     var active = !text.is_empty()
@@ -396,6 +453,8 @@ func _trigger_selected_action():
             _execute_sleep_action()
         "forging":
             _execute_forging_action()
+        "fishing":
+            _execute_fishing_action()
         "recon":
             _execute_recon_action()
         "lead":
@@ -442,14 +501,34 @@ func _build_forging_description() -> String:
     var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
     multiplier = max(multiplier, 0.01)
     var minutes = int(ceil(60.0 * multiplier))
-    lines.append("Spend 1 hr (x%.1f) to search the woods." % multiplier)
-    lines.append("Costs 15%% rest | Basic: 🍄25%% / 🍓25%% / 🌰25%% / 🐛20%% / 🧵15%% / 🪨30%% / 🌿17.5%% / 🪵20%%")
+    lines.append("Spend 1 hr (x%.1f) sweeping the woods." % multiplier)
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(FORGING_REST_COST_PERCENT), int(round(FORGING_CALORIE_COST))])
+    lines.append("Food finds: Mushrooms 25%% / Berries 25%% / Walnuts 25%% / Grubs 20%% / Apples 20%% / Oranges 20%% / Raspberries 20%% / Blueberries 20%%")
     lines.append("Advanced finds (10%%): Plastic Sheet, Metal Scrap, Nails x3, Duct Tape, Medicinal Herbs, Fuel (3-5), Mechanical Parts, Electrical Parts")
     lines.append("Takes %s" % _format_duration(minutes))
     if zombie_system and zombie_system.has_active_zombies():
         lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
     else:
         lines.append("Ready while the area is clear")
+    return "\n".join(lines)
+
+func _build_fishing_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(60.0 * multiplier))
+    lines.append("Spend 1 hr (x%.1f) casting from shore." % multiplier)
+    lines.append("Energy -%d%% | +%d cal burn" % [int(round(FISHING_REST_COST_PERCENT)), int(round(FISHING_CALORIE_COST))])
+    lines.append("%d rolls @ %d%% each | Sizes: Small 50%% (0.5), Medium 35%% (1.0), Large 15%% (1.5)" % [FISHING_ROLLS_PER_HOUR, FISHING_SUCCESS_PERCENT])
+    lines.append("Needs Fishing Rod + Grub (%d%% loss chance)" % FISHING_GRUB_LOSS_PERCENT)
+    if inventory_system:
+        lines.append("Rod stock: %d" % inventory_system.get_item_count("fishing_rod"))
+        lines.append("Grubs: %d" % inventory_system.get_item_count("grubs"))
+    else:
+        lines.append("Inventory offline")
+    if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
     return "\n".join(lines)
 
 func _build_recon_description() -> String:
@@ -474,16 +553,19 @@ func _build_lead_description() -> String:
     var lines: PackedStringArray = []
     var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
     multiplier = max(multiplier, 0.01)
-    var minutes = int(ceil(60.0 * multiplier))
+    var lead_minutes = int(ceil(60.0 * multiplier))
     lines.append("Spend 1 hr (x%.1f) guiding undead away." % multiplier)
-    lines.append("Costs 15%% rest | %d%% success per 🧟" % LEAD_AWAY_CHANCE_PERCENT)
-    lines.append("Takes %s" % _format_duration(minutes))
+    lines.append("Energy -15%% | %d%% success per 🧟" % LEAD_AWAY_CHANCE_PERCENT)
+    lines.append("Takes %s" % _format_duration(lead_minutes))
     if zombie_system:
         var count = zombie_system.get_active_zombies()
         if count > 0:
             lines.append("Active undead: %d" % count)
         else:
             lines.append("Needs at least 1 undead present")
+    var lure_minutes = int(ceil(LURE_DURATION_HOURS * 60.0 * multiplier))
+    lines.append("Lure window: %dh (<=%dh ETA)" % [int(round(LURE_DURATION_HOURS)), int(round(LURE_WINDOW_MINUTES / 60.0))])
+    lines.append("Costs %d cal | Takes %s when scouted" % [int(round(LURE_CALORIE_COST)), _format_duration(lure_minutes)])
     return "\n".join(lines)
 
 func _build_meal_description() -> String:
@@ -606,13 +688,27 @@ func _execute_forging_action():
         forging_results_panel.show_result(result)
     _refresh_display()
 
+func _execute_fishing_action():
+    if game_manager == null:
+        _set_action_result("fishing", "Fishing unavailable", true)
+        return
+
+    var result = game_manager.perform_fishing()
+    _set_action_result("fishing", _format_fishing_result(result), true)
+    _refresh_display()
+
 func _execute_lead_action():
     if game_manager == null:
         _set_lead_feedback("Lead Away unavailable", "offline")
         return
 
     _lock_lead_feedback()
-    var result = game_manager.perform_lead_away_undead()
+    var status = game_manager.get_lure_status() if game_manager else {}
+    var result: Dictionary
+    if status.get("available", false):
+        result = game_manager.perform_lure_incoming_zombies()
+    else:
+        result = game_manager.perform_lead_away_undead()
     _set_lead_feedback(_format_lead_result(result), "result")
     _refresh_display()
 
@@ -818,7 +914,11 @@ func _execute_reinforce_action():
 
 
 func _format_forging_ready(total_food: float) -> String:
-    return "Forging ready (-15% rest | Food %.1f)" % total_food
+    return "Forging ready (-%s%% energy | +%d cal burn | Food %.1f)" % [
+        _format_percent_value(FORGING_REST_COST_PERCENT),
+        int(round(FORGING_CALORIE_COST)),
+        total_food
+    ]
 
 func _format_forging_result(result: Dictionary) -> String:
     var end_at = result.get("ended_at_time", "")
@@ -839,7 +939,10 @@ func _format_forging_result(result: Dictionary) -> String:
         parts.append("Total %s" % _format_food(result.get("total_food_units", 0.0)))
         var rest_spent = result.get("rest_spent_percent", 0.0)
         if rest_spent > 0.0:
-            parts.append("-%d%% rest" % int(round(rest_spent)))
+            parts.append("-%s%% energy" % _format_percent_value(rest_spent))
+        var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+        if calories_spent > 0:
+            parts.append("+%d cal burn" % calories_spent)
         if end_at != "":
             parts.append("End %s" % end_at)
         return " | ".join(parts)
@@ -855,7 +958,10 @@ func _format_forging_result(result: Dictionary) -> String:
             var message = "Found nothing"
             var rest_spent = result.get("rest_spent_percent", 0.0)
             if rest_spent > 0.0:
-                message += " | -%d%% rest" % int(round(rest_spent))
+                message += " | -%s%% energy" % _format_percent_value(rest_spent)
+            var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+            if calories_spent > 0:
+                message += " | +%d cal burn" % calories_spent
             if end_at != "":
                 message += " | End %s" % end_at
             return message
@@ -866,8 +972,118 @@ func _format_forging_result(result: Dictionary) -> String:
             var fallback = "Forging failed"
             var rest_spent = result.get("rest_spent_percent", 0.0)
             if rest_spent > 0.0:
-                fallback += " | -%d%% rest" % int(round(rest_spent))
+                fallback += " | -%s%% energy" % _format_percent_value(rest_spent)
+            var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+            if calories_spent > 0:
+                fallback += " | +%d cal burn" % calories_spent
             return fallback
+
+func _format_fishing_result(result: Dictionary) -> String:
+    if typeof(result) != TYPE_DICTIONARY or result.is_empty():
+        return "Fishing failed"
+
+    var reason = String(result.get("reason", ""))
+    match reason:
+        "systems_unavailable":
+            return "Fishing offline"
+        "missing_rod":
+            return "Need Fishing Rod"
+        "no_grubs":
+            return "Need Grub"
+        "exceeds_day":
+            var minutes_available = result.get("minutes_available", 0)
+            return _format_daybreak_warning(minutes_available)
+        "time_rejected":
+            var minutes_available = result.get("minutes_available", _get_minutes_left_today())
+            return _format_daybreak_warning(minutes_available)
+        "no_duration":
+            return "No time scheduled"
+
+    var rest_spent = float(result.get("rest_spent_percent", 0.0))
+    var calories = int(round(result.get("calories_spent", FISHING_CALORIE_COST)))
+    var grubs_remaining = int(result.get("grubs_remaining", -1))
+    var grub_lost = result.get("grub_lost", false)
+    var grub_consume_failed = result.get("grub_consume_failed", false)
+    var ended_at = String(result.get("ended_at_time", ""))
+
+    if result.get("success", false):
+        var parts: PackedStringArray = []
+        var rolls_total = max(int(result.get("rolls", FISHING_ROLLS_PER_HOUR)), 1)
+        var successes = int(result.get("successful_rolls", 0))
+        var catches: Array = result.get("catches", [])
+        var size_counts: Dictionary = {}
+        for catch in catches:
+            if typeof(catch) != TYPE_DICTIONARY:
+                continue
+            var size = String(catch.get("size", "small")).to_lower()
+            size_counts[size] = int(size_counts.get(size, 0)) + 1
+        var mix: PackedStringArray = []
+        for entry in FISHING_SIZE_TABLE:
+            var size_key = String(entry.get("size", "")).to_lower()
+            if size_key == "":
+                continue
+            var count = int(size_counts.get(size_key, 0))
+            if count > 0:
+                mix.append("%s x%d" % [FISHING_SIZE_LABELS.get(size_key, size_key.capitalize()), count])
+        if mix.is_empty():
+            mix.append("No catches")
+        parts.append("%d/%d hits (%s)" % [max(successes, 0), rolls_total, ", ".join(mix)])
+
+        var food_gained = float(result.get("food_units_gained", 0.0))
+        if food_gained > 0.0:
+            parts.append("+%s food" % _format_food(food_gained))
+        if rest_spent > 0.0:
+            parts.append("-%d%% rest" % int(round(rest_spent)))
+        if calories > 0:
+            parts.append("-%d cal" % calories)
+        if grub_consume_failed:
+            parts.append("Grub spend failed")
+        elif grub_lost:
+            parts.append("Grub lost")
+        if grubs_remaining >= 0:
+            parts.append("Grubs %d" % grubs_remaining)
+        var total_food = result.get("total_food_units", null)
+        if typeof(total_food) == TYPE_FLOAT or typeof(total_food) == TYPE_INT:
+            parts.append("Stock %s" % _format_food(float(total_food)))
+        if ended_at != "":
+            parts.append("End %s" % ended_at)
+        return "Fishing -> %s" % " | ".join(parts)
+
+    if reason == "no_catch":
+        var parts_nc: PackedStringArray = []
+        var rolls_total_nc = max(int(result.get("rolls", FISHING_ROLLS_PER_HOUR)), 1)
+        parts_nc.append("0/%d hits" % rolls_total_nc)
+        if rest_spent > 0.0:
+            parts_nc.append("-%d%% rest" % int(round(rest_spent)))
+        if calories > 0:
+            parts_nc.append("-%d cal" % calories)
+        if grub_consume_failed:
+            parts_nc.append("Grub spend failed")
+        elif grub_lost:
+            parts_nc.append("Grub lost")
+        else:
+            parts_nc.append("Grub kept")
+        if grubs_remaining >= 0:
+            parts_nc.append("Grubs %d" % grubs_remaining)
+        if ended_at != "":
+            parts_nc.append("End %s" % ended_at)
+        return "Fishing -> %s" % " | ".join(parts_nc)
+
+    var parts: PackedStringArray = []
+    parts.append("Fishing failed")
+    if rest_spent > 0.0:
+        parts.append("-%d%% rest" % int(round(rest_spent)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    if grub_consume_failed:
+        parts.append("Grub spend failed")
+    elif grub_lost:
+        parts.append("Grub lost")
+    if grubs_remaining >= 0:
+        parts.append("Grubs %d" % grubs_remaining)
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    return "Fishing -> %s" % " | ".join(parts)
 
 func _format_recon_result(result: Dictionary) -> String:
     var parts: PackedStringArray = []
@@ -998,6 +1214,7 @@ func _set_forging_feedback(text: String, state: String):
         _set_action_result("forging", text, true)
     else:
         _set_action_default("forging", text, true)
+    _refresh_info_stats_if_selected("forging")
 
 func _lock_forging_feedback():
     _forging_feedback_locked = true
@@ -1063,6 +1280,45 @@ func _update_meal_summary():
     var summary = "\n".join(lines)
     meal_summary_label.text = summary
     _set_action_default("meal", summary)
+    _refresh_info_stats_if_selected("meal")
+
+func _update_fishing_summary():
+    if !is_instance_valid(fishing_status_label):
+        return
+
+    var parts: PackedStringArray = []
+    parts.append("%d rolls @ %d%%" % [FISHING_ROLLS_PER_HOUR, FISHING_SUCCESS_PERCENT])
+    parts.append("Sizes S50%/M35%/L15%")
+    parts.append("Energy -%d%% / +%d cal burn" % [int(round(FISHING_REST_COST_PERCENT)), int(round(FISHING_CALORIE_COST))])
+    parts.append("%d%% grub loss" % FISHING_GRUB_LOSS_PERCENT)
+
+    var ready = true
+    var rod_stock = 0
+    var grub_stock = 0
+    if inventory_system:
+        rod_stock = inventory_system.get_item_count("fishing_rod")
+        grub_stock = inventory_system.get_item_count("grubs")
+        parts.append("Rod %d" % rod_stock)
+        parts.append("Grubs %d" % grub_stock)
+        ready = rod_stock > 0 and grub_stock > 0
+    else:
+        parts.append("Inventory offline")
+        ready = false
+
+    if !ready and inventory_system:
+        var needs: PackedStringArray = []
+        if rod_stock <= 0:
+            needs.append("Fishing Rod")
+        if grub_stock <= 0:
+            needs.append("Grub")
+        if !needs.is_empty():
+            parts.append("Need %s" % " & ".join(needs))
+
+    var summary = " | ".join(parts)
+    fishing_status_label.text = summary
+    _set_action_default("fishing", summary, true)
+    if is_instance_valid(fishing_select_button):
+        fishing_select_button.disabled = !ready
 
 func _update_recon_summary():
     if !is_instance_valid(recon_status_label):
@@ -1157,6 +1413,70 @@ func _format_food(value: float) -> String:
         return "%d" % int(round(value))
     return "%.1f" % value
 
+func _get_action_energy_text(action: String) -> String:
+    match action:
+        "sleep":
+            var per_hour = SLEEP_PERCENT_PER_HOUR
+            if selected_hours > 0:
+                var planned = selected_hours * per_hour
+                return "+%s%% planned (%d%%/hr)" % [_format_percent_value(planned), per_hour]
+            return "+%d%% per hr" % per_hour
+        "forging":
+            return "-%s%% cost" % _format_percent_value(FORGING_REST_COST_PERCENT)
+        "fishing":
+            return "-%s%% cost" % _format_percent_value(FISHING_REST_COST_PERCENT)
+        "recon":
+            return "0% (Focus only)"
+        "lead":
+            if _lure_status.get("available", false):
+                return "0% (Lure intercept)"
+            return "-%s%% cost" % _format_percent_value(15.0)
+        "meal":
+            return "0% (Energy neutral)"
+        "repair":
+            return "+%s%% bonus" % _format_percent_value(10.0)
+        "reinforce":
+            return "-%s%% cost" % _format_percent_value(20.0)
+        _:
+            return "0%"
+
+func _get_action_calorie_text(action: String) -> String:
+    match action:
+        "sleep":
+            var per_hour = SleepSystem.CALORIES_PER_SLEEP_HOUR
+            if selected_hours > 0:
+                var planned = int(round(selected_hours * per_hour))
+                return "+%d burn planned (+%d/hr)" % [planned, per_hour]
+            return "+%d burn/hr" % per_hour
+        "forging":
+            return "+%d burn" % int(round(FORGING_CALORIE_COST))
+        "fishing":
+            return "+%d burn" % int(round(FISHING_CALORIE_COST))
+        "recon":
+            return "+%d burn" % int(round(GameManager.RECON_CALORIE_COST))
+        "lead":
+            if _lure_status.get("available", false):
+                return "+%d burn" % int(round(GameManager.LURE_CALORIE_COST))
+            return "Awake burn only"
+        "meal":
+            var option = _resolve_meal_option(selected_meal_key)
+            var food_units = float(option.get("food_units", 1.0))
+            var calories = int(round(food_units * CALORIES_PER_FOOD_UNIT))
+            return "-%d gain" % calories
+        "repair":
+            return "+350 burn"
+        "reinforce":
+            return "+450 burn"
+        _:
+            return "Awake burn only"
+
+func _get_fishing_size_data(size: String) -> Dictionary:
+    var key = size.to_lower()
+    for entry in FISHING_SIZE_TABLE:
+        if String(entry.get("size", "")).to_lower() == key:
+            return entry
+    return {}
+
 func _format_percent_value(value: float) -> String:
     var rounded = round(value * 10.0) / 10.0
     if is_equal_approx(rounded, round(rounded)):
@@ -1166,7 +1486,89 @@ func _format_percent_value(value: float) -> String:
 func _format_lead_ready(count: int) -> String:
     return "Lead Away -> %d%% per 🧟 (Have %d)" % [LEAD_AWAY_CHANCE_PERCENT, max(count, 0)]
 
+func _format_lure_ready(status: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    var quantity = int(status.get("quantity", 0))
+    var minutes = int(status.get("minutes_remaining", 0))
+    var eta = String(status.get("clock_time", ""))
+    if eta == "":
+        eta = _format_duration(minutes)
+    parts.append("Lure -> %d inbound" % max(quantity, 1))
+    parts.append("ETA %s" % eta)
+    var calories = int(round(status.get("calorie_cost", LURE_CALORIE_COST)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    var minutes_required = int(status.get("minutes_required", int(ceil(LURE_DURATION_HOURS * 60.0))))
+    if minutes_required > 0:
+        parts.append("Takes %s" % _format_duration(minutes_required))
+    return " | ".join(parts)
+
+func _format_lure_outside_window(status: Dictionary) -> String:
+    var quantity = int(status.get("quantity", 0))
+    var minutes = int(status.get("minutes_remaining", 0))
+    var eta = String(status.get("clock_time", ""))
+    if eta == "":
+        eta = _format_duration(minutes)
+    return "Lure -> %d arrive %s (beyond %dh window)" % [max(quantity, 1), eta, int(round(LURE_WINDOW_MINUTES / 60.0))]
+
+func _format_lure_time_blocked(status: Dictionary) -> String:
+    var minutes_required = int(status.get("minutes_required", int(ceil(LURE_DURATION_HOURS * 60.0))))
+    var minutes_available = int(status.get("minutes_available", 0))
+    return "Lure -> Need %s (Left %s)" % [_format_duration(minutes_required), _format_duration(minutes_available)]
+
+func _format_lure_result(result: Dictionary) -> String:
+    var ended_at = result.get("ended_at_time", "")
+    var rest_spent = result.get("rest_spent_percent", 0.0)
+    if result.get("success", false):
+        var diverted = int(result.get("zombies_prevented", 0))
+        var clock = String(result.get("spawn_prevented_clock", ended_at))
+        var calories = int(round(result.get("calories_spent", LURE_CALORIE_COST)))
+        var duration = int(result.get("minutes_required", result.get("minutes_spent", 0)))
+        var parts: PackedStringArray = []
+        parts.append("Lured %d" % max(diverted, 0))
+        if clock != "":
+            parts.append("Intercept %s" % clock)
+        if calories > 0:
+            parts.append("-%d cal" % calories)
+        if duration > 0:
+            parts.append("Took %s" % _format_duration(duration))
+        if rest_spent > 0.0:
+            parts.append("-%d%% rest" % int(round(rest_spent)))
+        return "Lure -> %s" % " | ".join(parts)
+
+    var reason = String(result.get("reason", ""))
+    match reason:
+        "systems_unavailable":
+            return "Lure offline"
+        "no_target":
+            return "Lure -> Recon required"
+        "pending_cleared":
+            return "Lure -> No wave scheduled"
+        "spawn_mismatch":
+            return "Lure -> Wave shifted"
+        "no_quantity":
+            return "Lure -> No undead inbound"
+        "expired":
+            return "Lure -> Wave already hit"
+        "outside_window":
+            return _format_lure_outside_window(result)
+        "exceeds_day":
+            return _format_lure_time_blocked(result)
+        "day_mismatch":
+            return "Lure -> Schedule changed"
+        "minute_mismatch":
+            return "Lure -> Timing changed"
+        "no_pending_spawn":
+            return "Lure -> No pending wave"
+        "cancel_failed":
+            return "Lure -> Could not divert"
+        _:
+            return "Lure failed"
+
 func _format_lead_result(result: Dictionary) -> String:
+    var action = String(result.get("action", "lead_away"))
+    if action == "lure":
+        return _format_lure_result(result)
     var rest_spent = result.get("rest_spent_percent", 0.0)
     var ended_at = result.get("ended_at_time", "")
     if result.get("success", false):
@@ -1233,6 +1635,7 @@ func _on_inventory_food_total_changed(new_total: float):
         return
     _set_forging_feedback(_format_forging_ready(new_total), "ready")
 func _on_inventory_item_changed(_item_id: String, _quantity_delta: int, _food_delta: float, _total_food_units: float):
+    _update_fishing_summary()
     _update_repair_summary()
     _update_reinforce_summary()
 
@@ -1244,10 +1647,50 @@ func _on_tower_health_changed(_new: float, _old: float):
 func _on_lead_zombie_count_changed(count: int):
     if _lead_feedback_locked:
         return
-    if _lead_feedback_state == "offline":
+    if _lead_feedback_state == "offline" or _lead_feedback_state == "result":
         return
     _set_lead_feedback(_format_lead_ready(count), "status")
+    _refresh_lead_feedback()
     _update_recon_summary()
+    _refresh_info_stats_if_selected("lead")
+
+func _on_lure_status_changed(status: Dictionary):
+    _lure_status = status.duplicate(true)
+    _refresh_lead_feedback()
+    _refresh_info_stats_if_selected("lead")
+
+func _refresh_lead_feedback():
+    if _lead_feedback_locked:
+        return
+    if _lead_feedback_state == "offline" or _lead_feedback_state == "result":
+        return
+
+    if _lure_status.get("available", false):
+        _set_lead_feedback(_format_lure_ready(_lure_status), "status")
+        return
+
+    if _lure_status.get("scouted", false):
+        var reason = String(_lure_status.get("reason", ""))
+        match reason:
+            "outside_window":
+                _set_lead_feedback(_format_lure_outside_window(_lure_status), "status")
+                return
+            "exceeds_day":
+                _set_lead_feedback(_format_lure_time_blocked(_lure_status), "status")
+                return
+            "pending_cleared":
+                pass
+            "spawn_mismatch":
+                pass
+            "no_quantity":
+                pass
+            "expired":
+                pass
+
+    if zombie_system:
+        _set_lead_feedback(_format_lead_ready(zombie_system.get_active_zombies()), "status")
+    else:
+        _set_lead_feedback("Lead Away unavailable", "offline")
 
 func _resolve_game_manager() -> GameManager:
     var tree = get_tree()

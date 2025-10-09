@@ -211,6 +211,50 @@ func get_pending_spawn() -> Dictionary:
 func has_pending_spawn() -> bool:
     return !_pending_spawn.is_empty()
 
+func cancel_pending_spawn(expected_day: int = -1, expected_minute: int = -1) -> Dictionary:
+    var snapshot = get_pending_spawn()
+    if snapshot.is_empty():
+        return {
+            "success": false,
+            "reason": "no_pending_spawn"
+        }
+
+    var day = int(snapshot.get("day", -1))
+    var minute = int(snapshot.get("minute", -1))
+    if expected_day >= 0 and day != expected_day:
+        return {
+            "success": false,
+            "reason": "day_mismatch",
+            "expected_day": expected_day,
+            "pending_day": day
+        }
+    if expected_minute >= 0 and minute != expected_minute:
+        return {
+            "success": false,
+            "reason": "minute_mismatch",
+            "expected_minute": expected_minute,
+            "pending_minute": minute
+        }
+
+    _pending_spawn = {}
+    return {
+        "success": true,
+        "event": snapshot
+    }
+
+func restore_pending_spawn(event: Dictionary) -> Dictionary:
+    if typeof(event) != TYPE_DICTIONARY or event.is_empty():
+        return {
+            "success": false,
+            "reason": "invalid_event"
+        }
+
+    _pending_spawn = event.duplicate(true)
+    return {
+        "success": true,
+        "event": get_pending_spawn()
+    }
+
 func _resolve_spawn_rolls(day_index: int) -> int:
     if day_index < 6:
         return 0

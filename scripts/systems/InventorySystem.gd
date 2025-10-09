@@ -30,6 +30,26 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 1.0,
         KEY_STACK_LIMIT: 99
     })
+    register_item_definition("apples", {
+        KEY_DISPLAY_NAME: "Apples",
+        KEY_FOOD_UNITS: 0.5,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("oranges", {
+        KEY_DISPLAY_NAME: "Oranges",
+        KEY_FOOD_UNITS: 0.5,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("raspberries", {
+        KEY_DISPLAY_NAME: "Raspberries",
+        KEY_FOOD_UNITS: 0.5,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("blueberries", {
+        KEY_DISPLAY_NAME: "Blueberries",
+        KEY_FOOD_UNITS: 0.5,
+        KEY_STACK_LIMIT: 99
+    })
     register_item_definition("walnuts", {
         KEY_DISPLAY_NAME: "Walnuts",
         KEY_FOOD_UNITS: 0.5,
