@@ -91,8 +91,8 @@ var _trap_state: Dictionary = {}
 
 # Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
-@onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/HoursValue
-@onready var sleep_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSummary
+@onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/HourSelector/HoursValue
+@onready var sleep_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepHeader/SleepSummary
 @onready var info_title_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionTitle
 @onready var info_body_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/SummaryLabel
 @onready var info_status_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStatus
@@ -102,22 +102,22 @@ var _trap_state: Dictionary = {}
 @onready var go_button: Button = $Layout/InfoPanel/InfoMargin/InfoList/GoRow/GoButton
 @onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
 @onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption
-@onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSummary
-@onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSummary
-@onready var forging_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSummary
-@onready var lead_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSummary
-@onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSummary
-@onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSelectButton
+@onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealText/MealSummary
+@onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairText/RepairSummary
+@onready var forging_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingText/ForgingSummary
+@onready var lead_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadText/LeadSummary
+@onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceText/ReinforceSummary
+@onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/SleepSelectButton
 @onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton
-@onready var fishing_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSummary
+@onready var fishing_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingText/FishingSummary
 @onready var fishing_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton
-@onready var recon_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSummary
+@onready var recon_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconText/ReconSummary
 @onready var recon_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton
 @onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton
-@onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSelectButton
+@onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSelectButton
 @onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSelectButton
 @onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton
-@onready var trap_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSummary
+@onready var trap_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapText/TrapSummary
 @onready var trap_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton
 
 const DESCRIPTION_DEFAULT := {
@@ -286,52 +286,53 @@ func _setup_description_targets():
     var paths := {
         "sleep": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepLabel",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSummary",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/DecreaseButton",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/IncreaseButton",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepHeader/SleepLabel",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepHeader/SleepSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/HourSelector",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/HourSelector/DecreaseButton",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/HourSelector/IncreaseButton",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/SleepSelectButton"
         ],
         "forging": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingText/ForgingSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton"
         ],
         "fishing": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingText/FishingSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton"
         ],
         "recon": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconText/ReconSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton"
         ],
         "lead": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadText/LeadSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton"
         ],
         "meal": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealText/MealSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSelectButton"
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSelectButton"
         ],
         "trap": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapText/TrapSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton"
         ],
         "repair": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairText/RepairSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSelectButton"
         ],
         "reinforce": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow",
-            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceText/ReinforceSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton"
         ]
     }
@@ -404,7 +405,7 @@ func _register_action_selector(button: BaseButton, action: String):
     button.toggle_mode = true
     button.button_pressed = action == _selected_action
     button.pressed.connect(func():
-        _select_action(action)
+        _handle_action_button_press(action)
     )
     _action_buttons[action] = button
 
@@ -413,6 +414,17 @@ func _update_action_highlights():
         var button: BaseButton = _action_buttons[key]
         if button and is_instance_valid(button):
             button.button_pressed = key == _selected_action
+
+func _handle_action_button_press(action: String):
+    # Sleep stays queued for hour adjustments; every other button executes immediately.
+    _select_action(action, true)
+    if action == "sleep":
+        if is_instance_valid(sleep_select_button):
+            sleep_select_button.button_pressed = true
+        return
+
+    _trigger_selected_action()
+    _select_action(action, true)
 
 func _update_info_status():
     if !is_instance_valid(info_status_label):
