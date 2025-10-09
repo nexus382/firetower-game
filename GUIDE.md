@@ -1,11 +1,11 @@
 # Firetower Survival Guide
 
 ## Core Loop Snapshot
-* Daybreak hits at 6:00 AM; a full day spans 1,440 minutes tracked by `TimeSystem`.
-* `GameManager` advances time for every action, spends calories, and applies energy/rest changes using sleep and weather multipliers.
-* Weather rolls every hour: 5% chance to start precipitation when clear, with intensity weighted 15% heavy storm, 35% rain, 50% sprinkling and default durations 5h/2h/1h respectively.
-* Zombies begin daily spawn checks on Day 6; successful rolls schedule a single wave at a random hour (0-23) and inflict 0.5 tower damage per zombie every 6 hours once active.
-* Recon is available from 6:00 AM through 12:00 AM, consumes 1 hour plus 150 calories, and locks in a six-hour weather and zombie forecast using the live RNG sequence.
+* **Day Cycle**: Daybreak at 6:00 AM, 1,440 total minutes per day maintained by `TimeSystem`.
+* **Action Flow**: `GameManager` advances the clock, burns calories, and updates rest using sleep/weather multipliers per activity.
+* **Weather Cadence**: Hourly precipitation roll while clear (5% start chance). Successful rolls weight intensity heavy 15%, rain 35%, sprinkling 50% with default durations 5h/2h/1h.
+* **Zombie Pressure**: Spawn checks start on Day 6. Successful day rolls schedule one wave (hour 0-23) and apply `0.5 * zombies` tower damage every 360 minutes while active.
+* **Recon Window**: Available 6:00 AM–12:00 AM. Costs 60 minutes + 150 calories and snapshots six-hour weather/zombie forecasts using the live RNG seed.
 
 ## Systems Reference
 
@@ -71,75 +71,117 @@
   - Energy management: `apply_sleep(hours)`, `consume_sleep(percent)`, `apply_rest_bonus(percent)`.
   - Calorie handling: `apply_awake_minutes(minutes)`, `adjust_daily_calories(delta)`, `reset_daily_counters()`.
 * **Internals** – `_apply_calorie_delta(calorie_delta)` adjusts weight, `_update_weight(new_weight_lbs)` fires signals, `_determine_weight_category(weight_lbs)` maps thresholds.
+* **Role**: Survival coordinator; spawns systems, executes player tasks, and relays signals/UI payloads.
+* **Signals**: `day_changed(new_day)`, `weather_changed(new_state, previous_state, hours_remaining)`, `weather_multiplier_changed(new_multiplier, state)`.
+* **Key Constants**:
+  - `CALORIES_PER_FOOD_UNIT = 1000` (1 food unit ⇒ 1,000 calories).
+  - `LEAD_AWAY_ZOMBIE_CHANCE = 0.80` (per-undead lure success).
+  - `RECON_CALORIE_COST = 150` (flat burn per recon task).
+  - Recon window minutes: start `0` (6:00 AM), end `1080` (12:00 AM) relative to daybreak.
+* **Lifecycle Hooks**:
+  - `_ready()` seeds RNG, instantiates subsystems, connects listeners, primes Day 1 spawn planning.
+  - `pause_game()` / `resume_game()` toggle `game_paused` guard for all task processing.
+* **System Accessors**: `get_sleep_system()`, `get_time_system()`, `get_inventory_system()`, `get_weather_system()`, `get_tower_health_system()`, `get_news_system()`, `get_zombie_system()`, `get_crafting_recipes()` (deep copy).
+* **Player Status Queries**: `get_sleep_percent()`, `get_daily_calories_used()`, `get_player_weight_lbs()`, `get_player_weight_kg()`, `get_weight_unit()`, weight unit setters, and multiplier getters (`time`, `weather`, `combined`).
+* **Radio/Narrative**: `request_radio_broadcast()` surfaces cached `NewsBroadcastSystem` text or static fallback.
+* **Task Actions Overview**:
+  - `perform_eating(portion_key)`: 60 minutes, converts food units → calories, updates weight and hunger stats.
+  - `schedule_sleep(hours)`: Rest `+10%` per hour, burns `100 cal/hr`, respects combined multipliers, truncates before crossing daybreak.
+  - `perform_forging()`: Requires zero active undead, consumes 60 minutes + 15% rest, resolves `_roll_forging_loot()` using stored RNG.
+  - `perform_lead_away_undead()`: See **Task Blueprint: Lead Away** for full breakdown.
+  - `perform_recon()`: Enforces recon window, spends 60 minutes + 150 calories, clones RNG for six-hour weather/zombie forecast.
+  - `repair_tower(materials)`: 60 minutes + 1 wood, burns 350 calories, grants +10% rest bonus, restores 5 HP (capped at 100 base).
+  - `reinforce_tower(materials)`: 120 minutes + 3 wood + 5 nails, burns 450 calories, costs 20% rest, adds 25 HP up to 150 reinforced cap.
+  - `craft_item(recipe_id)`: Validates materials, consumes recipe minutes × combined multiplier, applies optional rest cost, awards crafted item.
+* **Internal Utilities**: `_roll_forging_loot()`, `_on_day_rolled_over()`, `_on_weather_system_changed()`, `_on_weather_hour_elapsed()`, `_on_time_advanced_by_minutes()`, `_on_zombie_damage_tower()`, `_apply_awake_time_up_to()`, `_resolve_meal_portion()`, `_forecast_zombie_activity()`, `_spend_activity_time()`.
+
+### Task Blueprint: Lead Away (`GameManager.perform_lead_away_undead`)
+* **Prerequisites**: Requires live `TimeSystem`, `SleepSystem`, `ZombieSystem`, and seeded RNG. Aborts with `systems_unavailable` when any link is absent.
+* **Availability Check**: Fails fast if `ZombieSystem.has_active_zombies()` returns false, flagging `no_zombies` and recording pre-action totals for UI context.
+* **Time Management**: Consumes 60 base minutes. `_spend_activity_time()` expands duration via `combined activity multiplier`, blocks execution if the scaled time would cross the 6:00 AM boundary, and records awake calorie burn.
+* **Rest Cost**: Applies `consume_sleep(15.0)` on success. The rest delta is appended to the action payload for downstream displays and to drive fatigue effects.
+* **Roll Resolution**:
+  - Uses `LEAD_AWAY_ZOMBIE_CHANCE` (default 0.80) per active undead.
+  - `ZombieSystem.attempt_lead_away(chance, rng)` rolls once per zombie, counts successes, mutates active total, and emits change signals when the horde shrinks.
+  - The report captures attempts, successes, failures, and the resolved chance so UI logs can echo roll context (e.g., "80% per undead, 3 tried").
+* **Post-Action Payload**:
+  - Clones time-spent metadata returned by `_spend_activity_time()`.
+  - Appends rest delta (`-15%`), zombie count before/after, and roll breakdown (`attempts`, `successes`, `failures`).
+  - Includes `success` boolean (true when at least one undead departs) plus descriptive `reason` values such as `zombies_stayed` for zero-success outcomes.
+* **Logging**: Emits debug prints summarizing zombies removed and attempts made to simplify QA verification.
+
+### SleepSystem (`scripts/systems/SleepSystem.gd`)
+* **Role**: Tracks rest %, daily calories burned, and weight-driven activity multipliers.
+* **Key Ranges**:
+  - Rest bounds `0–100%`, recovery rate `+10%` per hour slept.
+  - Energy costs `100 cal/hr` while sleeping, `23 cal/hr` baseline while awake.
+  - Weight conversion `1,000 cal → 1 lb`.
+  - Weight categories (lbs): `≤149` malnourished, `150–200` average, `≥201` overweight.
+* **Signals**: `sleep_percent_changed`, `daily_calories_used_changed`, `weight_changed`, `weight_category_changed`, `weight_unit_changed`.
+* **Public API Highlights**:
+  - Rest: `apply_sleep(hours)`, `consume_sleep(percent)`, `apply_rest_bonus(percent)`.
+  - Calories: `apply_awake_minutes(minutes)`, `adjust_daily_calories(delta)`, `reset_daily_counters()`.
+  - Weight: getters for pounds/kilograms/display unit, `set_weight_unit(unit)`, `toggle_weight_unit()`.
+  - Multipliers: `get_time_multiplier()` resolves to `2.0` (malnourished), `1.0` (average), `1.5` (overweight).
+* **Internals**: `_apply_calorie_delta()`, `_update_weight()`, `_determine_weight_category()` manage weight drift and signal propagation.
 
 ### BodyWeightSystem (`scripts/systems/BodyWeightSystem.gd`)
-* **Role**: standalone calorie-to-weight utility (currently unused by GameManager but available for future health buffs).
-* **Constants** – `CALORIES_PER_POUND = 1000`, healthy window `180-219 lbs`, overweight `>=220`, skinny `150-179`, malnourished `<150`.
-* **Daily tracking** – `consume_food(calories)`, `burn_calories(calories)`, `calculate_daily_weight_change()` resets counters and returns net delta.
-* **Display helpers** – `set_display_unit(unit)`, `get_display_weight()`, `get_weight_display_string()`, `get_calorie_summary()`.
-* **Category helpers** – `get_weight_category()`, `get_weight_category_name()`, `get_weight_effects()` enumerates narrative modifiers.
+* **Role**: Optional calorie-to-weight ledger for future health features (not wired into core loop yet).
+* **Weight Bands**: Malnourished `<150 lbs`, skinny `150–179 lbs`, healthy `180–219 lbs`, overweight `≥220 lbs`.
+* **Daily Tracking**: `consume_food(calories)`, `burn_calories(calories)`, `calculate_daily_weight_change()` (resets counters and yields net delta).
+* **Display Helpers**: `set_display_unit(unit)`, `get_display_weight()`, `get_weight_display_string()`, `get_calorie_summary()`.
+* **Category Helpers**: `get_weight_category()`, `get_weight_category_name()`, `get_weight_effects()` describe narrative modifiers.
 
 ### TimeSystem (`scripts/systems/TimeSystem.gd`)
-* **Role**: authoritative in-game clock.
-* **Constants** – `MINUTES_PER_DAY = 1440`, `DAY_START_MINUTE = 360` (6:00 AM).
-* **Signals** – `time_advanced(minutes, crossed_daybreak)`, `day_rolled_over()`.
-* **Public API**
-  - Queries: `get_minutes_since_daybreak()`, `get_minutes_until_daybreak()`, `get_minutes_since_midnight()`, `get_formatted_time()`, `get_formatted_time_after(minutes)`.
-  - `advance_minutes(duration)` – clamps to >=0, emits `day_rolled_over` for each 24h crossed, returns timing metadata.
-* **Internals** – `_format_minutes(total_minutes)` renders 12-hour clock text.
+* **Role**: Authoritative in-game clock anchored at 6:00 AM (`DAY_START_MINUTE = 360`).
+* **Constants**: `MINUTES_PER_DAY = 1440`, `DAY_START_MINUTE = 360`.
+* **Signals**: `time_advanced(minutes, crossed_daybreak)`, `day_rolled_over()` for multi-day ticks.
+* **Public API**:
+  - Time Queries: `get_minutes_since_daybreak()`, `get_minutes_until_daybreak()`, `get_minutes_since_midnight()`, `get_formatted_time()`, `get_formatted_time_after(minutes)`.
+  - Mutation: `advance_minutes(duration)` clamps to `≥0`, emits rollover events per 24h crossed, and returns metadata for logging/UI.
+* **Internals**: `_format_minutes(total_minutes)` renders 12-hour clock strings with AM/PM.
 
 ### WeatherSystem (`scripts/systems/WeatherSystem.gd`)
-* **Role**: hourly precipitation driver with forecast support.
-* **States** – `clear`, `sprinkling`, `raining`, `heavy_storm`.
-* **Chances**
-  - Hourly rain start: `RAIN_START_CHANCE = 0.05` when clear.
-  - Intensity weighting (normalized when roll succeeds): heavy 0.15, raining 0.35, sprinkling 0.50.
-  - Default durations (hours): sprinkling 1, raining 2, heavy storm 5.
-* **Multipliers** – `WEATHER_MULTIPLIERS`: clear x1.00, sprinkling x1.25, raining x1.50, heavy storm x1.75 applied to activity time.
-* **Signals** – `weather_changed(new_state, previous_state, hours_remaining)`, `weather_hour_elapsed(state)`.
-* **Public API**
-  - Queries: `get_state()`, `get_hours_remaining()`, `get_activity_multiplier()`, `get_state_display_name()`, `get_state_display_name_for(state)`, `get_multiplier_for_state(state)`, `is_precipitating()`, `is_precipitating_state(state)`.
-  - Lifecycle: `initialize_clock_offset(minutes_since_daybreak)`, `on_time_advanced(minutes, rolled_over)`, `on_day_rolled_over()`, `broadcast_state()`.
-  - Forecast: `forecast_precipitation(hours_ahead)` clones RNG and simulates hourly ticks, returning event list with `start`, `stop`, and `ongoing` entries plus final state snapshot.
-* **Internals** – `_process_hour_tick()` decrements precipitation timers, `_begin_precipitation()` selects intensity, `_set_state(new_state, duration)` updates timers, `_format_state_debug()` logs state string.
+* **Role**: Hourly precipitation state machine with forecast cloning.
+* **States**: `clear`, `sprinkling`, `raining`, `heavy_storm`.
+* **Roll Profile**:
+  - Start Chance: `RAIN_START_CHANCE = 0.05` while clear.
+  - Intensity Weights: heavy `0.15`, raining `0.35`, sprinkling `0.50` (normalized when rain starts).
+  - Default Durations: sprinkling `1h`, raining `2h`, heavy storm `5h` before re-roll.
+* **Activity Multipliers**: `clear ×1.00`, `sprinkling ×1.25`, `raining ×1.50`, `heavy_storm ×1.75` applied to activity duration.
+* **Signals**: `weather_changed(new_state, previous_state, hours_remaining)`, `weather_hour_elapsed(state)`.
+* **Public API Highlights**: State queries, multipliers, precipitation checks, lifecycle hooks (`initialize_clock_offset`, `on_time_advanced`, `on_day_rolled_over`, `broadcast_state`), and forecast simulation (`forecast_precipitation(hours_ahead)`).
+* **Internals**: `_process_hour_tick()`, `_begin_precipitation()`, `_set_state()`, `_format_state_debug()` govern state churn and debug output.
 
 ### TowerHealthSystem (`scripts/systems/TowerHealthSystem.gd`)
-* **Role**: track tower health, weather wear, repairs, and reinforcements.
-* **Health bounds** – Base 100 HP, reinforced cap 150 HP, dry-day decay 5 HP when no precipitation occurred.
-* **Signals** – `tower_health_changed(new_health, previous)`, `tower_damaged(amount, source)`, `tower_repaired(amount, source)`.
-* **Damage rules**
-  - Precipitation damage per hour: sprinkling 1, raining 2, heavy storm 3.
-  - Zombies supply external damage via `GameManager`.
-* **Public API**
-  - Queries: `get_health()`, `get_max_health()`, `get_base_max_health()`, `get_health_ratio()`, `is_at_max_health()`, `is_at_reinforced_cap()`, `is_at_repair_cap()`.
-  - Lifecycle hooks: `set_initial_weather_state(state)`, `register_weather_hour(state)`, `on_day_completed(current_state)`.
-  - Mutators: `apply_damage(amount, source)`, `apply_repair(amount, source, materials)`, `apply_reinforcement(amount, source, materials)`.
-* **Internals** – `_is_precipitating_state(state)` defers to `WeatherSystem` constants.
+* **Role**: Manages base health, reinforcement cap, and environmental/zombie damage.
+* **Health Ranges**: Base max `100 HP`, reinforced cap `150 HP`, dry-day decay `5 HP` when zero precipitation is logged.
+* **Signals**: `tower_health_changed(new_health, previous)`, `tower_damaged(amount, source)`, `tower_repaired(amount, source)`.
+* **Damage Profile**: Hourly precipitation wear `sprinkling 1`, `raining 2`, `heavy_storm 3` HP. Zombie damage routed via `GameManager` callbacks.
+* **Public API**: Health queries, reinforcement/repair caps, weather state registration, day completion hook, and mutators (`apply_damage`, `apply_repair`, `apply_reinforcement`).
+* **Internals**: `_is_precipitating_state(state)` mirrors `WeatherSystem` rules for consistent checks.
 
 ### InventorySystem (`scripts/systems/InventorySystem.gd`)
-* **Role**: item registry plus stack and food tracking.
-* **Signals** – `food_total_changed(new_total)`, `item_added(item_id, quantity_added, food_gained, total_food_units)`, `item_consumed(item_id, quantity_removed, food_lost, total_food_units)`.
-* **Setup** – `bootstrap_defaults()` registers all base items (see Resource Catalog).
-* **Definitions** – `register_item_definition(item_id, definition)` normalizes display name, food units, and stack limit; `ensure_item_definition(item_id)` auto-registers missing IDs.
-* **Queries** – `get_item_definition()`, `get_item_display_name()`, `get_item_count()`, `get_item_counts()`, `get_total_food_units()`.
-* **Mutations**
+* **Role**: Item registry with stack, food, and signal management.
+* **Signals**: `food_total_changed`, `item_added`, `item_consumed` emit after each mutation.
+* **Bootstrap**: `bootstrap_defaults()` registers baseline item definitions (see Resource Catalog).
+* **Definition Helpers**: `register_item_definition(item_id, definition)` ensures normalized display names, food units, stack limits; `ensure_item_definition(item_id)` auto-registers missing entries.
+* **Query Surface**: `get_item_definition()`, `get_item_display_name()`, `get_item_count()`, `get_item_counts()`, `get_total_food_units()`.
+* **Mutation Surface**:
   - Food: `set_total_food_units(amount)`, `add_food_units(delta)`, `has_food_units(amount)`, `consume_food_units(amount)`.
   - Items: `add_item(item_id, quantity)`, `consume_item(item_id, quantity)`, `clear()`.
-* **Internals** – `_apply_food_delta(delta)` clamps totals and emits change events.
+* **Internals**: `_apply_food_delta(delta)` clamps totals and raises change signals.
 
 ### NewsBroadcastSystem (`scripts/systems/NewsBroadcastSystem.gd`)
-* **Role**: day-based radio script generator.
-* **Schedule blocks**
-  - Days 1-3: `mysterious_illness` (8 variants, 100% chance).
-  - Days 4-7: `supply_disruptions` (13 variants, 100% chance).
-  - Days 8-10: `martial_law` (5 variants, 100% chance).
-  - Day 11+: `collapse_alert` (3 variants, 25% chance; otherwise silence).
-* **Signals** – `broadcast_selected(day, broadcast)` fired when caching a report.
-* **Public API**
-  - `reset_day(day)` – selects or returns cached broadcast.
-  - `get_broadcast_for_day(day)` – ensures a deterministic message per day.
-  - `clear_cache()` – flush cached reports.
-* **Internals** – `_select_broadcast_for_day(day)` applies chance roll and variant pick; `_resolve_schedule_entry(day)` finds active schedule row.
+* **Role**: Day-indexed radio feed generator with cached determinism.
+* **Schedule Blocks**:
+  - Days `1–3`: `mysterious_illness` (8 variants, 100%).
+  - Days `4–7`: `supply_disruptions` (13 variants, 100%).
+  - Days `8–10`: `martial_law` (5 variants, 100%).
+  - Day `11+`: `collapse_alert` (3 variants, 25% chance; otherwise silence).
+* **Signals**: `broadcast_selected(day, broadcast)` fires when caching a script.
+* **Public API**: `reset_day(day)`, `get_broadcast_for_day(day)`, `clear_cache()` guarantee stable daily broadcasts.
+* **Internals**: `_select_broadcast_for_day(day)` handles randomization, `_resolve_schedule_entry(day)` resolves the active block.
 
 ### ZombieSystem (`scripts/systems/ZombieSystem.gd`)
 * **Role**: manage daily spawns, hourly damage ticks, and lead-away attempts.
@@ -159,10 +201,21 @@
   - Player actions: `attempt_lead_away(chance, rng)` – per-zombie roll with 0-1 outcome; `clear_zombies()` wipes active count.
   - Forecast: `preview_day_spawn(day_index, rng)` – mirrors `start_day` without mutating state.
 * **Internals** – `_resolve_spawn_rolls(day)`, `_resolve_spawn_chance(day)`, `_pick_spawn_minute(rng)` (hour * 60), `_did_cross_marker(...)` handles wraparound, `_minutes_until_marker(...)`, `_resolve_pending_spawn(payload)` mutates counts.
+* **Role**: Oversees daily spawn rolls, hourly tower damage, lead-away execution, and recon previews.
+* **Signals**: `zombies_changed(count)`, `zombies_spawned(added, total, day)`, `zombies_damaged_tower(damage, count)`.
+* **Spawn Cadence**:
+  - Days `1–5`: no waves.
+  - Days `6–15`: `3` rolls @ `10%` each (uniform wave hour `0–23`).
+  - Days `16–24`: `5` rolls @ `15%` each.
+  - Day `25+`: `5` rolls @ `15%` each (steady pressure).
+  - Minute `0` waves spawn instantly at 6:00 AM; others queue via pending payload.
+* **Damage Loop**: Every `360 minutes` with active undead applies `active * 0.5` tower damage, then resets tick accumulator.
+* **Public API**: Active count queries, `start_day(day_index, rng)`, `advance_time(minutes, current_minutes_since_daybreak, rolled_over)`, player actions (`attempt_lead_away`, `clear_zombies()`), recon helper `preview_day_spawn(day_index, rng)`.
+* **Internals**: `_resolve_spawn_rolls(day)`, `_resolve_spawn_chance(day)`, `_pick_spawn_minute(rng)`, `_did_cross_marker(...)`, `_minutes_until_marker(...)`, `_resolve_pending_spawn(payload)` maintain scheduling integrity.
 
 ### Weather-Aware Tower Interplay
-* Every precipitation hour triggers `TowerHealthSystem.register_weather_hour`, deducting damage according to intensity.
-* On clear, dry days `_had_precipitation_today` stays false; `on_day_completed` applies 5 damage to mimic wear.
+* Precipitation ticks call `TowerHealthSystem.register_weather_hour(state)` each hour, applying wear according to intensity tables.
+* Dry days leave `_had_precipitation_today` false; `on_day_completed()` then applies `5 HP` attrition to mimic structural fatigue.
 * Recon weather forecast includes `events` with `minutes_ahead`, `state`, and `duration_hours` or `stop` entries for planning repairs or forging windows.
 
 ## Task & Action Catalog
