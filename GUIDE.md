@@ -15,6 +15,7 @@
   - `day_changed(new_day)` – broadcast after `_on_day_rolled_over`.
   - `weather_changed(new_state, previous_state, hours_remaining)` – fired from `_on_weather_system_changed`.
   - `weather_multiplier_changed(new_multiplier, state)` – exposes weather activity scaling to UI.
+  - `lure_status_changed(status)` – delivers pre-emptive lure readiness data to the HUD/task menu.
 * **Key constants**
   - `CALORIES_PER_FOOD_UNIT = 1000` (1 food unit equals 1,000 calories).
   - `LEAD_AWAY_ZOMBIE_CHANCE = 0.80` (80% success per zombie).
@@ -27,6 +28,7 @@
   - `get_sleep_system()`, `get_time_system()`, `get_inventory_system()`, `get_weather_system()`, `get_tower_health_system()`, `get_news_system()`, `get_zombie_system()`.
   - `get_crafting_recipes()` – deep copy of crafting blueprint dictionary.
   - Recon helpers: `get_recon_window_status()` returns availability, cutoff, and resume timestamps.
+  - Lure helpers: `get_lure_status()` exposes scouted spawn data, action availability, and failure reasons.
 * **Player status getters**
   - `get_sleep_percent()`, `get_daily_calories_used()`, `get_player_weight_lbs()`, `get_player_weight_kg()`, `get_weight_unit()`.
   - `set_weight_unit(unit)` / `toggle_weight_unit()` – pass-through to `SleepSystem`.
@@ -37,6 +39,7 @@
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – applies rest (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
   - `perform_forging()` – requires no active zombies, consumes 1 hour plus 12.5% energy, burns 500 calories, rolls `_roll_forging_loot()`, and awards inventory loot.
+  - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1000 calories, cancels the pending wave, and clears lure state.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
   - `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, and returns six-hour weather and zombie forecasts.
   - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% rest bonus, restores 5 tower health (capped at 100).
@@ -151,6 +154,7 @@
   - Queries: `get_active_zombies()`, `has_active_zombies()`, `get_current_day()`, `get_pending_spawn()`.
   - Lifecycle: `start_day(day_index, rng)` – runs spawn rolls, caches pending event, resolves immediate waves.
   - Simulation: `advance_time(minutes, current_minutes_since_daybreak, rolled_over)` – resolves scheduled waves and returns damage summary.
+  - Pre-emption: `cancel_pending_spawn(day, minute)` removes a scheduled wave (returns event payload) and `restore_pending_spawn(event)` re-queues a cancelled wave.
   - Player actions: `attempt_lead_away(chance, rng)` – per-zombie roll with 0-1 outcome; `clear_zombies()` wipes active count.
   - Forecast: `preview_day_spawn(day_index, rng)` – mirrors `start_day` without mutating state.
 * **Internals** – `_resolve_spawn_rolls(day)`, `_resolve_spawn_chance(day)`, `_pick_spawn_minute(rng)` (hour * 60), `_did_cross_marker(...)` handles wraparound, `_minutes_until_marker(...)`, `_resolve_pending_spawn(payload)` mutates counts.
@@ -167,6 +171,7 @@
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
 | Forge (`perform_forging`) | 1h | -12.5% energy | +500 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals. |
 | Fish (`perform_fishing`) | 1h | -10% rest | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each -> Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
+| Lure (`perform_lure_incoming_zombies`) | 4h | None | +1000 cal burned | Recon-scouted wave ≤120 min away, 4h window free | Cancels pending spawn at 100% success, clears lure target. |
 | Lead Away (`perform_lead_away_undead`) | 1h | -15% energy | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
 | Recon (`perform_recon`) | 1h | None | +150 cal burned (`adjust_daily_calories`) | Time within 6 AM–12 AM | Returns six-hour forecast for weather and zombie spawns. |
 | Repair (`repair_tower`) | 1h | +10% rest bonus | +350 cal burned | ≥1 wood, tower below 100 HP | Restores 5 HP, records materials used, updates health. |
@@ -259,6 +264,7 @@
 ## Zombie Threat Overview
 * Daily planning at 6:00 AM resolves spawn quantity using RNG shared with recon previews.
 * `get_pending_spawn()` returns `{day, minute, quantity}`; recon reports include `minutes_ahead` and clock timestamp when within six-hour horizon.
+* Recon lure workflow: when the forecast shows a wave arriving within 120 minutes, `get_lure_status()` unlocks the 4h lure action. Completing it spends 1,000 calories, cancels the pending spawn, and resets lure readiness.
 * Active zombie damage fires every 6 hours (360 minutes) of accumulated time after the last attack or spawn resolution.
 * Lead Away is the only direct mitigation outside of tower defenses—each zombie has an independent 80% chance to leave per attempt.
 
@@ -282,7 +288,7 @@
   - Sleep slider up to `max_sleep_hours` (default 12).
   - Meal sizes: Small (0.5), Normal (1.0), Large (1.5) food units.
   - Recon row indicates availability window and disables outside 6 AM–12 AM.
-  - Lead Away displays zombie count feedback and success/failure states.
+  - Lead/Lure row swaps between lure readiness summaries (when scouted) and lead-away details, keeping zombie count feedback and success/failure states visible.
   - Forging row shows food totals and opens `ForgingResultsPanel` for loot summaries.
 * **ForgingResultsPanel** – rotates flavor text pools for basic/advanced finds, lists each item with quantity and contextual description (e.g., nails show bundle size, fuel notes total units).
 
