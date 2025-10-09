@@ -1,3 +1,6 @@
+# HUD.gd overview:
+# - Purpose: keep the survival overlay synchronized with simulation systems and expose player toggles.
+# - Sections: preloads cache systems, onready grabs widgets, ready hook wires signals, handlers update each stat line.
 extends Control
 
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
@@ -9,6 +12,7 @@ const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 
 const LBS_PER_KG: float = 2.2
 
+# Cached node references so we only traverse the tree once on startup.
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
 @onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
@@ -38,6 +42,7 @@ var _latest_weather_state: String = WeatherSystem.WEATHER_CLEAR if WeatherSystem
 var _latest_weather_hours: int = 0
 
 func _ready():
+    # Wire HUD widgets to the various systems as soon as the scene loads.
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
     tired_value_label.add_theme_color_override("font_color", Color.WHITE)
     day_label.add_theme_color_override("font_color", Color.WHITE)
@@ -200,6 +205,7 @@ func _on_weight_unit_button_pressed():
         sleep_system.toggle_weight_unit()
 
 func _resolve_game_manager() -> GameManager:
+    # Gracefully search for the manager so editor previews do not hard-crash.
     var tree = get_tree()
     if tree == null:
         push_warning("SceneTree unavailable, cannot resolve GameManager")

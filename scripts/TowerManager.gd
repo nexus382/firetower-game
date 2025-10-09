@@ -1,9 +1,12 @@
+# TowerManager.gd overview:
+# - Purpose: generate the three-room tower layout, populate props, and expose navigation rectangles.
+# - Sections: layout configuration, _ready() bootstraps build, helper methods craft floors/walls/fixtures per room.
 extends Node2D
 class_name TowerManager
 
 # Tower layout configuration
 var tower_bounds: Rect2
-var catwalk_width: float = 0.05  # 5% of tower width
+var catwalk_width: float = 0.05  # 5% of tower width (keep between 0.04 - 0.08 for play space)
 
 const Radio = preload("res://scripts/objects/Radio.gd")
 const CraftingTable = preload("res://scripts/objects/CraftingTable.gd")

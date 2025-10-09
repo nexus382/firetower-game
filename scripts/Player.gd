@@ -1,6 +1,10 @@
+# Player.gd overview:
+# - Purpose: drive avatar input, apply normalized velocity, and snap start position to living area center.
+# - Sections: constants set movement speed, lifecycle hooks wire placement, helpers process directional input.
 extends CharacterBody2D
 class_name Player
 
+# SPEED controls base movement in pixels/sec (keep between 150.0 - 275.0 for feel).
 const SPEED = 200.0
 
 func _ready():
@@ -23,6 +27,7 @@ func _physics_process(delta):
         print("🎮 Player collision detected")
 
 func handle_movement():
+    # Collect intended direction first so we can normalize diagonals before applying speed.
     var direction = Vector2.ZERO
 
     # Get input direction

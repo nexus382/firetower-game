@@ -1,8 +1,12 @@
+# CraftingPanel.gd overview:
+# - Purpose: display craftable recipes, show requirements, and send craft requests to GameManager.
+# - Sections: preloads grab systems, _ready wires UI, helpers rebuild buttons, handle focus, and trigger crafting attempts.
 extends Control
 class_name CraftingPanel
 
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 
+# Cache common UI nodes for quick refreshes when recipes change.
 @onready var panel: Panel = $Panel
 @onready var title_label: Label = $Panel/Margin/VBox/TitleLabel
 @onready var recipe_list: VBoxContainer = $Panel/Margin/VBox/RecipeList
@@ -18,6 +22,7 @@ var _buttons: Dictionary = {}
 var _active_recipe: String = ""
 
 func _ready():
+    # Initialize the crafting list and link input handlers once the scene is ready.
     visible = false
     set_process_unhandled_input(true)
     if close_button:
@@ -31,6 +36,7 @@ func _ready():
     _refresh_detail_text()
 
 func open_panel():
+    # Refresh data each time the panel opens so new recipes instantly appear.
     if !visible:
         visible = true
         status_label.text = ""
@@ -84,6 +90,7 @@ func _load_recipes():
     _recipes = game_manager.get_crafting_recipes()
 
 func _build_recipe_list():
+    # Rebuild the recipe buttons so costs and focus targets stay accurate.
     if !is_instance_valid(recipe_list):
         return
     for child in recipe_list.get_children():
@@ -132,6 +139,7 @@ func _build_recipe_list():
             _active_recipe = key
 
 func _attempt_craft(recipe_id: String):
+    # Delegate crafting to the GameManager and surface a concise status summary.
     if game_manager == null:
         status_label.text = "Crafting offline"
         return
@@ -200,6 +208,7 @@ func _on_recipe_hovered(recipe_id: String):
     _refresh_detail_text()
 
 func _refresh_detail_text():
+    # Show the highlighted recipe with duration estimates adjusted for multipliers.
     if !is_instance_valid(detail_label):
         return
     if !_recipes.has(_active_recipe):

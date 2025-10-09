@@ -1,3 +1,6 @@
+# TimeSystem.gd overview:
+# - Purpose: advance the in-game clock, emit daybreak events, and provide formatted time helpers.
+# - Sections: constants define day length, signals announce changes, advance_minutes/_format_minutes handle core math.
 extends RefCounted
 class_name TimeSystem
 

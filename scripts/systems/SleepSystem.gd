@@ -1,3 +1,6 @@
+# SleepSystem.gd overview:
+# - Purpose: manage rest percentages, calorie expenditure, and weight category impacts.
+# - Sections: constants clamp ranges, signals notify UI, public APIs adjust sleep/activity and convert units.
 extends RefCounted
 class_name SleepSystem
 

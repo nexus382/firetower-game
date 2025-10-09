@@ -1,3 +1,6 @@
+# TowerHealthSystem.gd overview:
+# - Purpose: monitor tower hit points, apply weather wear, and process reinforcement repairs.
+# - Sections: constants set health ranges/damage, signals broadcast changes, public methods mutate health per event.
 extends RefCounted
 class_name TowerHealthSystem
 

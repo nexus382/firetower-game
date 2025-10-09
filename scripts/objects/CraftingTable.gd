@@ -1,3 +1,6 @@
+# CraftingTable.gd overview:
+# - Purpose: proximity trigger that shows crafting prompts and summons the crafting panel.
+# - Sections: exports configure prompt text, signals track player overlap, helpers resolve UI links and format labels.
 extends Area2D
 class_name CraftingTable
 
@@ -8,6 +11,7 @@ const CRAFTING_PANEL_PATH := NodePath("Main/UI/CraftingPanel")
 
 @onready var prompt_label: Label = $PromptLabel
 
+# Tracks when the player can trigger the interaction prompt.
 var _player_in_range: bool = false
 var _crafting_panel: Control = null
 var _prompt_template: String = ""
@@ -27,6 +31,7 @@ func _ready():
     _resolve_dependencies()
 
 func _resolve_dependencies():
+    # Resolve UI links at runtime so panel scene swaps stay safe.
     var root = get_tree().get_root()
     if root == null:
         return
@@ -45,6 +50,7 @@ func _unhandled_input(event):
     get_viewport().set_input_as_handled()
 
 func _handle_interaction():
+    # Defer to the crafting panel so it can manage focus and inventory sync.
     if _crafting_panel == null:
         _resolve_dependencies()
     if _crafting_panel:

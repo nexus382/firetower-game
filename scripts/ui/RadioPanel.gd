@@ -1,12 +1,17 @@
+# RadioPanel.gd overview:
+# - Purpose: reveal radio bulletins, style the modal card, and close on player input.
+# - Sections: onready caches widgets, ready hook wires dismissal, helpers populate text and apply theme overrides.
 extends Control
 class_name RadioPanel
 
+# Cache UI pieces once so we only adjust styles in a single spot.
 @onready var panel: Panel = $Panel
 @onready var title_label: Label = $Panel/VBox/Title
 @onready var body_label: Label = $Panel/VBox/Body
 @onready var close_button: Button = $Panel/VBox/CloseButton
 
 func _ready():
+    # Default hidden; open when a radio interaction pushes data in.
     visible = false
     set_process_unhandled_input(true)
     if close_button:
