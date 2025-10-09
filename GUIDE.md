@@ -2,7 +2,7 @@
 
 ## Core Loop Snapshot
 * Daybreak hits at 6:00 AM; a full day spans 1,440 minutes tracked by `TimeSystem`.
-* `GameManager` advances time for every action, spends calories, and applies rest changes using sleep and weather multipliers.
+* `GameManager` advances time for every action, spends calories, and applies energy/rest changes using sleep and weather multipliers.
 * Weather rolls every hour: 5% chance to start precipitation when clear, with intensity weighted 15% heavy storm, 35% rain, 50% sprinkling and default durations 5h/2h/1h respectively.
 * Zombies begin daily spawn checks on Day 6; successful rolls schedule a single wave at a random hour (0-23) and inflict 0.5 tower damage per zombie every 6 hours once active.
 * Recon is available from 6:00 AM through 12:00 AM, consumes 1 hour plus 150 calories, and locks in a six-hour weather and zombie forecast using the live RNG sequence.
@@ -37,14 +37,15 @@
   - `request_radio_broadcast()` – returns cached `NewsBroadcastSystem` message for the current day (or static when missing).
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
-  - `schedule_sleep(hours)` – applies rest (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
+  - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
   - `perform_forging()` – requires no active zombies, consumes 1 hour plus 12.5% energy, burns 500 calories, rolls `_roll_forging_loot()`, and awards inventory loot.
+  - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls, applies grub loss, and grants food per fish size.
   - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1000 calories, cancels the pending wave, and clears lure state.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
   - `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, and returns six-hour weather and zombie forecasts.
-  - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% rest bonus, restores 5 tower health (capped at 100).
-  - `reinforce_tower(materials)` – costs 2 hours, 3 wood, 5 nails, burns 450 calories, spends 20% rest, adds 25 health up to 150 cap.
-  - `craft_item(recipe_id)` – validates materials, spends recipe time (scaled by multipliers), consumes optional rest %, and adds crafted goods.
+  - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% energy bonus, restores 5 tower health (capped at 100).
+  - `reinforce_tower(materials)` – costs 2 hours, 3 wood, 5 nails, burns 450 calories, spends 20% energy, adds 25 health up to 150 cap.
+  - `craft_item(recipe_id)` – validates materials, spends recipe time (scaled by multipliers), consumes optional energy %, and adds crafted goods.
 * **Internal helpers**
   - `_roll_forging_loot()` – iterates forging loot table (see Resource Catalog) using stored RNG.
   - `_on_day_rolled_over()` – increments `current_day`, resets calories, applies dry-day damage, refreshes news, and schedules the next zombie wave.
@@ -57,17 +58,17 @@
   - `_spend_activity_time(hours, activity)` – enforces daybreak cutoff, multiplies requested duration by combined activity multiplier, advances `TimeSystem`, and records awake calorie burn.
 
 ### SleepSystem (`scripts/systems/SleepSystem.gd`)
-* **Role**: track rest %, daily calories, and weight-based activity multipliers.
+* **Role**: track energy/rest %, daily calories, and weight-based activity multipliers.
 * **Core constants**
-  - Rest bounds: `MIN_SLEEP_PERCENT = 0`, `MAX_SLEEP_PERCENT = 100`, `SLEEP_PERCENT_PER_HOUR = 10`.
-  - Energy costs: `CALORIES_PER_SLEEP_HOUR = 100`, `AWAKE_CALORIES_PER_HOUR = 23`.
+  - Energy bounds: `MIN_SLEEP_PERCENT = 0`, `MAX_SLEEP_PERCENT = 100`, `SLEEP_PERCENT_PER_HOUR = 10` recovered via sleep.
+  - Calorie costs: `CALORIES_PER_SLEEP_HOUR = 100`, `AWAKE_CALORIES_PER_HOUR = 23`.
   - Weight conversion: `CALORIES_PER_POUND = 1000`.
   - Weight thresholds (lbs): `<=149 malnourished`, `150-200 average`, `>=201 overweight`.
 * **Signals** – `sleep_percent_changed`, `daily_calories_used_changed`, `weight_changed`, `weight_category_changed`, `weight_unit_changed`.
 * **Public API**
   - Getters: `get_sleep_percent()`, `get_daily_calories_used()`, `get_player_weight_lbs()`, `get_player_weight_kg()`, `get_display_weight()`, `get_weight_unit()`, `get_weight_category()`, `get_time_multiplier()` (2.0 malnourished, 1.5 overweight, 1.0 average).
   - Unit controls: `set_weight_unit(unit)`, `toggle_weight_unit()`.
-  - Rest management: `apply_sleep(hours)`, `consume_sleep(percent)`, `apply_rest_bonus(percent)`.
+  - Energy management: `apply_sleep(hours)`, `consume_sleep(percent)`, `apply_rest_bonus(percent)`.
   - Calorie handling: `apply_awake_minutes(minutes)`, `adjust_daily_calories(delta)`, `reset_daily_counters()`.
 * **Internals** – `_apply_calorie_delta(calorie_delta)` adjusts weight, `_update_weight(new_weight_lbs)` fires signals, `_determine_weight_category(weight_lbs)` maps thresholds.
 
@@ -165,21 +166,21 @@
 * Recon weather forecast includes `events` with `minutes_ahead`, `state`, and `duration_hours` or `stop` entries for planning repairs or forging windows.
 
 ## Task & Action Catalog
-| Action | Base Hours | Rest Impact | Calorie Impact | Requirements | Outcome |
+| Action | Base Hours | Energy Impact | Calorie Impact | Requirements | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| Sleep (`schedule_sleep`) | Input hours (auto-truncated) | +10% rest per hour (clamped 0-100) | -100 cal/hour (burn) | Open time before daybreak | Advances clock, updates rest %, burns calories, triggers awake calorie catch-up. |
+| Sleep (`schedule_sleep`) | Input hours (auto-truncated) | +10% energy per hour (clamped 0-100) | -100 cal/hour (burn) | Open time before daybreak | Advances clock, refreshes energy %, burns calories, triggers awake calorie catch-up. |
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
 | Forge (`perform_forging`) | 1h | -12.5% energy | +500 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals. |
-| Fish (`perform_fishing`) | 1h | -10% rest | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each -> Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
+| Fish (`perform_fishing`) | 1h | -10% energy | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each -> Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
 | Lure (`perform_lure_incoming_zombies`) | 4h | None | +1000 cal burned | Recon-scouted wave ≤120 min away, 4h window free | Cancels pending spawn at 100% success, clears lure target. |
 | Lead Away (`perform_lead_away_undead`) | 1h | -15% energy | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
 | Recon (`perform_recon`) | 1h | None | +150 cal burned (`adjust_daily_calories`) | Time within 6 AM–12 AM | Returns six-hour forecast for weather and zombie spawns. |
-| Repair (`repair_tower`) | 1h | +10% rest bonus | +350 cal burned | ≥1 wood, tower below 100 HP | Restores 5 HP, records materials used, updates health. |
-| Reinforce (`reinforce_tower`) | 2h | -20% rest | +450 cal burned | ≥3 wood & 5 nails, tower below 150 HP | Adds 25 HP up to 150 cap, logs material spend. |
-| Craft (varies) | Recipe hours | Recipe rest cost % | Awake burn; optional additional | Materials per recipe | Adds crafted item quantity, consumes inputs, tracks rest spend. |
+| Repair (`repair_tower`) | 1h | +10% energy bonus | +350 cal burned | ≥1 wood, tower below 100 HP | Restores 5 HP, records materials used, updates health. |
+| Reinforce (`reinforce_tower`) | 2h | -20% energy | +450 cal burned | ≥3 wood & 5 nails, tower below 150 HP | Adds 25 HP up to 150 cap, logs material spend. |
+| Craft (varies) | Recipe hours | Recipe energy cost % | Awake burn; optional additional | Materials per recipe | Adds crafted item quantity, consumes inputs, tracks energy spend. |
 
 ## Crafting Recipes (`GameManager.CRAFTING_RECIPES`)
-| Recipe | Output Qty | Hours | Rest Cost % | Material Costs | Notes |
+| Recipe | Output Qty | Hours | Energy Cost % | Material Costs | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Fishing Bait | 1 | 0.5 | 2.5 | Grubs ×1 | Zero food value output. |
 | Fishing Rod | 1 | 1.5 | 7.5 | Rock ×1, String ×2, Wood ×2 | Stack limit 1 in inventory. |
@@ -247,10 +248,10 @@
 
 ## Nutrition & Weight Summary
 * Awake baseline burn: 23 calories/hour via `SleepSystem.apply_awake_minutes` and `_spend_activity_time`.
-* Sleep burn: 100 calories/hour plus +10% rest per hour.
-* Repair bonus: +10% rest while burning 350 calories.
-* Reinforce: -20% rest, +450 calories burned.
-* Recon: +150 calories burned with no rest change.
+* Sleep burn: 100 calories/hour plus +10% energy per hour restored.
+* Repair bonus: +10% energy while burning 350 calories.
+* Reinforce: -20% energy, +450 calories burned.
+* Recon: +150 calories burned with no energy change.
 * Weight adjustments: each 1,000 calorie deficit drops 1 lb; surpluses increase weight. Categories set time multiplier (malnourished x2.0, overweight x1.5, average x1.0).
 
 ## Weather States & Multipliers
@@ -283,7 +284,7 @@
 ## Interaction Objects & UI
 * **CraftingTable** – shows `Press [E] to craft` prompt, resolves `CraftingPanel` node, and opens panel on interaction. Leaves panel if player exits area.
 * **Radio** – similar prompt, resolves `GameManager` and `RadioPanel`, displays broadcast text or static fallback.
-* **HUD** – wires to all systems, exposes toggles like weight unit button (lbs/kg), and displays tower health, food, wood, zombie counts, weather, clock, and rest meter.
+* **HUD** – wires to all systems, exposes toggles like weight unit button (lbs/kg), and displays tower health, food, wood, zombie counts, weather, clock, and energy meter.
 * **TaskMenu** – central action hub:
   - Sleep slider up to `max_sleep_hours` (default 12).
   - Meal sizes: Small (0.5), Normal (1.0), Large (1.5) food units.
