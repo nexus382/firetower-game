@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://clrcv081gblwd"]
+[gd_scene load_steps=11 format=3 uid="uid://clrcv081gblwd"]
 
 [ext_resource type="Script" path="res://scripts/GameManager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/Player.gd" id="2"]
@@ -13,6 +13,38 @@
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(32, 32)
+
+[sub_resource type="StyleBoxFlat" id="2"]
+bg_color = Color(0.0784314, 0.0901961, 0.109804, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.278431, 0.321569, 0.380392, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 6
+expand_margin_left = 4.0
+expand_margin_top = 4.0
+expand_margin_right = 4.0
+expand_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="3"]
+bg_color = Color(0.109804, 0.121569, 0.14902, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.243137, 0.290196, 0.341176, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.25)
+shadow_size = 4
 
 [node name="Main" type="Node2D"]
 
@@ -194,220 +226,307 @@ text = "LBS"
 horizontal_alignment = 2
 text = "Average (x1.0)"
 
-[node name="TaskMenu" type="Control" parent="UI"]
+[node name="TaskMenu" type="Panel" parent="UI"]
 forging_results_panel_path = NodePath("../ForgingResultsPanel")
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 visible = false
-offset_left = -230.0
-offset_top = -150.0
-offset_right = 230.0
-offset_bottom = 150.0
+offset_left = -360.0
+offset_top = -230.0
+offset_right = 360.0
+offset_bottom = 230.0
+theme_override_styles/panel = SubResource("2")
 script = ExtResource("6")
 
-[node name="Layout" type="VBoxContainer" parent="UI/TaskMenu"]
+[node name="Layout" type="HBoxContainer" parent="UI/TaskMenu"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-custom_constants/separation = 12
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -24.0
+custom_constants/separation = 20
 
 [node name="InfoPanel" type="Panel" parent="UI/TaskMenu/Layout"]
 size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(320, 0)
+theme_override_styles/panel = SubResource("3")
 
 [node name="InfoMargin" type="MarginContainer" parent="UI/TaskMenu/Layout/InfoPanel"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
 
 [node name="InfoList" type="VBoxContainer" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-custom_constants/separation = 6
+size_flags_vertical = 3
+custom_constants/separation = 12
 
 [node name="DescriptionTitle" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+theme_override_font_sizes/font_size = 22
 text = "Task Details"
-horizontal_alignment = 1
+horizontal_alignment = 0
 
 [node name="SummaryLabel" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
 size_flags_horizontal = 3
 size_flags_vertical = 3
 autowrap_mode = 2
-text = "Each hour: +10% rest / -100 cal"
+theme_override_font_sizes/font_size = 16
+text = "Select an assignment to review projected results."
 
 [node name="InfoStatus" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
 size_flags_horizontal = 3
 autowrap_mode = 2
+theme_override_font_sizes/font_size = 16
 text = ""
 
 [node name="DescriptionHint" type="Label" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+size_flags_horizontal = 3
 autowrap_mode = 2
+theme_override_colors/font_color = Color(0.741176, 0.780392, 0.843137, 1)
+theme_override_font_sizes/font_size = 14
 text = "Hover or focus an action to see its requirements."
 
 [node name="GoRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList"]
+custom_constants/separation = 12
 alignment = 2
 
 [node name="GoButton" type="Button" parent="UI/TaskMenu/Layout/InfoPanel/InfoMargin/InfoList/GoRow"]
-custom_minimum_size = Vector2(80, 0)
-text = "Go"
+custom_minimum_size = Vector2(128, 44)
+text = "Execute Plan"
 
 [node name="ActionsPanel" type="Panel" parent="UI/TaskMenu/Layout"]
-size_flags_horizontal = 3
+size_flags_horizontal = 4
 size_flags_vertical = 3
+custom_minimum_size = Vector2(360, 0)
+theme_override_styles/panel = SubResource("3")
 
 [node name="Margin" type="MarginContainer" parent="UI/TaskMenu/Layout/ActionsPanel"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
 
-[node name="ActionList" type="VBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin"]
+[node name="ActionScroll" type="ScrollContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-custom_constants/separation = 12
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 2
+follow_focus = true
 
-[node name="TitleLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+[node name="ActionList" type="VBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+custom_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+theme_override_font_sizes/font_size = 22
 text = "Tower Tasks"
-horizontal_alignment = 1
+horizontal_alignment = 0
 
-[node name="SleepRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
-custom_constants/separation = 12
+[node name="SleepSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="SleepRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 16
 size_flags_horizontal = 3
 
-[node name="SleepLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow"]
-custom_minimum_size = Vector2(72, 0)
+[node name="SleepLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow"]
+custom_minimum_size = Vector2(96, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
 text = "Rest"
 vertical_alignment = 1
 
-[node name="HourSelector" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow"]
-size_flags_horizontal = 3
+[node name="HourSelector" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow"]
+size_flags_horizontal = 4
 custom_constants/separation = 8
 
-[node name="DecreaseButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector"]
+[node name="DecreaseButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector"]
+custom_minimum_size = Vector2(40, 40)
 text = "<"
 
-[node name="HoursValue" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector"]
-custom_minimum_size = Vector2(48, 0)
+[node name="HoursValue" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector"]
+custom_minimum_size = Vector2(64, 0)
 horizontal_alignment = 1
 vertical_alignment = 1
+theme_override_font_sizes/font_size = 16
 text = "0"
 
-[node name="IncreaseButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector"]
+[node name="IncreaseButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector"]
+custom_minimum_size = Vector2(40, 40)
 text = ">"
 
-[node name="SleepSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow"]
+[node name="SleepSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow"]
 size_flags_horizontal = 1
-text = "Select"
+custom_minimum_size = Vector2(128, 40)
+text = "Assign"
 
-[node name="ForgingRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
-custom_constants/separation = 12
+[node name="ForgingSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="ForgingRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 16
 size_flags_horizontal = 3
 
-[node name="ForgingLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ForgingRow"]
-custom_minimum_size = Vector2(72, 0)
+[node name="ForgingLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
+custom_minimum_size = Vector2(96, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
 text = "Forge"
 vertical_alignment = 1
 
-[node name="ForgingStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ForgingRow"]
+[node name="ForgingStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
-text = "Forging ready"
+theme_override_font_sizes/font_size = 15
+text = "Forge ready"
 
-[node name="ForgingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ForgingRow"]
-text = "Select"
+[node name="ForgingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow"]
+custom_minimum_size = Vector2(128, 40)
+text = "Assign"
 
-[node name="ReconRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
-custom_constants/separation = 12
+[node name="ReconSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="ReconRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 16
 size_flags_horizontal = 3
 
-[node name="ReconLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReconRow"]
-custom_minimum_size = Vector2(72, 0)
+[node name="ReconLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
+custom_minimum_size = Vector2(96, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
 text = "Recon"
 vertical_alignment = 1
 
-[node name="ReconStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReconRow"]
+[node name="ReconStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
+theme_override_font_sizes/font_size = 15
 text = "Recon ready"
 
-[node name="ReconSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReconRow"]
-text = "Select"
+[node name="ReconSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow"]
+custom_minimum_size = Vector2(128, 40)
+text = "Assign"
 
-[node name="LeadRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
-custom_constants/separation = 12
+[node name="LeadSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="LeadRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 16
 size_flags_horizontal = 3
 
-[node name="LeadLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/LeadRow"]
-custom_minimum_size = Vector2(72, 0)
+[node name="LeadLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
+custom_minimum_size = Vector2(96, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
 text = "Lead"
 vertical_alignment = 1
 
-[node name="LeadStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/LeadRow"]
+[node name="LeadStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
+theme_override_font_sizes/font_size = 15
 text = "Lead Away ->"
 
-[node name="LeadSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/LeadRow"]
-text = "Select"
+[node name="LeadSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow"]
+custom_minimum_size = Vector2(128, 40)
+text = "Assign"
 
-[node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
-custom_constants/separation = 8
+[node name="MealSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="MealRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 16
 size_flags_horizontal = 3
 
-[node name="MealLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
-custom_minimum_size = Vector2(72, 0)
+[node name="MealLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
+custom_minimum_size = Vector2(96, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
 text = "Eat"
 vertical_alignment = 1
 
-[node name="MealSizeOption" type="OptionButton" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
+[node name="MealSizeOption" type="OptionButton" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
 size_flags_horizontal = 3
+custom_minimum_size = Vector2(140, 0)
 
-[node name="MealSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
+[node name="MealSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
+theme_override_font_sizes/font_size = 15
 text = "Meal ->"
 
-[node name="MealSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow"]
-text = "Select"
+[node name="MealSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow"]
+custom_minimum_size = Vector2(128, 40)
+text = "Assign"
 
-[node name="RepairRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
-custom_constants/separation = 12
+[node name="RepairSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="RepairRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 16
 size_flags_horizontal = 3
 
-[node name="RepairLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/RepairRow"]
-custom_minimum_size = Vector2(72, 0)
+[node name="RepairLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
+custom_minimum_size = Vector2(96, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
 text = "Repair"
 vertical_alignment = 1
 
-[node name="RepairSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/RepairRow"]
+[node name="RepairSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
+theme_override_font_sizes/font_size = 15
 text = "Repair ->"
 
-[node name="RepairSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/RepairRow"]
-text = "Select"
+[node name="RepairSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow"]
+custom_minimum_size = Vector2(128, 40)
+text = "Assign"
 
-[node name="ReinforceRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
-custom_constants/separation = 12
+[node name="ReinforceSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="ReinforceRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+custom_constants/separation = 16
 size_flags_horizontal = 3
 
-[node name="ReinforceLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReinforceRow"]
-custom_minimum_size = Vector2(72, 0)
+[node name="ReinforceLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
+custom_minimum_size = Vector2(96, 0)
+size_flags_horizontal = 1
+theme_override_font_sizes/font_size = 16
 text = "Reinforce"
 vertical_alignment = 1
 
-[node name="ReinforceSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReinforceRow"]
+[node name="ReinforceSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
 size_flags_horizontal = 3
 autowrap_mode = 1
+theme_override_font_sizes/font_size = 15
 text = "Reinforce ->"
 
-[node name="ReinforceSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReinforceRow"]
-text = "Select"
+[node name="ReinforceSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow"]
+custom_minimum_size = Vector2(128, 40)
+text = "Assign"
 
 [node name="RadioPanel" type="Control" parent="UI"]
 anchor_left = 0.5
@@ -599,7 +718,7 @@ text = "Close"
 [node name="CloseButton" type="Button" parent="UI/RadioPanel/Panel/VBox"]
 text = "Close"
 
-[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
-[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
-[connection signal="item_selected" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/MealRow/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
+[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
+[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
+[connection signal="item_selected" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
 [connection signal="pressed" from="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]
