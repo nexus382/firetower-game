@@ -912,7 +912,7 @@ func _summarize_weather_forecast(forecast: Dictionary) -> String:
                 continue
             var type = String(event.get("type", ""))
             var minutes = int(event.get("minutes_ahead", 0))
-            var time_text = minutes == 0 ? "Now" : _format_duration(minutes)
+            var time_text = "Now" if minutes == 0 else _format_duration(minutes)
             match type:
                 "start":
                     var state = String(event.get("state", WeatherSystem.WEATHER_SPRINKLING))
@@ -951,7 +951,7 @@ func _summarize_zombie_forecast(forecast: Dictionary) -> String:
                 continue
             var spawns = int(event.get("spawns", 0))
             var minutes = int(event.get("minutes_ahead", forecast.get("minutes_horizon", 0)))
-            var time_text = minutes == 0 ? "Now" : _format_duration(minutes)
+            var time_text = "Now" if minutes == 0 else _format_duration(minutes)
             var clock_time = String(event.get("clock_time", ""))
             if clock_time != "":
                 time_text = clock_time

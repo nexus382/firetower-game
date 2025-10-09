@@ -11,7 +11,7 @@ class_name Radio
 
 # Tracks when the player can trigger the interaction prompt.
 var _player_in_range: bool = false
-var _game_manager: GameManager
+var _game_manager: GameManager = null
 var _radio_panel: Control
 var _prompt_template: String = ""
 
@@ -34,7 +34,10 @@ func _resolve_dependencies():
     var root = get_tree().get_root()
     if root == null:
         return
-    _game_manager = root.get_node_or_null("Main/GameManager")
+
+    var manager_node = root.get_node_or_null("Main/GameManager")
+    _game_manager = manager_node as GameManager if manager_node is GameManager else null
+
     var panel_node = root.get_node_or_null("Main/UI/RadioPanel")
     _radio_panel = panel_node if panel_node is Control else null
 
