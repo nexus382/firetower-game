@@ -1,3 +1,6 @@
+# InventorySystem.gd overview:
+# - Purpose: register resource definitions, track counts, and surface food totals for UI.
+# - Sections: signals report changes, dictionaries store items, CRUD helpers register/spend/restock entries.
 extends RefCounted
 class_name InventorySystem
 

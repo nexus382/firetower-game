@@ -1,3 +1,6 @@
+# NewsBroadcastSystem.gd overview:
+# - Purpose: pick day-appropriate radio bulletins and emit broadcasts for the radio panel.
+# - Sections: schedule table defines weighted variants, helpers roll availability, public methods surface results.
 extends RefCounted
 class_name NewsBroadcastSystem
 

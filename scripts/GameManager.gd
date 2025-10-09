@@ -1,3 +1,6 @@
+# GameManager.gd overview:
+# - Purpose: central survival coordinator wiring systems, player state, and UI accessors.
+# - Sections: constants define recipes/meals, signals expose events, lifecycle hooks spawn systems, public getters share state.
 extends Node
 class_name GameManager
 
@@ -11,7 +14,11 @@ const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
+const RECON_CALORIE_COST: float = 150.0
+const RECON_WINDOW_START_MINUTE: int = 0
+const RECON_WINDOW_END_MINUTE: int = 18 * 60
 
+# Crafting recipes advertised to the UI with pre-baked cost and time data.
 const CRAFTING_RECIPES := {
     "fishing_bait": {
         "item_id": "fishing_bait",
@@ -83,6 +90,7 @@ const CRAFTING_RECIPES := {
     }
 }
 
+# Meal size presets so UI and systems agree on food unit costs.
 const MEAL_PORTIONS := {
     "small": {
         "food_units": 0.5,
@@ -98,15 +106,16 @@ const MEAL_PORTIONS := {
     }
 }
 
+# Signals surfaced for UI widgets listening for macro-state changes.
 signal day_changed(new_day: int)
 signal weather_changed(new_state: String, previous_state: String, hours_remaining: int)
 signal weather_multiplier_changed(new_multiplier: float, state: String)
 
-# Core game state
+# Core game state values shared between systems and UI.
 var current_day: int = 1
 var game_paused: bool = false
 
-# Player reference
+# Player reference cached once so interaction helpers can fetch it quickly.
 var player: CharacterBody2D
 
 # Simulation systems
@@ -122,6 +131,7 @@ var zombie_system: ZombieSystem = ZombieSystem.new()
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+# Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
     print("🎮 GameManager initialized - Day %d" % current_day)
     player = get_node("../Player")
@@ -190,6 +200,39 @@ func get_time_system() -> TimeSystem:
 func get_inventory_system() -> InventorySystem:
     """Expose the inventory system for UI consumers."""
     return inventory_system
+
+func get_recon_window_status() -> Dictionary:
+    var status := {
+        "available": false,
+        "start_minute": RECON_WINDOW_START_MINUTE,
+        "end_minute": RECON_WINDOW_END_MINUTE
+    }
+    if time_system == null:
+        status["reason"] = "systems_unavailable"
+        return status
+
+    var minutes_since = time_system.get_minutes_since_daybreak()
+    status["current_minute"] = minutes_since
+    if minutes_since < RECON_WINDOW_START_MINUTE:
+        status["reason"] = "before_window"
+        status["minutes_until_window"] = RECON_WINDOW_START_MINUTE - minutes_since
+        status["resumes_in_minutes"] = status["minutes_until_window"]
+        status["resumes_at"] = time_system.get_formatted_time_after(status["minutes_until_window"])
+        return status
+
+    if minutes_since > RECON_WINDOW_END_MINUTE:
+        var until_dawn = time_system.get_minutes_until_daybreak()
+        status["reason"] = "after_window"
+        status["minutes_until_window"] = until_dawn
+        status["resumes_in_minutes"] = until_dawn
+        status["resumes_at"] = time_system.get_formatted_time_after(until_dawn)
+        return status
+
+    status["available"] = true
+    status["reason"] = "window_open"
+    status["minutes_until_cutoff"] = max(RECON_WINDOW_END_MINUTE - minutes_since, 0)
+    status["cutoff_at"] = time_system.get_formatted_time_after(status["minutes_until_cutoff"])
+    return status
 
 func get_weather_system() -> WeatherSystem:
     """Expose the weather system for UI consumers."""
@@ -646,6 +689,53 @@ func perform_lead_away_undead() -> Dictionary:
 
     return result
 
+func perform_recon() -> Dictionary:
+    if time_system == null or sleep_system == null or weather_system == null or zombie_system == null or _rng == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "recon"
+        }
+
+    var window_status = get_recon_window_status()
+    if !window_status.get("available", false):
+        return {
+            "success": false,
+            "reason": String(window_status.get("reason", "recon_blocked")),
+            "action": "recon",
+            "window": window_status
+        }
+
+    var time_report = _spend_activity_time(1.0, "recon")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "recon"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var calorie_total = sleep_system.adjust_daily_calories(RECON_CALORIE_COST)
+
+    var rng_copy = RandomNumberGenerator.new()
+    rng_copy.seed = _rng.seed
+    rng_copy.state = _rng.state
+
+    var weather_outlook = weather_system.forecast_precipitation(6)
+    var zombie_outlook = _forecast_zombie_activity(6 * 60, rng_copy)
+
+    var result := time_report.duplicate()
+    result["action"] = "recon"
+    result["status"] = result.get("status", "applied")
+    result["success"] = true
+    result["hours_scanned"] = 6
+    result["calories_spent"] = RECON_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["weather_forecast"] = weather_outlook
+    result["zombie_forecast"] = zombie_outlook
+    result["window_status"] = get_recon_window_status()
+
+    print("🔭 Recon outlook -> %s" % result)
+    return result
+
 func craft_item(recipe_id: String) -> Dictionary:
     var key = recipe_id.to_lower()
     if inventory_system == null or time_system == null or sleep_system == null:
@@ -933,10 +1023,16 @@ func _on_weather_hour_elapsed(state: String):
     if tower_health_system:
         tower_health_system.register_weather_hour(state)
 
-func _on_time_advanced_by_minutes(minutes: int, _rolled_over: bool):
-    if zombie_system == null or tower_health_system == null:
+func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
+    if zombie_system == null or tower_health_system == null or time_system == null:
         return
-    var report = zombie_system.advance_time(minutes)
+    var report = zombie_system.advance_time(minutes, time_system.get_minutes_since_daybreak(), rolled_over)
+    var spawn_event = report.get("spawn_event")
+    if spawn_event is Dictionary:
+        var added = int(spawn_event.get("spawns", 0))
+        var total = int(spawn_event.get("total", zombie_system.get_active_zombies()))
+        if added > 0:
+            print("🧟 Wave sighted -> +%d (%d total)" % [added, total])
     if report.get("ticks", 0) <= 0:
         return
     var damage = float(report.get("total_damage", 0.0))
@@ -966,6 +1062,60 @@ func _resolve_meal_portion(portion_key: String) -> Dictionary:
     resolved["key"] = key
     resolved["calories"] = resolved.get("food_units", 1.0) * CALORIES_PER_FOOD_UNIT
     return resolved
+
+func _forecast_zombie_activity(minutes_horizon: int, rng: RandomNumberGenerator) -> Dictionary:
+    minutes_horizon = max(minutes_horizon, 0)
+    var forecast := {
+        "minutes_horizon": minutes_horizon,
+        "current_day": current_day,
+        "active_now": zombie_system.get_active_zombies() if zombie_system else 0,
+        "events": []
+    }
+
+    if time_system == null or zombie_system == null:
+        forecast["reason"] = "systems_unavailable"
+        return forecast
+
+    forecast["current_clock"] = time_system.get_formatted_time()
+    var minutes_since = time_system.get_minutes_since_daybreak()
+    var minutes_until_daybreak = time_system.get_minutes_until_daybreak()
+    forecast["minutes_until_daybreak"] = minutes_until_daybreak
+
+    var pending = zombie_system.get_pending_spawn()
+    if typeof(pending) == TYPE_DICTIONARY and !pending.is_empty():
+        var spawn_day = int(pending.get("day", current_day))
+        var spawn_minute = int(pending.get("minute", -1))
+        if spawn_day == current_day and spawn_minute >= 0:
+            var minutes_until_spawn = spawn_minute - minutes_since
+            if minutes_until_spawn < 0:
+                minutes_until_spawn += TimeSystem.MINUTES_PER_DAY
+            if minutes_until_spawn <= minutes_horizon:
+                var event = pending.duplicate(true)
+                event["minutes_ahead"] = minutes_until_spawn
+                event["clock_time"] = time_system.get_formatted_time_after(minutes_until_spawn)
+                event["type"] = "scheduled_spawn"
+                forecast["events"].append(event)
+
+    if rng == null:
+        return forecast
+
+    if minutes_horizon > minutes_until_daybreak:
+        var preview_rng = RandomNumberGenerator.new()
+        preview_rng.seed = rng.seed
+        preview_rng.state = rng.state
+
+        var next_day = current_day + 1
+        var projection = zombie_system.preview_day_spawn(next_day, preview_rng)
+        if int(projection.get("spawns", 0)) > 0:
+            var scheduled_minute = int(projection.get("scheduled_minute", -1))
+            if scheduled_minute >= 0:
+                var total_minutes = minutes_until_daybreak + scheduled_minute
+                if total_minutes <= minutes_horizon:
+                    projection["minutes_ahead"] = total_minutes
+                    projection["clock_time"] = time_system.get_formatted_time_after(total_minutes)
+                    projection["type"] = "next_day_spawn"
+                    forecast["events"].append(projection)
+    return forecast
 
 func _spend_activity_time(hours: float, activity: String) -> Dictionary:
     if not time_system or not sleep_system:

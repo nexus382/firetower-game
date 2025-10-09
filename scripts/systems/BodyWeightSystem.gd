@@ -1,3 +1,6 @@
+# BodyWeightSystem.gd overview:
+# - Purpose: translate calorie intake/burn into weight shifts and expose helper conversions.
+# - Sections: constants capture health ranges, state tracks calories, utility methods convert units and classify categories.
 extends RefCounted
 class_name BodyWeightSystem
 

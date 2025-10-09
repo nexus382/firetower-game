@@ -1,8 +1,12 @@
+# InventoryPanel.gd overview:
+# - Purpose: present the player's inventory, react to inventory system signals, and manage focus while open.
+# - Sections: preloads fetch systems, onready caches widgets, helpers resolve GameManager, refresh lists, and handle toggles.
 extends Control
 class_name InventoryPanel
 
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 
+# Cache panel pieces for quick refresh without repeated lookups.
 @onready var panel: Panel = $Panel
 @onready var title_label: Label = $Panel/Margin/VBox/TitleLabel
 @onready var items_scroll: ScrollContainer = $Panel/Margin/VBox/ItemScroll
@@ -14,6 +18,7 @@ var game_manager: GameManager
 var inventory_system: InventorySystem
 
 func _ready():
+    # Prepare listeners and render the initial inventory snapshot.
     visible = false
     set_process_unhandled_input(true)
     _resolve_game_manager()
@@ -34,6 +39,7 @@ func _unhandled_input(event):
         get_viewport().set_input_as_handled()
 
 func _open_panel():
+    # Refresh when opening so newly gained loot appears instantly.
     if !visible:
         visible = true
         _refresh_items()
@@ -67,6 +73,7 @@ func _on_inventory_changed(_item_id: String, _quantity_delta: int, _food_delta: 
     _refresh_items()
 
 func _refresh_items():
+    # Build the visible list sorted by display name for quick scanning.
     if !is_instance_valid(items_container):
         return
     for child in items_container.get_children():

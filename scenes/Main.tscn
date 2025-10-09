@@ -321,6 +321,23 @@ text = "Forging ready"
 [node name="ForgingSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ForgingRow"]
 text = "Select"
 
+[node name="ReconRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
+custom_constants/separation = 12
+size_flags_horizontal = 3
+
+[node name="ReconLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReconRow"]
+custom_minimum_size = Vector2(72, 0)
+text = "Recon"
+vertical_alignment = 1
+
+[node name="ReconStatus" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReconRow"]
+size_flags_horizontal = 3
+autowrap_mode = 1
+text = "Recon ready"
+
+[node name="ReconSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList/ReconRow"]
+text = "Select"
+
 [node name="LeadRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionList"]
 custom_constants/separation = 12
 size_flags_horizontal = 3

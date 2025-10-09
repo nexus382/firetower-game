@@ -1,3 +1,6 @@
+# WeatherSystem.gd overview:
+# - Purpose: drive hourly weather rolls, track durations, and feed multipliers to other systems.
+# - Sections: constants describe states/chances, signals notify listeners, clock callbacks advance and settle conditions.
 extends RefCounted
 class_name WeatherSystem
 
@@ -88,6 +91,96 @@ func is_precipitating_state(state: String) -> bool:
 
 func broadcast_state():
     weather_changed.emit(_current_state, _current_state, get_hours_remaining())
+
+func forecast_precipitation(hours_ahead: int) -> Dictionary:
+    """Predict precipitation changes for the requested window without mutating live state."""
+    hours_ahead = max(hours_ahead, 0)
+    var minutes_horizon = hours_ahead * MINUTES_PER_HOUR
+    var forecast := {
+        "hours_requested": hours_ahead,
+        "minutes_horizon": minutes_horizon,
+        "current_state": _current_state,
+        "current_hours_remaining": max(_hour_timer, 0),
+        "minutes_until_next_tick": (_minute_accumulator == 0) ? MINUTES_PER_HOUR : MINUTES_PER_HOUR - _minute_accumulator,
+        "events": []
+    }
+
+    if minutes_horizon <= 0:
+        return forecast
+
+    var rng_copy = RandomNumberGenerator.new()
+    rng_copy.seed = _rng.seed
+    rng_copy.state = _rng.state
+
+    var future_state = _current_state
+    var future_timer = max(_hour_timer, 0)
+    var future_minute_acc = _minute_accumulator
+    var elapsed_minutes = 0
+    var events: Array = []
+
+    if is_precipitating_state(future_state):
+        events.append({
+            "type": "ongoing",
+            "minutes_ahead": 0,
+            "state": future_state,
+            "hours_remaining": future_timer
+        })
+
+    while elapsed_minutes < minutes_horizon:
+        var minutes_to_tick = MINUTES_PER_HOUR - future_minute_acc
+        if minutes_to_tick <= 0:
+            minutes_to_tick = MINUTES_PER_HOUR
+        if elapsed_minutes + minutes_to_tick > minutes_horizon:
+            break
+
+        elapsed_minutes += minutes_to_tick
+        future_minute_acc = 0
+
+        if is_precipitating_state(future_state):
+            future_timer = max(future_timer - 1, 0)
+            if future_timer == 0:
+                events.append({
+                    "type": "stop",
+                    "minutes_ahead": elapsed_minutes,
+                    "state": WEATHER_CLEAR,
+                    "previous_state": future_state
+                })
+                future_state = WEATHER_CLEAR
+                continue
+
+        if future_state == WEATHER_CLEAR:
+            var roll = rng_copy.randf()
+            if roll < RAIN_START_CHANCE:
+                var total_weight = HEAVY_STORM_CHANCE + RAINING_CHANCE + SPRINKLING_CHANCE
+                if total_weight <= 0.0:
+                    total_weight = 1.0
+                var intensity_roll = rng_copy.randf() * total_weight
+                var new_state = WEATHER_SPRINKLING
+                if intensity_roll < HEAVY_STORM_CHANCE:
+                    new_state = WEATHER_HEAVY_STORM
+                elif intensity_roll < HEAVY_STORM_CHANCE + RAINING_CHANCE:
+                    new_state = WEATHER_RAINING
+                else:
+                    new_state = WEATHER_SPRINKLING
+
+                var duration = WEATHER_DEFAULT_DURATIONS.get(new_state, 1)
+                events.append({
+                    "type": "start",
+                    "minutes_ahead": elapsed_minutes,
+                    "state": new_state,
+                    "duration_hours": duration
+                })
+                future_state = new_state
+                future_timer = duration
+                continue
+
+        future_minute_acc = 0
+
+    forecast["events"] = events
+    forecast["minutes_simulated"] = elapsed_minutes
+    forecast["final_state"] = future_state
+    forecast["final_hours_remaining"] = future_timer
+    return forecast
 
 func _process_hour_tick():
     weather_hour_elapsed.emit(_current_state)

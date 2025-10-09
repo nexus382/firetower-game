@@ -1,3 +1,6 @@
+# ForgingResultsPanel.gd overview:
+# - Purpose: reveal forging loot, describe finds, and hold focus while the panel is open.
+# - Sections: constants store flavor text, onready cache widgets, helpers populate messages and handle closing.
 extends Control
 class_name ForgingResultsPanel
 
@@ -36,6 +39,7 @@ const ITEM_DETAILS := {
     "wood": "Cut timber fuels fires and builds defenses."
 }
 
+# Cache UI nodes so we can rebuild the loot list quickly per result.
 @onready var panel: Panel = $Panel
 @onready var message_label: Label = $Panel/Margin/VBox/MessageLabel
 @onready var scroll: ScrollContainer = $Panel/Margin/VBox/ItemScroll
@@ -46,6 +50,7 @@ const ITEM_DETAILS := {
 var _rng := RandomNumberGenerator.new()
 
 func _ready():
+    # Start hidden and wait for task results to feed content in.
     visible = false
     set_process_unhandled_input(true)
     _rng.randomize()
@@ -61,6 +66,7 @@ func _unhandled_input(event):
         get_viewport().set_input_as_handled()
 
 func show_result(result: Dictionary):
+    # Only display when forging succeeded and produced tangible loot.
     if result.is_empty() or !result.get("success", false):
         hide_panel()
         return
@@ -79,6 +85,7 @@ func hide_panel():
     visible = false
 
 func _populate_message(loot: Array):
+    # Summarize the haul and pick a flavorful line based on tier quality.
     if !is_instance_valid(message_label):
         return
     var advanced_found = false
@@ -137,6 +144,7 @@ func _populate_items(loot: Array):
         items_container.add_child(row)
 
 func _describe_item(item_id: String, quantity: int) -> String:
+    # Provide quick usage hints, scaling notes where quantity matters.
     var base = ITEM_DETAILS.get(item_id, "Useful supply ready for storage.")
     if item_id == "nails":
         return "%s Each bundle carries %d pieces." % [base, max(quantity, 0)]

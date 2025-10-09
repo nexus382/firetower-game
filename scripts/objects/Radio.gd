@@ -1,3 +1,6 @@
+# Radio.gd overview:
+# - Purpose: interactive tower radio that surfaces broadcasts or static when tuned.
+# - Sections: exports set prompt copy, overlap signals toggle availability, helpers fetch GameManager reports and open UI panel.
 extends Area2D
 class_name Radio
 
@@ -6,6 +9,7 @@ class_name Radio
 
 @onready var prompt_label: Label = $PromptLabel
 
+# Tracks when the player can trigger the interaction prompt.
 var _player_in_range: bool = false
 var _game_manager: GameManager
 var _radio_panel: Control
@@ -26,6 +30,7 @@ func _ready():
     _resolve_dependencies()
 
 func _resolve_dependencies():
+    # Lazy-load references so the radio still works if the scene tree shifts.
     var root = get_tree().get_root()
     if root == null:
         return
@@ -42,6 +47,7 @@ func _unhandled_input(event):
     get_viewport().set_input_as_handled()
 
 func _handle_interaction():
+    # Make sure we always talk to a fresh GameManager/UI before resolving broadcasts.
     if _game_manager == null or _radio_panel == null:
         _resolve_dependencies()
     if _game_manager == null:

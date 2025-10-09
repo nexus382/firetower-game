@@ -1,11 +1,16 @@
+# TaskMenu.gd overview:
+# - Purpose: queue survivor tasks (sleep, meals, repairs, forging, lead-away) and feed results back to systems.
+# - Sections: exports tune UI ranges, preloads cache systems, onready grabs controls, handlers manage actions and feedback text.
 extends Control
 
+# Maximum hours the player can queue for sleep (keep within 4 - 16 for balance).
 @export var max_sleep_hours: int = 12
 @export var forging_results_panel_path: NodePath
 
 const SLEEP_PERCENT_PER_HOUR: int = 10
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
 const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
+const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
@@ -13,7 +18,9 @@ const ForgingResultsPanel = preload("res://scripts/ui/ForgingResultsPanel.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_CHANCE_PERCENT: int = int(round(ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE * 100.0))
+const RECON_OUTLOOK_HOURS: int = 6
 
+# Meal presets surfaced to the menu; food_units mirror GameManager expectations.
 const MEAL_OPTIONS := [
     {
         "key": "small",
@@ -43,6 +50,7 @@ var _menu_open: bool = false
 var inventory_system: InventorySystem
 var tower_health_system: TowerHealthSystem
 var zombie_system: ZombieSystem
+var weather_system: WeatherSystem
 var selected_meal_key: String = "normal"
 var _forging_feedback_state: String = "ready"
 var _forging_feedback_locked: bool = false
@@ -55,6 +63,7 @@ var _action_defaults: Dictionary = {}
 var _action_results_active: Dictionary = {}
 var _action_buttons: Dictionary = {}
 
+# Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionList/SleepRow/HourSelector/HoursValue
 @onready var info_title_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionTitle
@@ -71,6 +80,8 @@ var _action_buttons: Dictionary = {}
 @onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionList/ReinforceRow/ReinforceSummary
 @onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/SleepRow/SleepSelectButton
 @onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingSelectButton
+@onready var recon_status_label: Label = $Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconStatus
+@onready var recon_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconSelectButton
 @onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/LeadRow/LeadSelectButton
 @onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/MealRow/MealSelectButton
 @onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionList/RepairRow/RepairSelectButton
@@ -89,6 +100,10 @@ const TASK_DESCRIPTION_META := {
     "forging": {
         "title": "Forge",
         "hint": "Search the forest for supplies."
+    },
+    "recon": {
+        "title": "Recon",
+        "hint": "Scout weather and undead approach windows."
     },
     "lead": {
         "title": "Lead Away",
@@ -109,6 +124,7 @@ const TASK_DESCRIPTION_META := {
 }
 
 func _ready():
+    # Prepare button callbacks and sync default descriptions before showing the menu.
     set_process_input(true)
     set_process_unhandled_input(true)
     _close_menu()
@@ -125,6 +141,7 @@ func _ready():
 
     _register_action_selector(sleep_select_button, "sleep")
     _register_action_selector(forging_select_button, "forging")
+    _register_action_selector(recon_select_button, "recon")
     _register_action_selector(lead_select_button, "lead")
     _register_action_selector(meal_select_button, "meal")
     _register_action_selector(repair_select_button, "repair")
@@ -134,6 +151,7 @@ func _ready():
         time_system = game_manager.get_time_system()
         inventory_system = game_manager.get_inventory_system()
         tower_health_system = game_manager.get_tower_health_system()
+        weather_system = game_manager.get_weather_system()
         if time_system:
             time_system.time_advanced.connect(_on_time_system_changed)
             time_system.day_rolled_over.connect(_on_time_system_changed)
@@ -177,6 +195,7 @@ func _unhandled_input(event):
     _handle_menu_input(event)
 
 func _handle_menu_input(event):
+    # Toggle the task overlay or close it with escape-style actions.
     if event.is_action_pressed("action_menu") and !event.is_echo():
         if visible:
             _close_menu()
@@ -188,6 +207,7 @@ func _handle_menu_input(event):
         get_viewport().set_input_as_handled()
 
 func _refresh_display():
+    # Recalculate limits and UI summaries whenever time, inventory, or selection changes.
     _cached_minutes_remaining = _get_minutes_left_today()
     var multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
     multiplier = max(multiplier, 0.01)
@@ -202,6 +222,7 @@ func _refresh_display():
         hours_value_label.text = str(selected_hours)
 
     _update_meal_summary()
+    _update_recon_summary()
     _update_repair_summary()
     _update_reinforce_summary()
     _update_description_body()
@@ -221,6 +242,11 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionList/ForgingRow",
             "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingStatus",
             "Layout/ActionsPanel/Margin/ActionList/ForgingRow/ForgingSelectButton"
+        ],
+        "recon": [
+            "Layout/ActionsPanel/Margin/ActionList/ReconRow",
+            "Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconStatus",
+            "Layout/ActionsPanel/Margin/ActionList/ReconRow/ReconSelectButton"
         ],
         "lead": [
             "Layout/ActionsPanel/Margin/ActionList/LeadRow",
@@ -273,6 +299,8 @@ func _get_description_body(key: String) -> String:
             return _build_sleep_description()
         "forging":
             return _build_forging_description()
+        "recon":
+            return _build_recon_description()
         "lead":
             return _build_lead_description()
         "meal":
@@ -330,6 +358,9 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "forging":
                 if is_instance_valid(forging_status_label):
                     forging_status_label.text = text
+            "recon":
+                if is_instance_valid(recon_status_label):
+                    recon_status_label.text = text
             "lead":
                 if is_instance_valid(lead_status_label):
                     lead_status_label.text = text
@@ -364,6 +395,8 @@ func _trigger_selected_action():
             _execute_sleep_action()
         "forging":
             _execute_forging_action()
+        "recon":
+            _execute_recon_action()
         "lead":
             _execute_lead_action()
         "meal":
@@ -416,6 +449,24 @@ func _build_forging_description() -> String:
         lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
     else:
         lines.append("Ready while the area is clear")
+    return "\n".join(lines)
+
+func _build_recon_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(60.0 * multiplier))
+    lines.append("Spend 1 hr (x%.1f) reviewing maps and radio logs." % multiplier)
+    lines.append("Costs %d cal | Forecast next %d hr of rain and undead." % [int(round(GameManager.RECON_CALORIE_COST)), RECON_OUTLOOK_HOURS])
+    var minutes_remaining = _get_minutes_left_today()
+    if time_system and minutes > 0 and minutes <= minutes_remaining:
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
+    var window_minutes = RECON_OUTLOOK_HOURS * 60
+    if minutes_remaining <= window_minutes:
+        lines.append("Includes dawn check in %s" % _format_duration(minutes_remaining))
+    else:
+        lines.append("Next dawn beyond outlook (%s)" % _format_duration(window_minutes))
+    lines.append("Day left: %s" % _format_duration(minutes_remaining))
     return "\n".join(lines)
 
 func _build_lead_description() -> String:
@@ -562,6 +613,49 @@ func _execute_lead_action():
     _lock_lead_feedback()
     var result = game_manager.perform_lead_away_undead()
     _set_lead_feedback(_format_lead_result(result), "result")
+    _refresh_display()
+
+func _execute_recon_action():
+    if game_manager == null:
+        _set_action_result("recon", "Recon unavailable", true)
+        return
+
+    var result = game_manager.perform_recon()
+    if !result.get("success", false):
+        var reason = result.get("reason", "failed")
+        var message: String
+        match reason:
+            "systems_unavailable":
+                message = "Recon offline"
+            "after_window":
+                var window_after: Dictionary = result.get("window", {})
+                var resume_minutes = int(window_after.get("resumes_in_minutes", 0))
+                if resume_minutes > 0:
+                    message = "Recon back %s" % _format_duration(resume_minutes)
+                else:
+                    var resume_label = String(window_after.get("resumes_at", "6:00 AM"))
+                    message = "Recon back at %s" % resume_label
+            "before_window":
+                var window_before: Dictionary = result.get("window", {})
+                var wait_minutes = int(window_before.get("minutes_until_window", 0))
+                if wait_minutes > 0:
+                    message = "Recon ready %s" % _format_duration(wait_minutes)
+                else:
+                    var resume_clock = String(window_before.get("resumes_at", "6:00 AM"))
+                    message = "Recon ready at %s" % resume_clock
+            "exceeds_day":
+                var minutes_available = result.get("minutes_available", 0)
+                message = _format_daybreak_warning(minutes_available)
+            "blocked":
+                var minutes_available = result.get("minutes_available", 0)
+                message = _format_daybreak_warning(minutes_available)
+            _:
+                message = "Recon failed"
+        _set_action_result("recon", message, true)
+        return
+
+    var message = _format_recon_result(result)
+    _set_action_result("recon", message, true)
     _refresh_display()
 
 func _on_meal_size_option_item_selected(index: int):
@@ -774,6 +868,107 @@ func _format_forging_result(result: Dictionary) -> String:
                 fallback += " | -%d%% rest" % int(round(rest_spent))
             return fallback
 
+func _format_recon_result(result: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    var hours_scanned = int(result.get("hours_scanned", RECON_OUTLOOK_HOURS))
+    parts.append("Scouted %dh" % max(hours_scanned, 1))
+    var calories = int(round(result.get("calories_spent", GameManager.RECON_CALORIE_COST)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    var ended_at = result.get("ended_at_time", "")
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    var window_status: Dictionary = result.get("window_status", {})
+    if typeof(window_status) == TYPE_DICTIONARY and !window_status.is_empty():
+        if window_status.get("available", false):
+            var cutoff_minutes = int(window_status.get("minutes_until_cutoff", 0))
+            if cutoff_minutes > 0:
+                parts.append("Window %s" % _format_duration(cutoff_minutes))
+        else:
+            var resume_minutes = int(window_status.get("resumes_in_minutes", 0))
+            if resume_minutes > 0:
+                parts.append("Back %s" % _format_duration(resume_minutes))
+    var weather_text = _summarize_weather_forecast(result.get("weather_forecast", {}))
+    if weather_text != "":
+        parts.append(weather_text)
+    var zombie_text = _summarize_zombie_forecast(result.get("zombie_forecast", {}))
+    if zombie_text != "":
+        parts.append(zombie_text)
+    return "Recon -> %s" % " | ".join(parts)
+
+func _summarize_weather_forecast(forecast: Dictionary) -> String:
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return "Weather data unavailable"
+
+    var events: Array = forecast.get("events", [])
+    var fragments: PackedStringArray = []
+
+    if events.is_empty():
+        var current_state = String(forecast.get("current_state", WeatherSystem.WEATHER_CLEAR))
+        fragments.append("Steady %s" % _format_weather_state_label(current_state))
+    else:
+        for event in events:
+            if typeof(event) != TYPE_DICTIONARY:
+                continue
+            var type = String(event.get("type", ""))
+            var minutes = int(event.get("minutes_ahead", 0))
+            var time_text = minutes == 0 ? "Now" : _format_duration(minutes)
+            match type:
+                "start":
+                    var state = String(event.get("state", WeatherSystem.WEATHER_SPRINKLING))
+                    fragments.append("%s -> %s" % [time_text, _format_weather_state_label(state)])
+                "stop":
+                    fragments.append("%s -> Clear" % time_text)
+                "ongoing":
+                    var state = String(event.get("state", forecast.get("current_state", WeatherSystem.WEATHER_CLEAR)))
+                    var hours_left = int(event.get("hours_remaining", 0))
+                    if hours_left > 0:
+                        fragments.append("Now -> %s (%dh left)" % [_format_weather_state_label(state), max(hours_left, 0)])
+                    else:
+                        fragments.append("Now -> %s" % _format_weather_state_label(state))
+
+    if fragments.is_empty():
+        return "Weather steady"
+    return "Weather: %s" % " / ".join(fragments)
+
+func _summarize_zombie_forecast(forecast: Dictionary) -> String:
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return ""
+
+    var fragments: PackedStringArray = []
+    var active_now = int(forecast.get("active_now", 0))
+    if active_now > 0:
+        fragments.append("%d nearby" % max(active_now, 0))
+
+    var events: Array = forecast.get("events", [])
+    if events.is_empty():
+        if fragments.is_empty():
+            var horizon = int(forecast.get("minutes_horizon", RECON_OUTLOOK_HOURS * 60))
+            fragments.append("Quiet %dh" % max(int(round(horizon / 60.0)), 0))
+    else:
+        for event in events:
+            if typeof(event) != TYPE_DICTIONARY:
+                continue
+            var spawns = int(event.get("spawns", 0))
+            var minutes = int(event.get("minutes_ahead", forecast.get("minutes_horizon", 0)))
+            var time_text = minutes == 0 ? "Now" : _format_duration(minutes)
+            var clock_time = String(event.get("clock_time", ""))
+            if clock_time != "":
+                time_text = clock_time
+            var event_type = String(event.get("type", ""))
+            if event_type == "next_day_spawn" and clock_time != "":
+                time_text = "Next day %s" % clock_time
+            elif event_type == "next_day_spawn":
+                time_text = "Next day %s" % time_text
+            if spawns > 0:
+                fragments.append("%s -> %d arrive" % [time_text, max(spawns, 0)])
+            else:
+                fragments.append("%s -> No wave" % time_text)
+
+    if fragments.is_empty():
+        return "Zombies: Quiet"
+    return "Zombies: %s" % " / ".join(fragments)
+
 func _get_minutes_left_today() -> int:
     if time_system:
         return time_system.get_minutes_until_daybreak()
@@ -867,6 +1062,45 @@ func _update_meal_summary():
     var summary = "\n".join(lines)
     meal_summary_label.text = summary
     _set_action_default("meal", summary)
+
+func _update_recon_summary():
+    if !is_instance_valid(recon_status_label):
+        return
+    var parts: PackedStringArray = []
+    parts.append("%dh outlook" % RECON_OUTLOOK_HOURS)
+    parts.append("-%d cal" % int(round(GameManager.RECON_CALORIE_COST)))
+    var window_status: Dictionary = {}
+    if game_manager:
+        window_status = game_manager.get_recon_window_status()
+    var recon_available = window_status.get("available", false)
+    if recon_available:
+        var cutoff_clock = String(window_status.get("cutoff_at", "12:00 AM"))
+        if cutoff_clock != "":
+            parts.append("Cutoff %s" % cutoff_clock)
+        else:
+            var cutoff_minutes = int(window_status.get("minutes_until_cutoff", GameManager.RECON_WINDOW_END_MINUTE))
+            parts.append("Cutoff %s" % _format_duration(cutoff_minutes))
+    else:
+        if window_status.is_empty():
+            parts.append("Recon offline")
+        else:
+            var resume_minutes = int(window_status.get("resumes_in_minutes", 0))
+            var resume_label = String(window_status.get("resumes_at", "6:00 AM"))
+            if resume_minutes > 0:
+                parts.append("Back %s" % _format_duration(resume_minutes))
+            elif resume_label != "":
+                parts.append("Back at %s" % resume_label)
+            else:
+                parts.append("Recon offline")
+    if time_system:
+        parts.append("Dawn %s" % _format_duration(time_system.get_minutes_until_daybreak()))
+    if zombie_system and zombie_system.has_active_zombies():
+        parts.append("%d undead near" % zombie_system.get_active_zombies())
+    var summary = " | ".join(parts)
+    recon_status_label.text = summary
+    _set_action_default("recon", summary, true)
+    if is_instance_valid(recon_select_button):
+        recon_select_button.disabled = !recon_available
 
 func _update_repair_summary():
     if !is_instance_valid(repair_summary_label):
@@ -985,6 +1219,11 @@ func _format_health_snapshot(value: float) -> String:
         return "--"
     return "%s/%s" % [_format_health_value(value), _format_health_value(tower_health_system.get_max_health())]
 
+func _format_weather_state_label(state: String) -> String:
+    if weather_system:
+        return weather_system.get_state_display_name_for(state)
+    return state.capitalize()
+
 func _on_inventory_food_total_changed(new_total: float):
     _update_meal_summary()
     if _forging_feedback_locked:
@@ -1007,6 +1246,7 @@ func _on_lead_zombie_count_changed(count: int):
     if _lead_feedback_state == "offline":
         return
     _set_lead_feedback(_format_lead_ready(count), "status")
+    _update_recon_summary()
 
 func _resolve_game_manager() -> GameManager:
     var tree = get_tree()

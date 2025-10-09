@@ -1,3 +1,6 @@
+# CameraController.gd overview:
+# - Purpose: hold a static tower-wide frame so UI mockups stay centered.
+# - Sections: _ready() pins transform, sets current camera, and logs the setup.
 extends Camera2D
 class_name CameraController
 
