@@ -16,29 +16,31 @@ const LBS_PER_KG: float = 2.2
 
 # Cached node references so we only traverse the tree once on startup.
 @onready var game_manager: GameManager = _resolve_game_manager()
-@onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
-@onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
-@onready var health_bar: ProgressBar = $StatsBar/Metrics/HealthStat/HealthMeter/HealthBar
-@onready var health_value_label: Label = $StatsBar/Metrics/HealthStat/HealthMeter/HealthValue
-@onready var warmth_label: Label = $StatsBar/Metrics/WarmthStat/WarmthLabel
-@onready var warmth_bar: ProgressBar = $StatsBar/Metrics/WarmthStat/WarmthMeter/WarmthBar
-@onready var warmth_value_label: Label = $StatsBar/Metrics/WarmthStat/WarmthMeter/WarmthValue
-@onready var daily_cal_value_label: Label = $StatsBar/Metrics/DailyCalStat/DailyCalValue
-@onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
-@onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
-@onready var weight_status_label: Label = $StatsBar/Metrics/WeightStat/WeightStatus
-@onready var weight_header_label: Label = $TopRightStats/WeightHeader
-@onready var weather_label: Label = $DayTimeHeader/WeatherLabel
-@onready var day_label: Label = $DayTimeHeader/DayLabel
-@onready var clock_label: Label = $DayTimeHeader/ClockLabel
-@onready var recon_alert_label: Label = $DayTimeHeader/ReconAlertLabel
-@onready var food_counter_label: Label = $TopRightStats/ResourceList/FoodCounter
-@onready var wood_counter_label: Label = $TopRightStats/ResourceList/WoodCounter
-@onready var zombie_counter_label: Label = $TopRightStats/ResourceList/ZombieCounter
-@onready var tower_health_label: Label = $TopRightStats/ResourceList/TowerHealthLabel
-@onready var trap_indicator: HBoxContainer = $TopRightStats/TrapIndicator
-@onready var trap_icon_label: Label = $TopRightStats/TrapIndicator/TrapIconLabel
-@onready var trap_status_label: Label = $TopRightStats/TrapIndicator/TrapStatusLabel
+@onready var tired_bar: ProgressBar = %TiredBar
+@onready var tired_value_label: Label = %TiredValue
+@onready var health_bar: ProgressBar = %HealthBar
+@onready var health_value_label: Label = %HealthValue
+@onready var warmth_label: Label = %WarmthLabel
+@onready var warmth_bar: ProgressBar = %WarmthBar
+@onready var warmth_value_label: Label = %WarmthValue
+@onready var daily_cal_value_label: Label = %DailyCalValue
+@onready var weight_value_label: Label = %WeightValue
+@onready var weight_unit_button: Button = %WeightUnitButton
+@onready var weight_status_label: Label = %WeightStatus
+@onready var weight_header_label: Label = %WeightHeader
+@onready var weather_label: Label = %WeatherLabel
+@onready var day_label: Label = %DayLabel
+@onready var clock_label: Label = %ClockLabel
+@onready var recon_alert_label: Label = %ReconAlertLabel
+@onready var vitals_header_label: Label = %VitalsHeader
+@onready var recon_header_label: Label = %ReconHeader
+@onready var food_counter_label: Label = %FoodCounter
+@onready var wood_counter_label: Label = %WoodCounter
+@onready var zombie_counter_label: Label = %ZombieCounter
+@onready var tower_health_label: Label = %TowerHealthLabel
+@onready var trap_indicator: HBoxContainer = %TrapIndicator
+@onready var trap_icon_label: Label = %TrapIconLabel
+@onready var trap_status_label: Label = %TrapStatusLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem
@@ -69,6 +71,10 @@ func _ready():
     weight_status_label.add_theme_color_override("font_color", Color.WHITE)
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
     weather_label.add_theme_color_override("font_color", Color.WHITE)
+    if is_instance_valid(vitals_header_label):
+        vitals_header_label.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+    if is_instance_valid(recon_header_label):
+        recon_header_label.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
     food_counter_label.add_theme_color_override("font_color", Color.WHITE)
     wood_counter_label.add_theme_color_override("font_color", Color.WHITE)
     zombie_counter_label.add_theme_color_override("font_color", Color.WHITE)
@@ -348,7 +354,8 @@ func _update_weight_header_label():
     var display_weight = _convert_weight_for_display(_latest_weight_lbs)
     var unit_suffix = _weight_unit.to_upper()
     var category_text = _format_weight_category_title(_latest_weight_category)
-    weight_header_label.text = "%.1f %s [%s]" % [display_weight, unit_suffix, category_text]
+    var range_text = _format_weight_range(_latest_weight_category)
+    weight_header_label.text = "%.1f %s | %s | %s" % [display_weight, unit_suffix, category_text, range_text]
 
 func _update_weather_label():
     if !is_instance_valid(weather_label):

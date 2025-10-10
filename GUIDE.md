@@ -340,7 +340,7 @@
 ## Interaction Objects & UI
 * **CraftingTable** – shows `Press [E] to craft` prompt, resolves `CraftingPanel` node, and opens panel on interaction. Leaves panel if player exits area.
 * **Radio** – similar prompt, resolves `GameManager` and `RadioPanel`, displays broadcast text or static fallback.
-* **HUD** – wires to all systems, exposes toggles like weight unit button (lbs/kg), displays player health (0-100%), tower health, food, wood, zombie counts, weather, clock, energy meter, warmth meter, a recon alert banner ("Rain/Zombies in X Hours" countdown), and shows a 🪤 trap indicator while a trap is armed; the label surfaces break chance and deployment time straight from `trap_state_changed` payloads and hides automatically when traps are offline.
+* **HUD** – wires to all systems and now uses a two-tier layout: the survivor panel on the left stacks rest/health/warmth bars, calorie totals, weight toggle, and category summary with consistent spacing, while the resource panel on the right keeps tower health, food, wood, zombie counts, and the 🪤 trap indicator aligned under the weight headline (shows current mass, category name, and the live range in the active unit); a bottom row hosts the day/time/weather block plus a dedicated recon alert card so countdowns never overlap other stats.
 * **ActionPopupPanel** – shared popup surface for lure summaries, trap mishaps, recon forecasts, and other contextual alerts. Rich text supports multi-line stat readouts and injury/healing messaging.
 * **TaskMenu** – central action hub:
   - Grid layout presents four columns (label, summary text, control column, action button) so rows align cleanly; summary fonts use 13pt to fit long descriptions while keeping everything left-aligned for quick scanning.
@@ -351,6 +351,7 @@
   - Trap row activates when at least one spike trap exists, summarizes rest/calorie cost, break chance, injury odds, and shows armed/triggered states via `trap_state_changed`.
   - Forging row shows food totals and opens `ForgingResultsPanel` for loot summaries.
 * **ForgingResultsPanel** – rotates flavor text pools for basic/advanced finds, lists each item with quantity and contextual description (e.g., nails show bundle size, fuel notes total units).
+* **Wood Stove** – sits along the living/kitchen seam with a raised hearth, door, ember window, and pipe cap so it reads clearly against the floor; interacting while inside its collision ring opens `WoodStovePanel` for fuel loads or fire-start attempts and the prompt auto-hides when you step away.
 
 ## Debug & Testing Utilities
 * `debug_test.gd` runs viewport sanity checks for layout math and keeps formatting inline with project style.
