@@ -101,27 +101,46 @@ func _refresh_items():
     if is_instance_valid(placeholder_label):
         placeholder_label.hide()
     for entry in entries:
+        var item_id = String(entry.get("item_id", ""))
         var row = HBoxContainer.new()
-        row.theme_override_constants["separation"] = 8
+        row.add_theme_constant_override("separation", 8)
+
         var name_label = Label.new()
-        name_label.text = entry.get("display_name", entry.get("item_id", "Item"))
+        name_label.text = _format_item_label(item_id, entry)
         name_label.add_theme_color_override("font_color", Color.WHITE)
         row.add_child(name_label)
+
         var qty_label = Label.new()
         qty_label.text = "x%d" % int(entry.get("quantity", 0))
         qty_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
         row.add_child(qty_label)
-        if _supports_use_action(String(entry.get("item_id", ""))):
+
+        var actions = _get_item_actions(item_id)
+        if actions.size() > 0:
             var spacer = Control.new()
             spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
             row.add_child(spacer)
-            var use_button = Button.new()
-            use_button.text = "Use"
-            use_button.focus_mode = Control.FOCUS_ALL
-            use_button.add_theme_color_override("font_color", Color.WHITE)
-            var item_key = String(entry.get("item_id", ""))
-            use_button.pressed.connect(Callable(self, "_on_use_item_pressed").bind(item_key))
-            row.add_child(use_button)
+            for action in actions:
+                var button = Button.new()
+                button.text = String(action.get("label", "Use"))
+                button.focus_mode = Control.FOCUS_ALL
+                button.add_theme_color_override("font_color", Color.WHITE)
+                var action_key = String(action.get("action", "use"))
+                var disabled = bool(action.get("disabled", false))
+                var required_item = String(action.get("requires_item", ""))
+                if required_item != "" and inventory_system:
+                    disabled = disabled or inventory_system.get_item_count(required_item) <= 0
+                if action.get("requires_charge", false):
+                    var status = game_manager.get_flashlight_status() if game_manager else {}
+                    disabled = disabled or int(round(status.get("battery_percent", 0.0))) <= 0
+                if action.has("requires_below_percent"):
+                    var status_below = game_manager.get_flashlight_status() if game_manager else {}
+                    var limit = int(action.get("requires_below_percent", 0))
+                    disabled = disabled or int(round(status_below.get("battery_percent", 0.0))) >= limit
+                button.disabled = disabled
+                button.pressed.connect(Callable(self, "_on_item_action_pressed").bind(item_id, action_key))
+                row.add_child(button)
+
         items_container.add_child(row)
 
 func _show_placeholder(text: String):
@@ -155,15 +174,52 @@ func _apply_theme_overrides():
         status_label.add_theme_color_override("font_color", Color.WHITE)
         status_label.text = ""
 
-func _supports_use_action(item_id: String) -> bool:
-    var key = item_id.to_lower()
-    return key == "medicinal_herbs" or key == "herbal_first_aid_kit"
+func _format_item_label(item_id: String, entry: Dictionary) -> String:
+    var label = entry.get("display_name", entry.get("item_id", "Item"))
+    if item_id == "flashlight" and game_manager:
+        var status = game_manager.get_flashlight_status()
+        if status.get("has_flashlight", false):
+            var percent = int(round(status.get("battery_percent", 0.0)))
+            var fragments: PackedStringArray = []
+            fragments.append("Battery %d%%" % percent)
+            if status.get("active", false):
+                fragments.append("Active")
+            label = "%s (%s)" % [label, " | ".join(fragments)]
+    return label
 
-func _on_use_item_pressed(item_id: String):
+func _get_item_actions(item_id: String) -> Array:
+    var key = item_id.to_lower()
+    match key:
+        "flashlight":
+            return [
+                {
+                    "label": "Use",
+                    "action": "use",
+                    "requires_charge": true
+                },
+                {
+                    "label": "Change Batteries",
+                    "action": "change_batteries",
+                    "requires_item": "batteries",
+                    "requires_below_percent": 100
+                }
+            ]
+        "medicinal_herbs":
+            return [{"label": "Use", "action": "use"}]
+        "herbal_first_aid_kit":
+            return [{"label": "Use", "action": "use"}]
+        "bandage":
+            return [{"label": "Use", "action": "use"}]
+        "medicated_bandage":
+            return [{"label": "Use", "action": "use"}]
+        _:
+            return []
+
+func _on_item_action_pressed(item_id: String, action: String):
     if game_manager == null:
         _set_status("Inventory offline")
         return
-    var result = game_manager.use_inventory_item(item_id)
+    var result = game_manager.perform_inventory_action(item_id, action)
     if !result.get("success", false):
         var reason = String(result.get("reason", "failed"))
         var label = inventory_system.get_item_display_name(item_id) if inventory_system else item_id.capitalize()
@@ -176,6 +232,14 @@ func _on_use_item_pressed(item_id: String):
                 _set_status("Systems unavailable")
             "unsupported_item":
                 _set_status("Can't use that")
+            "no_batteries":
+                _set_status("Need batteries")
+            "no_battery":
+                _set_status("Battery empty")
+            "missing_flashlight":
+                _set_status("Flashlight missing")
+            "battery_full":
+                _set_status("Battery already full")
             _:
                 _set_status("Use failed")
         _refresh_items()
@@ -186,6 +250,14 @@ func _on_use_item_pressed(item_id: String):
     var health_after = float(result.get("health_after", 0.0))
     if healed > 0.0:
         _set_status("Used %s (+%d health -> %d%%)" % [display_name, int(round(healed)), int(round(health_after))])
+    elif result.get("action", "") == "flashlight_toggle":
+        var active = result.get("flashlight_active", false)
+        var percent = int(round(result.get("flashlight_battery", 0.0)))
+        _set_status("Flashlight %s (%d%%)" % ["ready" if active else "stowed", percent])
+    elif result.get("action", "") == "flashlight_batteries":
+        var percent = int(round(result.get("flashlight_battery", 0.0)))
+        _set_status("Batteries swapped (%d%%)" % percent)
     else:
         _set_status("Used %s (already full)" % display_name)
     _refresh_items()
+

@@ -6,6 +6,7 @@
 * **Weather Cadence**: Hourly precipitation roll while clear (5% start chance). Successful rolls weight intensity heavy 15%, rain 35%, sprinkling 50% with default durations 5h/2h/1h.
 * **Zombie Pressure**: Spawn checks start on Day 6. Successful day rolls schedule one wave (hour 0-23) and apply `0.5 * zombies` tower damage every 360 minutes while active.
 * **Recon Window**: Available 6:00 AM–12:00 AM. Costs 60 minutes + 150 calories and snapshots six-hour weather/zombie forecasts using the live RNG seed.
+* **Thermal Pressure**: Warmth drifts hourly by daypart (6–10 AM -3/hr, 11 AM–5 PM +5/hr, 6–9 PM -3/hr, 10 PM–5 AM -10/hr); sleep blocks heat loss while allowing daytime gains so bedding keeps nights neutral and daylight rest restorative.
 
 ## Systems Reference
 
@@ -43,8 +44,8 @@
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
-  - `perform_forging()` – requires no active zombies, consumes 1 hour plus 12.5% energy, burns 500 calories, rolls `_roll_forging_loot()`, and awards inventory loot.
-  - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls, applies grub loss, and grants food per fish size.
+  - `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()`, and awards inventory loot including advanced electrical drops (Batteries 15%, Car Battery 7.5%, Flashlight 5%).
+  - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls (boosted to 45% during 6–9 AM or 5–8 PM prime time), applies grub loss, and grants food per fish size.
   - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1,000 calories, cancels the pending wave, and rolls injury chances (10% per diverted zombie for 5 HP, 25% per straggler for 10 HP). The result includes tower zombie counts, lure success/failure tallies, and total damage for the action popup.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
   - `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, flags HUD/task menu state updates, and has a 15% chance to inflict 10 HP self-injury with a dedicated popup.
@@ -84,6 +85,19 @@
 * **Signals**: `health_changed(new_health, previous)`, `damaged(amount, source, new_health)`, `healed(amount, source, new_health)`.
 * **Public API**: `get_health()`, `get_max_health()`, `get_health_ratio()`, `get_health_percent()`, `apply_damage(amount, source)`, `apply_heal(amount, source)`, `set_health(value)`, `is_alive()`.
 * **Usage**: Instantiated by `GameManager`, surfaced via `get_health_system()`, and consumed by HUD, lure/trap injuries, and healing items to keep the health bar synchronized.
+### WarmthSystem (`scripts/systems/WarmthSystem.gd`)
+* **Role**: track ambient warmth (0–100 range), apply hourly drift by daypart, and emit changes for HUD displays.
+* **Core constants**
+  - Bounds: `MIN_WARMTH = 0`, `MAX_WARMTH = 100`, `DEFAULT_WARMTH = 65` baseline comfort.
+  - Drift rates per hour: early morning 6–10 AM `-3`, daytime 11 AM–5 PM `+5`, evening 6–9 PM `-3`, overnight 10 PM–5 AM `-10`.
+  - Flashlight synergy placeholder: `FLASHLIGHT_WARMTH_BONUS = 0` reserved for future upgrades.
+* **Signals** – `warmth_changed(new_warmth, previous_warmth)` keeps HUD meters synchronized with environment ticks.
+* **Public API**
+  - Queries: `get_warmth()`, `get_warmth_percent()` (already clamped within bounds).
+  - Mutation: `set_warmth(value)` clamps and emits; `apply_warmth_delta(delta)` applies relative adjustments.
+  - Environment ticks: `apply_environment_minutes(minutes, start_minutes_since_daybreak, is_sleeping)` batches per-hour drift, blocks heat loss while the survivor sleeps in bedding, and returns delta metadata for logs.
+  - Forecast: `preview_hourly_rate(minute_of_day)` reveals upcoming hourly drift for planning.
+* **Integration**: `GameManager` advances warmth whenever actions spend minutes; the HUD displays warmth percent alongside health, rest, and calories so night expeditions and sleep cycles expose thermal strain immediately.
 ### Task Blueprint: Lead Away (`GameManager.perform_lead_away_undead`)
 * **Prerequisites**: Requires live `TimeSystem`, `SleepSystem`, `ZombieSystem`, and seeded RNG. Aborts with `systems_unavailable` when any link is absent.
 * **Availability Check**: Fails fast if `ZombieSystem.has_active_zombies()` returns false, flagging `no_zombies` and recording pre-action totals for UI context.
@@ -185,8 +199,8 @@
 | --- | --- | --- | --- | --- | --- |
 | Sleep (`schedule_sleep`) | Input hours (auto-truncated) | +10% energy per hour (clamped 0-100) | -100 cal/hour (burn) | Open time before daybreak | Advances clock, refreshes energy %, burns calories, triggers awake calorie catch-up. |
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
-| Forge (`perform_forging`) | 1h | -12.5% energy | +500 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals. |
-| Fish (`perform_fishing`) | 1h | -10% energy | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each -> Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
+| Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals; advanced tier now covers Batteries (15%), Car Battery (7.5%), Flashlight (5%). |
+| Fish (`perform_fishing`) | 1h | -10% energy | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each (45% during 6–9 AM or 5–8 PM); Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
 | Lure (`perform_lure_incoming_zombies`) | 4h patrol | None | +1000 cal burned | Recon-scouted wave ≤120 min away, 4h window free | Cancels pending spawn, rolls 10%/zombie for 5 HP scrapes on each success, 25%/zombie for 10 HP hits on each failure, and reports totals through an action popup. |
 | Lead Away (`perform_lead_away_undead`) | 1h | -15% energy | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
 | Place Trap (`perform_trap_deployment`) | 2h setup | -15% energy | +500 cal burned | Spike Trap ×1 crafted, daylight remaining | Arms trap to auto-kill the next zombie, 50% break chance, 15% chance to take 10 HP self-injury (popup alerts on hurt). |
@@ -204,7 +218,9 @@
 | Spike Trap | 1 | 1.0 | 12.5 | Wood ×6 | Defensive deployable; burns 250 calories. |
 | The Spear | 1 | 1.0 | 5.0 | Wood ×1 | Close-defense tool; burns 250 calories. |
 | String | 1 | 1.0 | 2.5 | Ripped Cloth ×1 | Intermediate crafting good; burns 250 calories. |
+| Bandage | 1 | 1.0 | 5.0 | Ripped Cloth ×1 | Restores 10% health on use; burns 250 calories. |
 | Herbal First Aid Kit | 1 | 1.0 | 12.5 | Mushrooms ×3, Ripped Cloth ×1, String ×1, Wood ×1, Medicinal Herbs ×2 | Heals 50 HP when used; burns 250 calories. |
+| Medicated Bandage | 1 | 1.0 | 7.5 | Bandage ×1, Medicinal Herbs ×1 | Restores 25 HP on use; burns 250 calories. |
 
 ## Foraging Loot Table (`_roll_forging_loot`)
 * Rolls execute independently per entry each trip; success adds the specified quantity.
@@ -223,7 +239,7 @@
 | Ripped Cloth | 15% | 1 | Basic | Crafting fiber. |
 | Rock | 30% | 1 | Basic | Tool material. |
 | Vines | 17.5% | 1 | Basic | Rope input. |
-| Wood | 20% | 1 | Basic | Repair & crafting staple. |
+| Wood | 40% | 1 | Basic | Repair & crafting staple. |
 | Plastic Sheet | 10% | 1 | Advanced | Shelter upgrade material. |
 | Metal Scrap | 10% | 1 | Advanced | Trap/armor material. |
 | Nails | 10% | 3 | Advanced | Reinforcement resource. |
@@ -232,6 +248,9 @@
 | Fuel | 10% | 3–5 | Advanced | Generator/heater fuel. |
 | Mechanical Parts | 10% | 1 | Advanced | Trap maintenance. |
 | Electrical Parts | 10% | 1 | Advanced | Powered projects. |
+| Batteries | 15% | 1 | Advanced | Recharge consumable electronics. |
+| Car Battery | 7.5% | 1 | Advanced | Heavy power core for large builds. |
+| Flashlight | 5% | 1 | Advanced | Hand torch with battery upkeep. |
 
 ## Inventory Catalog (`InventorySystem.bootstrap_defaults`)
 | Item ID | Display Name | Food Units | Stack Limit |
@@ -263,10 +282,24 @@
 | fuel | Fuel | 0.0 | 99 |
 | mechanical_parts | Mechanical Parts | 0.0 | 99 |
 | electrical_parts | Electrical Parts | 0.0 | 99 |
+| batteries | Batteries | 0.0 | 99 |
+| car_battery | Car Battery | 0.0 | 1 |
+| flashlight | Flashlight | 0.0 | 1 |
+| bandage | Bandage | 0.0 | 25 |
+| medicated_bandage | Medicated Bandage | 0.0 | 10 |
 
 ### Healing Items & Usage
 * Medicinal Herbs – use from the inventory panel to restore 10 HP (consumes one herb, no food value).
+* Bandage – restores 10% health when used; crafted from 1 Ripped Cloth and flagged as a healing item in the inventory action column.
+* Medicated Bandage – restores 25 HP when used; crafted from 1 Bandage plus 1 Medicinal Herb for a stronger emergency heal.
 * Herbal First Aid Kit – use from the inventory panel to restore 50 HP (consumes one kit).
+
+### Electrical Gear & Flashlight Upkeep
+* Flashlight – advanced forging find (5% chance) with a dedicated inventory row showing battery percent and active state.
+* Activation – selecting "Use" toggles the flashlight on; all action time while active drains `10%` battery per in-game hour (`FLASHLIGHT_BATTERY_DRAIN_PER_HOUR`).
+* Battery swaps – selecting "Change Batteries" consumes 1× Batteries stack (if available), resets charge to 100%, and toggles the flashlight off so the next use starts fresh.
+* Batteries – advanced forging consumable (15% chance) stored in stacks of 99 and required for flashlight maintenance; future electrical crafts can reuse this stockpile.
+* Car Battery – heavy advanced drop (7.5% chance) reserved for generator-scale upgrades; currently stored in inventory with a stack cap of 1 for future systems.
 
 ## Nutrition & Weight Summary
 * Awake baseline burn: 23 calories/hour via `SleepSystem.apply_awake_minutes` and `_spend_activity_time`.
@@ -307,7 +340,7 @@
 ## Interaction Objects & UI
 * **CraftingTable** – shows `Press [E] to craft` prompt, resolves `CraftingPanel` node, and opens panel on interaction. Leaves panel if player exits area.
 * **Radio** – similar prompt, resolves `GameManager` and `RadioPanel`, displays broadcast text or static fallback.
-* **HUD** – wires to all systems, exposes toggles like weight unit button (lbs/kg), displays player health (0-100%), tower health, food, wood, zombie counts, weather, clock, energy meter, a recon alert banner ("Rain/Zombies in X Hours" countdown), and shows a 🪤 trap indicator while a trap is armed; the label surfaces break chance and deployment time straight from `trap_state_changed` payloads and hides automatically when traps are offline.
+* **HUD** – wires to all systems, exposes toggles like weight unit button (lbs/kg), displays player health (0-100%), tower health, food, wood, zombie counts, weather, clock, energy meter, warmth meter, a recon alert banner ("Rain/Zombies in X Hours" countdown), and shows a 🪤 trap indicator while a trap is armed; the label surfaces break chance and deployment time straight from `trap_state_changed` payloads and hides automatically when traps are offline.
 * **ActionPopupPanel** – shared popup surface for lure summaries, trap mishaps, recon forecasts, and other contextual alerts. Rich text supports multi-line stat readouts and injury/healing messaging.
 * **TaskMenu** – central action hub:
   - Grid layout presents four columns (label, summary text, control column, action button) so rows align cleanly; summary fonts use 13pt to fit long descriptions while keeping everything left-aligned for quick scanning.

@@ -155,6 +155,31 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
     })
+    register_item_definition("batteries", {
+        KEY_DISPLAY_NAME: "Batteries",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("car_battery", {
+        KEY_DISPLAY_NAME: "Car Battery",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 1
+    })
+    register_item_definition("flashlight", {
+        KEY_DISPLAY_NAME: "Flashlight",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 1
+    })
+    register_item_definition("bandage", {
+        KEY_DISPLAY_NAME: "Bandage",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 25
+    })
+    register_item_definition("medicated_bandage", {
+        KEY_DISPLAY_NAME: "Medicated Bandage",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 10
+    })
 
 func register_item_definition(item_id: String, definition: Dictionary) -> Dictionary:
     if item_id.is_empty():

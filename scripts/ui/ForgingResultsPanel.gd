@@ -30,6 +30,11 @@ const ITEM_DETAILS := {
     "mushrooms": "Earthy caps restore 1.0 food unit.",
     "nails": "Loose nails arrive in packs for rapid construction.",
     "plastic_sheet": "Weathered tarp keeps rain off stored goods.",
+    "batteries": "Fresh cells recharge portable gear instantly.",
+    "car_battery": "Heavy-duty power core for large builds.",
+    "flashlight": "Hand torch ready once batteries hold charge.",
+    "bandage": "Sterile wrap heals 10% health when applied.",
+    "medicated_bandage": "Herbal wrap restores 25 health on use.",
     "ripped_cloth": "Torn fabric ideal for bandages or cords.",
     "rock": "Dense stone chunk for crafting weights or tools.",
     "rope": "Braided line handles hauling duties.",
@@ -131,7 +136,7 @@ func _populate_items(loot: Array):
         placeholder_label.hide()
     for entry in entries:
         var row = VBoxContainer.new()
-        row.theme_override_constants["separation"] = 2
+        row.add_theme_constant_override("separation", 2)
         var name_label = Label.new()
         name_label.text = "%s x%d" % [entry.get("display_name", entry.get("item_id", "Item")), int(entry.get("quantity", 0))]
         name_label.add_theme_color_override("font_color", Color.WHITE)
