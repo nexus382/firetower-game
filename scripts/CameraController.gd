@@ -7,12 +7,20 @@ class_name CameraController
 func _ready():
     print("📷 CameraController initialized")
 
-    # Set up fixed camera position for full screen view
-    position = Vector2(640, 360)  # Center of 1280x720 screen
-    zoom = Vector2(1, 1)  # No zoom for full view
+    _apply_camera_frame()
+    get_viewport().size_changed.connect(_on_viewport_resized)
 
     # Make sure camera is current
     make_current()
     enabled = true
 
     print("✅ Camera setup complete - fixed view of entire screen")
+
+func _apply_camera_frame():
+    # Re-center on the live viewport midpoint so 640-3840 widths stay framed.
+    var viewport_rect: Rect2 = get_viewport_rect()
+    position = viewport_rect.size * 0.5
+    zoom = Vector2.ONE  # Keep native scale for consistent pixel readout.
+
+func _on_viewport_resized():
+    _apply_camera_frame()
