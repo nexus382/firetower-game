@@ -198,6 +198,10 @@
 | Action | Base Hours | Energy Impact | Calorie Impact | Requirements | Outcome |
 | --- | --- | --- | --- | --- | --- |
 | Sleep (`schedule_sleep`) | Input hours (auto-truncated) | +10% energy per hour (clamped 0-100) | -100 cal/hour (burn) | Open time before daybreak | Advances clock, refreshes energy %, burns calories, triggers awake calorie catch-up. |
+
+### UI Reference
+* **Task Menu Sleep Planner**: Shows queued versus usable rest when dawn would trim the request, including the exact hours applied, energy restored, calories burned, and the dawn-cut duration preview.
+* **Crafting Panel Layout**: Recipe rows keep left-aligned buttons with padded margins and a dedicated cost column rendered as bullet rows (material stock, build time, rest tax, calorie burn) for quick scanning.
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
 | Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals; advanced tier now covers Batteries (15%), Car Battery (7.5%), Flashlight (5%). |
 | Fish (`perform_fishing`) | 1h | -10% energy | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each (45% during 6–9 AM or 5–8 PM); Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |

@@ -114,7 +114,7 @@ func _build_recipe_list():
         var recipe: Dictionary = _recipes.get(key, {})
         var recipe_id := String(key)
         var row = HBoxContainer.new()
-        row.add_theme_constant_override("separation", 16)
+        row.add_theme_constant_override("separation", 20)
         row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
         var button = Button.new()
@@ -122,26 +122,37 @@ func _build_recipe_list():
         button.focus_mode = Control.FOCUS_ALL
         button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         button.size_flags_stretch_ratio = 0.45
+        button.add_theme_constant_override("content_margin_left", 12)
+        button.add_theme_constant_override("content_margin_right", 8)
         button.pressed.connect(Callable(self, "_attempt_craft").bind(recipe_id))
         button.mouse_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
         button.focus_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
         row.add_child(button)
 
-        var cost_label = Label.new()
-        cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-        cost_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-        cost_label.text = _format_recipe_cost(recipe)
-        cost_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
-        cost_label.add_theme_constant_override("line_separation", 2)
-        cost_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-        cost_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-        cost_label.size_flags_stretch_ratio = 0.55
-        row.add_child(cost_label)
+        var cost_column = VBoxContainer.new()
+        cost_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        cost_column.size_flags_stretch_ratio = 0.55
+        cost_column.add_theme_constant_override("separation", 6)
+
+        var cost_header = Label.new()
+        cost_header.text = "Cost"
+        cost_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+        cost_header.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
+        cost_column.add_child(cost_header)
+
+        var cost_list = VBoxContainer.new()
+        cost_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        cost_list.add_theme_constant_override("separation", 2)
+        cost_column.add_child(cost_list)
+
+        _populate_cost_list(cost_list, recipe)
+
+        row.add_child(cost_column)
 
         recipe_list.add_child(row)
         _buttons[key] = {
             "button": button,
-            "cost_label": cost_label
+            "cost_container": cost_list
         }
         if _active_recipe == "":
             _active_recipe = key
@@ -267,11 +278,40 @@ func _update_recipe_states():
         var button: Button = entry.get("button")
         if button:
             button.disabled = !_has_materials_for_recipe(recipe)
-        var cost_label: Label = entry.get("cost_label")
-        if cost_label:
-            cost_label.text = _format_recipe_cost(recipe)
+        var cost_container: VBoxContainer = entry.get("cost_container")
+        if cost_container:
+            _populate_cost_list(cost_container, recipe)
 
-func _format_recipe_cost(recipe: Dictionary) -> String:
+func _populate_cost_list(container: VBoxContainer, recipe: Dictionary):
+    for child in container.get_children():
+        child.queue_free()
+
+    var entries = _collect_recipe_cost_entries(recipe)
+    if entries.is_empty():
+        entries.append("None")
+
+    for entry in entries:
+        var line_row = HBoxContainer.new()
+        line_row.add_theme_constant_override("separation", 8)
+        line_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+        var bullet = Label.new()
+        bullet.text = "•"
+        bullet.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+        bullet.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+        line_row.add_child(bullet)
+
+        var detail = Label.new()
+        detail.text = entry
+        detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+        detail.autowrap_mode = TextServer.AUTOWRAP_WORD
+        detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        detail.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+        line_row.add_child(detail)
+
+        container.add_child(line_row)
+
+func _collect_recipe_cost_entries(recipe: Dictionary) -> PackedStringArray:
     var entries: PackedStringArray = []
     var cost: Dictionary = recipe.get("cost", {})
     if !cost.is_empty():
@@ -293,14 +333,7 @@ func _format_recipe_cost(recipe: Dictionary) -> String:
         entries.append("-%d%% rest" % int(round(rest_cost)))
     entries.append("+%d cal burn" % int(round(GameManager.CRAFT_CALORIE_COST)))
 
-    var lines: PackedStringArray = []
-    lines.append("Cost")
-    if entries.is_empty():
-        lines.append("• None")
-    else:
-        for entry in entries:
-            lines.append("• %s" % entry)
-    return "\n".join(lines)
+    return entries
 
 func _format_duration(minutes: int) -> String:
     var hrs = minutes / 60

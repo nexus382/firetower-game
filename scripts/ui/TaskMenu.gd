@@ -542,13 +542,31 @@ func _build_sleep_description() -> String:
     multiplier = max(multiplier, 0.01)
     var minutes_remaining = _get_minutes_left_today()
     if selected_hours > 0:
-        var rest_gain = selected_hours * SLEEP_PERCENT_PER_HOUR
-        var calories = selected_hours * SleepSystem.CALORIES_PER_SLEEP_HOUR
-        var preview_minutes = int(ceil(selected_hours * 60.0 * multiplier))
-        lines.append("%d hr -> +%d%% / -%d cal" % [selected_hours, rest_gain, calories])
-        lines.append("Uses %s (x%.1f)" % [_format_duration(preview_minutes), multiplier])
-        if time_system and minutes_remaining > 0 and preview_minutes <= minutes_remaining:
-            lines.append("Ends at %s" % time_system.get_formatted_time_after(preview_minutes))
+        var planned_minutes = int(ceil(selected_hours * 60.0 * multiplier))
+        var minutes_available = max(minutes_remaining, 0)
+        var minutes_applied = min(planned_minutes, minutes_available)
+        lines.append("%d hr queued -> uses %s (x%.1f)" % [
+            selected_hours,
+            _format_duration(planned_minutes),
+            multiplier
+        ])
+        if minutes_applied > 0:
+            var applied_hours = float(minutes_applied) / (60.0 * multiplier)
+            var rest_gain = applied_hours * float(SLEEP_PERCENT_PER_HOUR)
+            var calories = applied_hours * SleepSystem.CALORIES_PER_SLEEP_HOUR
+            lines.append("Usable %s -> +%s%% / -%d cal" % [
+                _format_hours_value(applied_hours),
+                _format_percent_value(rest_gain),
+                int(round(calories))
+            ])
+            if minutes_applied < planned_minutes:
+                var trimmed = planned_minutes - minutes_applied
+                if trimmed > 0:
+                    lines.append("Dawn trims %s" % _format_duration(trimmed))
+            if time_system:
+                lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes_applied))
+        else:
+            lines.append("No time before dawn")
     else:
         if minutes_remaining > 0:
             var fractional_hours = minutes_remaining / (60.0 * multiplier)
