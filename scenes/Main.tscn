@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://clrcv081gblwd"]
+[gd_scene load_steps=13 format=3 uid="uid://clrcv081gblwd"]
 
 [ext_resource type="Script" path="res://scripts/GameManager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/Player.gd" id="2"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://scripts/ui/InventoryPanel.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/ui/ForgingResultsPanel.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/ui/ActionPopupPanel.gd" id="11"]
+[ext_resource type="Script" path="res://scripts/ui/WoodStovePanel.gd" id="12"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(32, 32)
@@ -821,6 +822,97 @@ autowrap_mode = 2
 alignment = 2
 
 [node name="CloseButton" type="Button" parent="UI/CraftingPanel/Panel/Margin/VBox/ButtonRow"]
+text = "Close"
+
+[node name="WoodStovePanel" type="Control" parent="UI"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -180.0
+offset_right = 220.0
+offset_bottom = 180.0
+visible = false
+script = ExtResource("12")
+
+[node name="Panel" type="Panel" parent="UI/WoodStovePanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Margin" type="MarginContainer" parent="UI/WoodStovePanel/Panel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="UI/WoodStovePanel/Panel/Margin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox"]
+text = "Wood Stove"
+horizontal_alignment = 1
+
+[node name="StateGrid" type="GridContainer" parent="UI/WoodStovePanel/Panel/Margin/VBox"]
+columns = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 6
+
+[node name="FireStateLabel" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "Fire State"
+
+[node name="FireStateValue" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "Out"
+
+[node name="WoodLabel" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "Wood Loaded"
+
+[node name="WoodValue" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "0"
+
+[node name="BurnLabel" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "Burn Time"
+
+[node name="BurnValue" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "0m"
+
+[node name="KindlingLabel" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "Kindling"
+
+[node name="KindlingValue" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/StateGrid"]
+text = "0 in pack"
+
+[node name="Controls" type="VBoxContainer" parent="UI/WoodStovePanel/Panel/Margin/VBox"]
+theme_override_constants/separation = 8
+
+[node name="AddRow" type="HBoxContainer" parent="UI/WoodStovePanel/Panel/Margin/VBox/Controls"]
+theme_override_constants/separation = 8
+
+[node name="AddWoodButton" type="Button" parent="UI/WoodStovePanel/Panel/Margin/VBox/Controls/AddRow"]
+text = "Add Wood"
+
+[node name="CapacityLabel" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/Controls/AddRow"]
+text = "Capacity: 0 free"
+
+[node name="ToolHeader" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox/Controls"]
+text = "Fire Starting Tools"
+
+[node name="ToolContainer" type="HBoxContainer" parent="UI/WoodStovePanel/Panel/Margin/VBox/Controls"]
+theme_override_constants/separation = 8
+
+[node name="StatusLabel" type="Label" parent="UI/WoodStovePanel/Panel/Margin/VBox"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+text = ""
+
+[node name="ButtonRow" type="HBoxContainer" parent="UI/WoodStovePanel/Panel/Margin/VBox"]
+alignment = 2
+
+[node name="CloseButton" type="Button" parent="UI/WoodStovePanel/Panel/Margin/VBox/ButtonRow"]
 text = "Close"
 
 [node name="InventoryPanel" type="Control" parent="UI"]
