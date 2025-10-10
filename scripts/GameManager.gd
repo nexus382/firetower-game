@@ -597,7 +597,7 @@ func light_wood_stove(tool_id: String) -> Dictionary:
 
     var roll = _rng.randf()
     var success = roll < chance
-    var reason = success ? "lit" : "failed_roll"
+    var reason = "lit" if success else "failed_roll"
     var kindling_returned = false
     var tool_use_spent = 0
 
