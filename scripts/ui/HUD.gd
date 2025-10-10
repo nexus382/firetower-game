@@ -10,6 +10,7 @@ const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd")
+const WarmthSystem = preload("res://scripts/systems/WarmthSystem.gd")
 
 const LBS_PER_KG: float = 2.2
 
@@ -19,6 +20,9 @@ const LBS_PER_KG: float = 2.2
 @onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
 @onready var health_bar: ProgressBar = $StatsBar/Metrics/HealthStat/HealthMeter/HealthBar
 @onready var health_value_label: Label = $StatsBar/Metrics/HealthStat/HealthMeter/HealthValue
+@onready var warmth_label: Label = $StatsBar/Metrics/WarmthStat/WarmthLabel
+@onready var warmth_bar: ProgressBar = $StatsBar/Metrics/WarmthStat/WarmthMeter/WarmthBar
+@onready var warmth_value_label: Label = $StatsBar/Metrics/WarmthStat/WarmthMeter/WarmthValue
 @onready var daily_cal_value_label: Label = $StatsBar/Metrics/DailyCalStat/DailyCalValue
 @onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
 @onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
@@ -43,6 +47,7 @@ var inventory_system: InventorySystem
 var tower_health_system: TowerHealthSystem
 var zombie_system: ZombieSystem
 var health_system: PlayerHealthSystem
+var warmth_system: WarmthSystem
 var _weight_unit: String = "lbs"
 var _latest_weight_lbs: float = 0.0
 var _latest_weight_category: String = "average"
@@ -54,6 +59,8 @@ func _ready():
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
     tired_value_label.add_theme_color_override("font_color", Color.WHITE)
     health_value_label.add_theme_color_override("font_color", Color.WHITE)
+    warmth_label.add_theme_color_override("font_color", Color.WHITE)
+    warmth_value_label.add_theme_color_override("font_color", Color.WHITE)
     day_label.add_theme_color_override("font_color", Color.WHITE)
     clock_label.add_theme_color_override("font_color", Color.WHITE)
     recon_alert_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
@@ -98,6 +105,16 @@ func _ready():
     if health_system:
         health_system.health_changed.connect(_on_health_changed)
         _on_health_changed(health_system.get_health(), health_system.get_health())
+
+    warmth_system = game_manager.get_warmth_system()
+    if warmth_system:
+        warmth_system.warmth_changed.connect(_on_warmth_changed)
+        _on_warmth_changed(warmth_system.get_warmth(), warmth_system.get_warmth())
+    else:
+        if is_instance_valid(warmth_bar):
+            warmth_bar.value = 0.0
+        if is_instance_valid(warmth_value_label):
+            warmth_value_label.text = "--"
 
     game_manager.day_changed.connect(_on_day_changed)
     game_manager.recon_alerts_changed.connect(_on_recon_alerts_changed)
@@ -151,6 +168,12 @@ func _on_health_changed(value: float, _previous: float):
         health_bar.value = value
     if is_instance_valid(health_value_label):
         health_value_label.text = "%d%%" % int(round(value))
+
+func _on_warmth_changed(value: float, _previous: float):
+    if is_instance_valid(warmth_bar):
+        warmth_bar.value = clamp(value, WarmthSystem.MIN_WARMTH, WarmthSystem.MAX_WARMTH)
+    if is_instance_valid(warmth_value_label):
+        warmth_value_label.text = "%d%%" % int(round(value))
 
 func _on_daily_calories_used_changed(value: float):
     daily_cal_value_label.text = "%d" % int(round(value))

@@ -12,6 +12,7 @@ const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const NewsBroadcastSystem = preload("res://scripts/systems/NewsBroadcastSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd")
+const WarmthSystem = preload("res://scripts/systems/WarmthSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
@@ -30,8 +31,10 @@ const FISHING_ROLL_SUCCESS_CHANCE: float = 0.30
 const FISHING_REST_COST_PERCENT: float = 10.0
 const FISHING_CALORIE_COST: float = 650.0
 const FISHING_GRUB_LOSS_CHANCE: float = 0.5
-const FORGING_REST_COST_PERCENT: float = 12.5
-const FORGING_CALORIE_COST: float = 500.0
+const FORGING_REST_COST_PERCENT: float = 10.0
+const FORGING_CALORIE_COST: float = 300.0
+const FLASHLIGHT_BATTERY_MAX: float = 100.0
+const FLASHLIGHT_BATTERY_DRAIN_PER_HOUR: float = 10.0
 const TRAP_DEPLOY_HOURS: float = 2.0
 const TRAP_CALORIE_COST: float = 500.0
 const TRAP_REST_COST_PERCENT: float = 15.0
@@ -129,6 +132,17 @@ const CRAFTING_RECIPES := {
         "rest_cost_percent": 2.5,
         "quantity": 1
     },
+    "bandage": {
+        "item_id": "bandage",
+        "display_name": "Bandage",
+        "description": "Clean wrap that restores 10% health.",
+        "cost": {
+            "ripped_cloth": 1
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 5.0,
+        "quantity": 1
+    },
     "herbal_first_aid_kit": {
         "item_id": "herbal_first_aid_kit",
         "display_name": "Herbal First Aid Kit",
@@ -142,6 +156,18 @@ const CRAFTING_RECIPES := {
         },
         "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 12.5,
+        "quantity": 1
+    },
+    "medicated_bandage": {
+        "item_id": "medicated_bandage",
+        "display_name": "Medicated Bandage",
+        "description": "Infused wrap that restores 25 health.",
+        "cost": {
+            "bandage": 1,
+            "medicinal_herbs": 1
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 7.5,
         "quantity": 1
     }
 }
@@ -188,6 +214,7 @@ var tower_health_system: TowerHealthSystem = TowerHealthSystem.new()
 var health_system: PlayerHealthSystem = PlayerHealthSystem.new()
 var news_system: NewsBroadcastSystem = NewsBroadcastSystem.new()
 var zombie_system: ZombieSystem = ZombieSystem.new()
+var warmth_system: WarmthSystem = WarmthSystem.new()
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _lure_target: Dictionary = {}
@@ -202,6 +229,8 @@ var _trap_state: Dictionary = {
     "deployed_at_time": ""
 }
 var _recon_alerts: Dictionary = {}
+var flashlight_battery_percent: float = 0.0
+var flashlight_active: bool = false
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -228,6 +257,8 @@ func _ready():
         news_system = NewsBroadcastSystem.new()
     if zombie_system == null:
         zombie_system = ZombieSystem.new()
+    if warmth_system == null:
+        warmth_system = WarmthSystem.new()
     if _rng == null:
         _rng = RandomNumberGenerator.new()
     _rng.randomize()
@@ -318,6 +349,29 @@ func get_weather_system() -> WeatherSystem:
 
 func get_tower_health_system() -> TowerHealthSystem:
     return tower_health_system
+
+func get_warmth_system() -> WarmthSystem:
+    return warmth_system
+
+func get_flashlight_status() -> Dictionary:
+    var has_flashlight = inventory_system != null and inventory_system.get_item_count("flashlight") > 0
+    if !has_flashlight:
+        flashlight_active = false
+        return {
+            "has_flashlight": false,
+            "battery_percent": 0.0,
+            "active": false,
+            "batteries_available": inventory_system.get_item_count("batteries") if inventory_system else 0
+        }
+    flashlight_battery_percent = clamp(flashlight_battery_percent, 0.0, FLASHLIGHT_BATTERY_MAX)
+    if flashlight_battery_percent <= 0.0:
+        flashlight_active = false
+    return {
+        "has_flashlight": true,
+        "battery_percent": flashlight_battery_percent,
+        "active": flashlight_active,
+        "batteries_available": inventory_system.get_item_count("batteries") if inventory_system else 0
+    }
 
 func get_news_system() -> NewsBroadcastSystem:
     return news_system
@@ -656,6 +710,8 @@ func schedule_sleep(hours: float) -> Dictionary:
 
     var time_report = time_system.advance_minutes(requested_minutes)
     var sleep_report = sleep_system.apply_sleep(hours)
+    if warmth_system:
+        warmth_system.apply_environment_minutes(requested_minutes, current_minutes, true)
 
     _last_awake_minute_stamp = time_system.get_minutes_since_daybreak()
 
@@ -717,6 +773,12 @@ func perform_fishing() -> Dictionary:
     var catches: Array = []
     var total_food: float = 0.0
     var success_chance = FISHING_ROLL_SUCCESS_CHANCE
+    var prime_time_bonus: float = 0.0
+    if time_system:
+        var minute_of_day = time_system.get_minutes_since_midnight()
+        if _is_fishing_prime_time(minute_of_day):
+            prime_time_bonus = 0.15
+            success_chance = min(success_chance + prime_time_bonus, 1.0)
     for i in range(FISHING_ROLLS_PER_HOUR):
         var roll = _rng.randf()
         if roll < success_chance:
@@ -758,6 +820,7 @@ func perform_fishing() -> Dictionary:
     result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
     result["rolls"] = FISHING_ROLLS_PER_HOUR
     result["roll_chance"] = success_chance
+    result["prime_time_bonus"] = prime_time_bonus
     result["successful_rolls"] = catches.size()
     result["grub_loss_chance"] = FISHING_GRUB_LOSS_CHANCE
     result["catches"] = catches
@@ -834,12 +897,18 @@ func perform_forging() -> Dictionary:
         report["chance"] = item.get("chance", 0.0)
         report["tier"] = item.get("tier", "basic")
         report["quantity_rolled"] = item.get("quantity", report.get("quantity_added", 1))
+        if String(item.get("item_id", "")) == "flashlight":
+            var previous_quantity = int(report.get("new_quantity", 0)) - int(report.get("quantity_added", 0))
+            if previous_quantity <= 0:
+                flashlight_battery_percent = FLASHLIGHT_BATTERY_MAX
+                flashlight_active = false
         loot_reports.append(report)
 
     result["success"] = true
     result["loot"] = loot_reports
     result["items_found"] = loot_reports.size()
     result["total_food_units"] = inventory_system.get_total_food_units()
+    result["flashlight_status"] = get_flashlight_status()
     print("🌲 Forging success: %s" % result)
     return result
 
@@ -1254,25 +1323,53 @@ func craft_item(recipe_id: String) -> Dictionary:
     print("🛠️ Crafted %s -> +%d (%s)" % [result.get("display_name", key.capitalize()), result.get("quantity_added", quantity), ", ".join(material_summary)])
     return result
 
-func use_inventory_item(item_id: String) -> Dictionary:
+func perform_inventory_action(item_id: String, action: String = "use") -> Dictionary:
     var key = item_id.to_lower()
-    if inventory_system == null or health_system == null:
+    var normalized_action = action.to_lower()
+    if inventory_system == null:
         return {
             "success": false,
             "reason": "systems_unavailable",
-            "item_id": key
+            "item_id": key,
+            "action": normalized_action
         }
-
+    if key == "flashlight":
+        return _handle_flashlight_action(normalized_action)
+    if normalized_action != "use":
+        return {
+            "success": false,
+            "reason": "unsupported_item",
+            "item_id": key,
+            "action": normalized_action
+        }
+    if health_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "item_id": key,
+            "action": normalized_action
+        }
     if key == "medicinal_herbs":
         return _consume_health_item(key, 1, 10.0, "medicinal_herb_use")
     if key == "herbal_first_aid_kit":
         return _consume_health_item(key, 1, 50.0, "herbal_first_aid")
-
+    if key == "bandage":
+        return _consume_health_item(key, 1, 10.0, "bandage_use")
+    if key == "medicated_bandage":
+        return _consume_health_item(key, 1, 25.0, "medicated_bandage_use")
     return {
         "success": false,
         "reason": "unsupported_item",
-        "item_id": key
+        "item_id": key,
+        "action": normalized_action
     }
+
+func use_inventory_item(item_id: String) -> Dictionary:
+    return perform_inventory_action(item_id, "use")
+
+func _is_fishing_prime_time(minute_of_day: int) -> bool:
+    var normalized = (minute_of_day % TimeSystem.MINUTES_PER_DAY + TimeSystem.MINUTES_PER_DAY) % TimeSystem.MINUTES_PER_DAY
+    return (normalized >= 6 * 60 and normalized < 9 * 60) or (normalized >= 17 * 60 and normalized < 20 * 60)
 
 func _pick_fishing_size(roll: float) -> Dictionary:
     roll = clamp(roll, 0.0, 1.0)
@@ -1358,7 +1455,7 @@ func _roll_forging_loot() -> Array:
         },
         {
             "item_id": "wood",
-            "chance": 0.20,
+            "chance": 0.40,
             "quantity": 1,
             "tier": "basic"
         },
@@ -1407,6 +1504,24 @@ func _roll_forging_loot() -> Array:
         {
             "item_id": "electrical_parts",
             "chance": 0.10,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "batteries",
+            "chance": 0.15,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "car_battery",
+            "chance": 0.075,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "flashlight",
+            "chance": 0.05,
             "quantity": 1,
             "tier": "advanced"
         }
@@ -1538,6 +1653,8 @@ func _apply_awake_time_up_to(current_minutes: int):
         delta += TimeSystem.MINUTES_PER_DAY
     if delta > 0:
         sleep_system.apply_awake_minutes(delta)
+        if warmth_system:
+            warmth_system.apply_environment_minutes(delta, _last_awake_minute_stamp, false)
     _last_awake_minute_stamp = current_minutes
 
 func _resolve_meal_portion(portion_key: String) -> Dictionary:
@@ -1799,6 +1916,146 @@ func _advance_recon_alerts(minutes: int):
 func _emit_recon_alerts_changed():
     recon_alerts_changed.emit(_recon_alerts.duplicate(true))
 
+func _handle_flashlight_action(action: String) -> Dictionary:
+    var normalized = action.to_lower()
+    if inventory_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "item_id": "flashlight",
+            "action": normalized
+        }
+    var has_flashlight = inventory_system.get_item_count("flashlight") > 0
+    if !has_flashlight:
+        flashlight_active = false
+        flashlight_battery_percent = clamp(flashlight_battery_percent, 0.0, FLASHLIGHT_BATTERY_MAX)
+        return {
+            "success": false,
+            "reason": "missing_flashlight",
+            "item_id": "flashlight",
+            "action": normalized
+        }
+    match normalized:
+        "use":
+            return _toggle_flashlight_active()
+        "change_batteries":
+            return _change_flashlight_batteries()
+        _:
+            return {
+                "success": false,
+                "reason": "unsupported_item",
+                "item_id": "flashlight",
+                "action": normalized
+            }
+
+func _toggle_flashlight_active() -> Dictionary:
+    flashlight_battery_percent = clamp(flashlight_battery_percent, 0.0, FLASHLIGHT_BATTERY_MAX)
+    if flashlight_battery_percent <= 0.0:
+        flashlight_active = false
+        return {
+            "success": false,
+            "reason": "no_battery",
+            "item_id": "flashlight",
+            "action": "use",
+            "flashlight_active": flashlight_active,
+            "flashlight_battery": flashlight_battery_percent,
+            "display_name": inventory_system.get_item_display_name("flashlight")
+        }
+    flashlight_active = !flashlight_active
+    return {
+        "success": true,
+        "item_id": "flashlight",
+        "action": "flashlight_toggle",
+        "flashlight_active": flashlight_active,
+        "flashlight_battery": flashlight_battery_percent,
+        "display_name": inventory_system.get_item_display_name("flashlight")
+    }
+
+func _change_flashlight_batteries() -> Dictionary:
+    if inventory_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "item_id": "flashlight",
+            "action": "change_batteries"
+        }
+    var stock = inventory_system.get_item_count("batteries")
+    if stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_batteries",
+            "item_id": "flashlight",
+            "action": "change_batteries"
+        }
+    if flashlight_battery_percent >= FLASHLIGHT_BATTERY_MAX - 0.01:
+        return {
+            "success": false,
+            "reason": "battery_full",
+            "item_id": "flashlight",
+            "action": "change_batteries"
+        }
+    var consume_report = inventory_system.consume_item("batteries", 1)
+    if !consume_report.get("success", false):
+        var failure = consume_report.duplicate(true)
+        failure["success"] = false
+        failure["item_id"] = "flashlight"
+        failure["action"] = "change_batteries"
+        failure["reason"] = failure.get("reason", "consume_failed")
+        return failure
+    flashlight_battery_percent = FLASHLIGHT_BATTERY_MAX
+    flashlight_active = false
+    return {
+        "success": true,
+        "item_id": "flashlight",
+        "action": "flashlight_batteries",
+        "flashlight_battery": flashlight_battery_percent,
+        "flashlight_active": flashlight_active,
+        "display_name": inventory_system.get_item_display_name("flashlight"),
+        "batteries_remaining": consume_report.get("quantity_remaining", inventory_system.get_item_count("batteries"))
+    }
+
+func _consume_flashlight_battery(minutes_spent: int) -> Dictionary:
+    minutes_spent = max(minutes_spent, 0)
+    if minutes_spent <= 0 or !flashlight_active:
+        return {}
+    if inventory_system == null:
+        flashlight_active = false
+        return {
+            "active": false,
+            "reason": "systems_unavailable",
+            "item_id": "flashlight"
+        }
+    var has_flashlight = inventory_system.get_item_count("flashlight") > 0
+    if !has_flashlight:
+        flashlight_active = false
+        flashlight_battery_percent = 0.0
+        return {
+            "active": false,
+            "reason": "missing_flashlight",
+            "item_id": "flashlight",
+            "battery_percent": flashlight_battery_percent
+        }
+    var hours = float(minutes_spent) / 60.0
+    var drain = hours * FLASHLIGHT_BATTERY_DRAIN_PER_HOUR
+    if drain <= 0.0:
+        return {}
+    flashlight_battery_percent = clamp(flashlight_battery_percent, 0.0, FLASHLIGHT_BATTERY_MAX)
+    var previous = flashlight_battery_percent
+    flashlight_battery_percent = clamp(previous - drain, 0.0, FLASHLIGHT_BATTERY_MAX)
+    var report := {
+        "item_id": "flashlight",
+        "active": flashlight_active,
+        "battery_spent": min(drain, previous),
+        "battery_percent": flashlight_battery_percent
+    }
+    if flashlight_battery_percent <= 0.0:
+        flashlight_battery_percent = 0.0
+        flashlight_active = false
+        report["active"] = false
+        report["deactivated"] = true
+        report["reason"] = "battery_depleted"
+    return report
+
 func _consume_health_item(item_id: String, quantity: int, heal_amount: float, source: String) -> Dictionary:
     quantity = max(quantity, 1)
     heal_amount = max(heal_amount, 0.0)
@@ -1874,13 +2131,20 @@ func _spend_activity_time(hours: float, activity: String) -> Dictionary:
     var current_minutes = time_system.get_minutes_since_daybreak()
     _apply_awake_time_up_to(current_minutes)
 
+    var start_minutes = current_minutes
     var advance_report = time_system.advance_minutes(requested_minutes)
     if sleep_system:
         sleep_system.apply_awake_minutes(requested_minutes)
+    if warmth_system:
+        warmth_system.apply_environment_minutes(requested_minutes, start_minutes, false)
 
     _last_awake_minute_stamp = time_system.get_minutes_since_daybreak()
 
-    return {
+    var flashlight_report: Dictionary = {}
+    if requested_minutes > 0:
+        flashlight_report = _consume_flashlight_battery(requested_minutes)
+
+    var result := {
         "success": true,
         "activity": activity,
         "minutes_spent": requested_minutes,
@@ -1893,6 +2157,9 @@ func _spend_activity_time(hours: float, activity: String) -> Dictionary:
         "minutes_required": requested_minutes,
         "status": "applied"
     }
+    if !flashlight_report.is_empty():
+        result["flashlight_status"] = flashlight_report
+    return result
 
 func _preview_activity_time(hours: float) -> Dictionary:
     var result := {
