@@ -131,6 +131,7 @@ func _build_recipe_list():
         cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
         cost_label.text = _format_recipe_cost(recipe)
         cost_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+        cost_label.autowrap_mode = TextServer.AUTOWRAP_WORD
         cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
         cost_label.size_flags_horizontal = Control.SIZE_FILL
         row.add_child(cost_label)

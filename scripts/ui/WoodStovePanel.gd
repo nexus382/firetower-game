@@ -5,6 +5,7 @@ extends Control
 class_name WoodStovePanel
 
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
+const TimeSystem = preload("res://scripts/systems/TimeSystem.gd")
 const PANEL_GROUP := "wood_stove_panel"
 const KINDLING_ID := "kindling"
 const FIRE_STARTING_BOW_ID := "fire_starting_bow"
