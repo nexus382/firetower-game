@@ -114,13 +114,14 @@ func _build_recipe_list():
         var recipe: Dictionary = _recipes.get(key, {})
         var recipe_id := String(key)
         var row = HBoxContainer.new()
-        row.add_theme_constant_override("separation", 12)
+        row.add_theme_constant_override("separation", 16)
         row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
         var button = Button.new()
         button.text = recipe.get("display_name", key.capitalize())
         button.focus_mode = Control.FOCUS_ALL
         button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        button.size_flags_stretch_ratio = 0.45
         button.pressed.connect(Callable(self, "_attempt_craft").bind(recipe_id))
         button.mouse_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
         button.focus_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
@@ -128,12 +129,13 @@ func _build_recipe_list():
 
         var cost_label = Label.new()
         cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-        cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        cost_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
         cost_label.text = _format_recipe_cost(recipe)
         cost_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+        cost_label.add_theme_constant_override("line_separation", 2)
         cost_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-        cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-        cost_label.size_flags_horizontal = Control.SIZE_FILL
+        cost_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        cost_label.size_flags_stretch_ratio = 0.55
         row.add_child(cost_label)
 
         recipe_list.add_child(row)
@@ -270,7 +272,7 @@ func _update_recipe_states():
             cost_label.text = _format_recipe_cost(recipe)
 
 func _format_recipe_cost(recipe: Dictionary) -> String:
-    var parts: PackedStringArray = []
+    var entries: PackedStringArray = []
     var cost: Dictionary = recipe.get("cost", {})
     if !cost.is_empty():
         var keys = cost.keys()
@@ -279,17 +281,26 @@ func _format_recipe_cost(recipe: Dictionary) -> String:
             var amount = int(cost.get(key, 0))
             if amount <= 0:
                 continue
-            parts.append("%s %d" % [_resolve_material_label(String(key)), amount])
+            var label = _resolve_material_label(String(key))
+            var stock = inventory_system.get_item_count(key) if inventory_system else 0
+            entries.append("%s x%d (Have %d)" % [label, amount, max(stock, 0)])
     var hours = float(recipe.get("hours", 1.0))
     if hours > 0.0:
-        parts.append("%s" % _format_duration(int(ceil(hours * 60.0 * max(_resolve_multiplier(), 0.01)))))
+        var minutes = int(ceil(hours * 60.0 * max(_resolve_multiplier(), 0.01)))
+        entries.append("%s build" % _format_duration(minutes))
     var rest_cost = float(recipe.get("rest_cost_percent", 0.0))
     if rest_cost > 0.0:
-        parts.append("%d%% rest" % int(round(rest_cost)))
-    parts.append("%d cal" % int(round(GameManager.CRAFT_CALORIE_COST)))
-    if parts.is_empty():
-        return "No cost"
-    return "Cost: " + " | ".join(parts)
+        entries.append("-%d%% rest" % int(round(rest_cost)))
+    entries.append("+%d cal burn" % int(round(GameManager.CRAFT_CALORIE_COST)))
+
+    var lines: PackedStringArray = []
+    lines.append("Cost")
+    if entries.is_empty():
+        lines.append("• None")
+    else:
+        for entry in entries:
+            lines.append("• %s" % entry)
+    return "\n".join(lines)
 
 func _format_duration(minutes: int) -> String:
     var hrs = minutes / 60
