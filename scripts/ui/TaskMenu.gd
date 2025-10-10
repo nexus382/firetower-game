@@ -94,6 +94,8 @@ var _trap_state: Dictionary = {}
 # Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var hours_value_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/HourSelector/HoursValue
+@onready var decrease_sleep_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/HourSelector/DecreaseButton
+@onready var increase_sleep_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/HourSelector/IncreaseButton
 @onready var sleep_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepHeader/SleepSummary
 @onready var info_title_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/DescriptionTitle
 @onready var info_body_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/SummaryLabel
@@ -182,6 +184,10 @@ func _ready():
 
     if go_button:
         go_button.pressed.connect(_on_go_button_pressed)
+    if decrease_sleep_button:
+        decrease_sleep_button.pressed.connect(_on_decrease_button_pressed)
+    if increase_sleep_button:
+        increase_sleep_button.pressed.connect(_on_increase_button_pressed)
 
     _register_action_selector(sleep_select_button, "sleep")
     _register_action_selector(forging_select_button, "forging")
@@ -270,16 +276,10 @@ func _handle_menu_input(event):
 func _refresh_display():
     # Recalculate limits and UI summaries whenever time, inventory, or selection changes.
     _cached_minutes_remaining = _get_minutes_left_today()
-    var multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
-    multiplier = max(multiplier, 0.01)
-    var max_hours_today = min(max_sleep_hours, int(floor(_cached_minutes_remaining / (60.0 * multiplier))))
-    if selected_hours > max_hours_today:
-        selected_hours = max(max_hours_today, 0)
-    hours_value_label.text = str(selected_hours)
-    var minutes_remaining = _get_minutes_left_today()
-    max_hours_today = min(max_sleep_hours, int(floor(minutes_remaining / (60.0 * multiplier))))
-    if selected_hours > max_hours_today:
-        selected_hours = max(max_hours_today, 0)
+    var hours_available = _get_sleep_hours_available()
+    if selected_hours > hours_available:
+        selected_hours = max(hours_available, 0)
+    if is_instance_valid(hours_value_label):
         hours_value_label.text = str(selected_hours)
 
     _update_sleep_summary()
@@ -292,6 +292,12 @@ func _refresh_display():
     _update_description_body()
     _update_info_status()
     _update_info_stats()
+
+func _get_sleep_hours_available() -> int:
+    var multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes_remaining = _get_minutes_left_today()
+    return min(max_sleep_hours, int(floor(minutes_remaining / (60.0 * multiplier))))
 
 func _setup_description_targets():
     var paths := {
@@ -709,13 +715,21 @@ func _build_reinforce_description() -> String:
     return "\n".join(lines)
 
 func _on_decrease_button_pressed():
+    _select_action("sleep")
+    if sleep_select_button:
+        sleep_select_button.button_pressed = true
     selected_hours = max(selected_hours - 1, 0)
     _refresh_display()
 
 func _on_increase_button_pressed():
-    var multiplier = game_manager.get_time_multiplier() if game_manager else 1.0
-    multiplier = max(multiplier, 0.01)
-    var hours_available = min(max_sleep_hours, int(floor(_get_minutes_left_today() / (60.0 * multiplier))))
+    _select_action("sleep")
+    if sleep_select_button:
+        sleep_select_button.button_pressed = true
+    var hours_available = _get_sleep_hours_available()
+    if hours_available <= 0:
+        print("⚠️ No rest time left before daybreak")
+        _refresh_display()
+        return
     if selected_hours >= hours_available:
         print("⚠️ Cannot schedule beyond remaining daily time")
         return

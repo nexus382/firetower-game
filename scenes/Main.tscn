@@ -1146,7 +1146,5 @@ text = "Close"
 [node name="CloseButton" type="Button" parent="UI/RadioPanel/Panel/VBox"]
 text = "Close"
 
-[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
-[connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="item_selected" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
 [connection signal="pressed" from="UI/HUD/HudBounds/HudLayout/VitalsPanel/VitalsMargin/VitalsVBox/WeightBlock/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]
