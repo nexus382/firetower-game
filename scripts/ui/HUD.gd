@@ -32,6 +32,8 @@ const LBS_PER_KG: float = 2.2
 @onready var day_label: Label = %DayLabel
 @onready var clock_label: Label = %ClockLabel
 @onready var recon_alert_label: Label = %ReconAlertLabel
+@onready var vitals_header_label: Label = %VitalsHeader
+@onready var recon_header_label: Label = %ReconHeader
 @onready var food_counter_label: Label = %FoodCounter
 @onready var wood_counter_label: Label = %WoodCounter
 @onready var zombie_counter_label: Label = %ZombieCounter
@@ -69,6 +71,10 @@ func _ready():
     weight_status_label.add_theme_color_override("font_color", Color.WHITE)
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
     weather_label.add_theme_color_override("font_color", Color.WHITE)
+    if is_instance_valid(vitals_header_label):
+        vitals_header_label.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+    if is_instance_valid(recon_header_label):
+        recon_header_label.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
     food_counter_label.add_theme_color_override("font_color", Color.WHITE)
     wood_counter_label.add_theme_color_override("font_color", Color.WHITE)
     zombie_counter_label.add_theme_color_override("font_color", Color.WHITE)
@@ -348,7 +354,8 @@ func _update_weight_header_label():
     var display_weight = _convert_weight_for_display(_latest_weight_lbs)
     var unit_suffix = _weight_unit.to_upper()
     var category_text = _format_weight_category_title(_latest_weight_category)
-    weight_header_label.text = "%.1f %s [%s]" % [display_weight, unit_suffix, category_text]
+    var range_text = _format_weight_range(_latest_weight_category)
+    weight_header_label.text = "%.1f %s | %s | %s" % [display_weight, unit_suffix, category_text, range_text]
 
 func _update_weather_label():
     if !is_instance_valid(weather_label):

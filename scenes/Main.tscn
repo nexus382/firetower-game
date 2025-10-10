@@ -92,274 +92,292 @@ color = Color(0, 0, 1, 1)
 [node name="HUD" type="Control" parent="UI"]
 anchor_right = 1.0
 anchor_bottom = 1.0
+mouse_filter = 2
 script = ExtResource("5")
 
-[node name="DayTimePanel" type="PanelContainer" parent="UI/HUD"]
-anchor_left = 0.5
-anchor_top = 0.0
-anchor_right = 0.5
-anchor_bottom = 0.0
-offset_left = -180.0
-offset_top = 24.0
-offset_right = 180.0
-offset_bottom = 136.0
-theme_override_styles/panel = SubResource("4")
-
-[node name="DayTimeMargin" type="MarginContainer" parent="UI/HUD/DayTimePanel"]
+[node name="HudBounds" type="MarginContainer" parent="UI/HUD"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 20
-
-[node name="DayTimeHeader" type="VBoxContainer" parent="UI/HUD/DayTimePanel/DayTimeMargin"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-theme_override_constants/separation = 6
-
-[node name="DayLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
-unique_name_in_owner = true
-theme_override_font_sizes/font_size = 20
-horizontal_alignment = 1
-text = "Day 1"
-
-[node name="ClockLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
-unique_name_in_owner = true
-theme_override_font_sizes/font_size = 18
-horizontal_alignment = 1
-text = "6:00 AM"
-
-[node name="WeatherLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
-unique_name_in_owner = true
-horizontal_alignment = 1
-text = "Clear Skies (x1.00)"
-
-[node name="ReconAlertLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
-unique_name_in_owner = true
-visible = false
-horizontal_alignment = 1
-text = ""
-
-[node name="StatsPanel" type="PanelContainer" parent="UI/HUD"]
-anchor_left = 0.0
-anchor_top = 0.0
-anchor_right = 0.0
-anchor_bottom = 0.0
-offset_left = 32.0
-offset_top = 24.0
-offset_right = 360.0
-offset_bottom = 408.0
-theme_override_styles/panel = SubResource("4")
-
-[node name="StatsMargin" type="MarginContainer" parent="UI/HUD/StatsPanel"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-theme_override_constants/margin_left = 20
+theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 20
+theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 24
 
-[node name="Metrics" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin"]
+[node name="HudLayout" type="VBoxContainer" parent="UI/HUD/HudBounds"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="TopRow" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+[node name="VitalsPanel" type="PanelContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow"]
+size_flags_horizontal = 3
+size_flags_vertical = 2
+theme_override_styles/panel = SubResource("4")
+
+[node name="VitalsMargin" type="MarginContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="VitalsVBox" type="VBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 18
 
-[node name="TiredStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
-theme_override_constants/separation = 6
-
-[node name="TiredLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat"]
+[node name="VitalsHeader" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox"]
 unique_name_in_owner = true
-text = "Energy"
+theme_override_font_sizes/font_size = 18
+text = "Survivor Status"
 
-[node name="TiredMeter" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat"]
-alignment = 0
+[node name="RestRow" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox"]
 custom_constants/separation = 12
 
-[node name="TiredBar" type="ProgressBar" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat/TiredMeter"]
+[node name="TiredLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/RestRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+text = "Rest"
+
+[node name="RestMeter" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/RestRow"]
+size_flags_horizontal = 3
+custom_constants/separation = 12
+
+[node name="TiredBar" type="ProgressBar" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/RestRow/RestMeter"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
 min_value = 0.0
 max_value = 100.0
 value = 75.0
-size_flags_horizontal = 3
 show_percentage = false
 
-[node name="TiredValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat/TiredMeter"]
+[node name="TiredValue" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/RestRow/RestMeter"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(64, 0)
+custom_minimum_size = Vector2(56, 0)
 horizontal_alignment = 2
 text = "75%"
 
-[node name="HealthStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
-theme_override_constants/separation = 6
-
-[node name="HealthLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat"]
-unique_name_in_owner = true
-text = "Health"
-
-[node name="HealthMeter" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat"]
-alignment = 0
+[node name="HealthRow" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox"]
 custom_constants/separation = 12
 
-[node name="HealthBar" type="ProgressBar" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat/HealthMeter"]
+[node name="HealthLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/HealthRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+text = "Health"
+
+[node name="HealthMeter" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/HealthRow"]
+size_flags_horizontal = 3
+custom_constants/separation = 12
+
+[node name="HealthBar" type="ProgressBar" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/HealthRow/HealthMeter"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
 min_value = 0.0
 max_value = 100.0
 value = 100.0
-size_flags_horizontal = 3
 show_percentage = false
 
-[node name="HealthValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat/HealthMeter"]
+[node name="HealthValue" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/HealthRow/HealthMeter"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(64, 0)
+custom_minimum_size = Vector2(56, 0)
 horizontal_alignment = 2
 text = "100%"
 
-[node name="WarmthStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
-theme_override_constants/separation = 6
-
-[node name="WarmthLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat"]
-unique_name_in_owner = true
-text = "Warmth"
-
-[node name="WarmthMeter" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat"]
-alignment = 0
+[node name="WarmthRow" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox"]
 custom_constants/separation = 12
 
-[node name="WarmthBar" type="ProgressBar" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat/WarmthMeter"]
+[node name="WarmthLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WarmthRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+text = "Warmth"
+
+[node name="WarmthMeter" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WarmthRow"]
+size_flags_horizontal = 3
+custom_constants/separation = 12
+
+[node name="WarmthBar" type="ProgressBar" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WarmthRow/WarmthMeter"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
 min_value = 0.0
 max_value = 100.0
 value = 65.0
-size_flags_horizontal = 3
 show_percentage = false
 
-[node name="WarmthValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat/WarmthMeter"]
+[node name="WarmthValue" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WarmthRow/WarmthMeter"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(64, 0)
+custom_minimum_size = Vector2(56, 0)
 horizontal_alignment = 2
 text = "65%"
 
-[node name="DailyCalStat" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
-alignment = 0
+[node name="DailyCalRow" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox"]
 custom_constants/separation = 12
 
-[node name="DailyCalLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/DailyCalStat"]
-text = "Daily Cal Used"
+[node name="DailyCalLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/DailyCalRow"]
+text = "Calories Today"
 
-[node name="DailyCalValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/DailyCalStat"]
+[node name="DailyCalValue" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/DailyCalRow"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 horizontal_alignment = 2
-vertical_alignment = 1
 text = "0"
 
-[node name="WeightStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
+[node name="WeightBlock" type="VBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox"]
 theme_override_constants/separation = 6
 
-[node name="WeightLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat"]
+[node name="WeightLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WeightBlock"]
 text = "Weight"
 
-[node name="WeightRow" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat"]
-alignment = 0
+[node name="WeightRow" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WeightBlock"]
 custom_constants/separation = 12
 
-[node name="WeightValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat/WeightRow"]
+[node name="WeightValue" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WeightBlock/WeightRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 0)
+custom_minimum_size = Vector2(80, 0)
 horizontal_alignment = 2
 text = "175.0"
 
-[node name="WeightUnitButton" type="Button" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat/WeightRow"]
+[node name="WeightUnitButton" type="Button" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WeightBlock/WeightRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 0)
-size_flags_horizontal = 0
+custom_minimum_size = Vector2(64, 32)
 text = "LBS"
 
-[node name="WeightStatus" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat"]
+[node name="WeightStatus" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WeightBlock"]
 unique_name_in_owner = true
-size_flags_horizontal = 3
 horizontal_alignment = 2
 text = "Average (x1.0)"
 
-[node name="ResourcePanel" type="PanelContainer" parent="UI/HUD"]
-anchor_left = 1.0
-anchor_top = 0.0
-anchor_right = 1.0
-anchor_bottom = 0.0
-offset_left = -320.0
-offset_top = 24.0
-offset_right = -32.0
-offset_bottom = 256.0
+[node name="ResourcesPanel" type="PanelContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow"]
+size_flags_horizontal = 2
 theme_override_styles/panel = SubResource("4")
 
-[node name="ResourceMargin" type="MarginContainer" parent="UI/HUD/ResourcePanel"]
+[node name="ResourcesMargin" type="MarginContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 20
+theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 20
+theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 24
 
-[node name="ResourceStack" type="VBoxContainer" parent="UI/HUD/ResourcePanel/ResourceMargin"]
+[node name="ResourcesVBox" type="VBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
 
-[node name="WeightHeader" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack"]
+[node name="WeightHeader" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox"]
 unique_name_in_owner = true
 horizontal_alignment = 2
-vertical_alignment = 1
-text = "175.0 LBS [Healthy]"
+text = "175.0 lbs | Average | 150-200 lbs"
 
-[node name="ResourceList" type="VBoxContainer" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack"]
+[node name="ResourceList" type="VBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox"]
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="FoodCounter" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+[node name="FoodCounter" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox/ResourceList"]
 unique_name_in_owner = true
 horizontal_alignment = 2
-vertical_alignment = 1
 text = "Food: 5.0"
 
-[node name="WoodCounter" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+[node name="WoodCounter" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox/ResourceList"]
 unique_name_in_owner = true
 horizontal_alignment = 2
-vertical_alignment = 1
 text = "Wood: 0"
 
-[node name="ZombieCounter" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+[node name="ZombieCounter" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox/ResourceList"]
 unique_name_in_owner = true
 horizontal_alignment = 2
-vertical_alignment = 1
 text = "Zombies: 0"
 
-[node name="TowerHealthLabel" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+[node name="TowerHealthLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox/ResourceList"]
 unique_name_in_owner = true
 horizontal_alignment = 2
-vertical_alignment = 1
 text = "Tower: 100/100"
 
-[node name="TrapIndicator" type="HBoxContainer" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack"]
+[node name="TrapIndicator" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox"]
 unique_name_in_owner = true
 visible = false
-alignment = 2
+alignment = 1
 custom_constants/separation = 8
 
-[node name="TrapIconLabel" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/TrapIndicator"]
+[node name="TrapIconLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox/TrapIndicator"]
 unique_name_in_owner = true
 theme_override_font_sizes/font_size = 22
 text = "🪤"
 
-[node name="TrapStatusLabel" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/TrapIndicator"]
+[node name="TrapStatusLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/TopRow/ResourcesPanel/ResourcesMargin/ResourcesVBox/TrapIndicator"]
 unique_name_in_owner = true
-size_flags_horizontal = 3
-horizontal_alignment = 2
-theme_override_font_sizes/font_size = 14
 text = "Trap Armed (50% break)"
+
+[node name="BottomRow" type="HBoxContainer" parent="UI/HUD/HudBounds/HudLayout"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+[node name="DayPanel" type="PanelContainer" parent="UI/HUD/HudBounds/HudLayout/BottomRow"]
+size_flags_horizontal = 2
+theme_override_styles/panel = SubResource("4")
+
+[node name="DayMargin" type="MarginContainer" parent="UI/HUD/HudBounds/HudLayout/BottomRow/DayPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="DayVBox" type="VBoxContainer" parent="UI/HUD/HudBounds/HudLayout/BottomRow/DayPanel/DayMargin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="DayLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/BottomRow/DayPanel/DayMargin/DayVBox"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 20
+text = "Day 1"
+
+[node name="ClockLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/BottomRow/DayPanel/DayMargin/DayVBox"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 18
+text = "6:00 AM"
+
+[node name="WeatherLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/BottomRow/DayPanel/DayMargin/DayVBox"]
+unique_name_in_owner = true
+text = "Clear Skies (x1.00)"
+
+[node name="ReconPanel" type="PanelContainer" parent="UI/HUD/HudBounds/HudLayout/BottomRow"]
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("4")
+
+[node name="ReconMargin" type="MarginContainer" parent="UI/HUD/HudBounds/HudLayout/BottomRow/ReconPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="ReconVBox" type="VBoxContainer" parent="UI/HUD/HudBounds/HudLayout/BottomRow/ReconPanel/ReconMargin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="ReconHeader" type="Label" parent="UI/HUD/HudBounds/HudLayout/BottomRow/ReconPanel/ReconMargin/ReconVBox"]
+unique_name_in_owner = true
+text = "Recon Alerts"
+
+[node name="ReconAlertLabel" type="Label" parent="UI/HUD/HudBounds/HudLayout/BottomRow/ReconPanel/ReconMargin/ReconVBox"]
+unique_name_in_owner = true
+visible = false
+text = ""
 
 [node name="TaskMenu" type="Panel" parent="UI"]
 forging_results_panel_path = NodePath("../ForgingResultsPanel")
@@ -1133,4 +1151,4 @@ text = "Close"
 [connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="item_selected" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
-[connection signal="pressed" from="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]
+[connection signal="pressed" from="UI/HUD/HudBounds/HudLayout/TopRow/VitalsPanel/VitalsMargin/VitalsVBox/WeightBlock/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]

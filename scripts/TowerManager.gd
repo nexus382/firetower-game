@@ -435,33 +435,81 @@ func create_wood_stove():
         stove_node.queue_free()
         return
     stove.name = "WoodStove"
+    stove.z_index = 5
 
-    var horizontal_split = kitchen_rect.position.y + kitchen_rect.size.y
     var position = Vector2(
-        living_area_rect.position.x + living_area_rect.size.x - 32,
-        horizontal_split + 24
+        living_area_rect.position.x + living_area_rect.size.x - 88,
+        living_area_rect.position.y + 96
     )
     stove.position = position
 
+    var hearth = ColorRect.new()
+    hearth.name = "Hearth"
+    hearth.size = Vector2(92, 18)
+    hearth.position = Vector2(-46, 32)
+    hearth.color = Color(0.18, 0.09, 0.03, 0.85)
+    hearth.z_index = 1
+    stove.add_child(hearth)
+
     var body = ColorRect.new()
     body.name = "Body"
-    body.size = Vector2(44, 44)
-    body.position = Vector2(-22, -22)
-    body.color = Color(0.20, 0.20, 0.20)
+    body.size = Vector2(56, 64)
+    body.position = Vector2(-28, -20)
+    body.color = Color(0.16, 0.16, 0.16)
     body.z_index = 2
     stove.add_child(body)
 
+    var door = ColorRect.new()
+    door.name = "Door"
+    door.size = Vector2(40, 36)
+    door.position = Vector2(-20, -4)
+    door.color = Color(0.10, 0.10, 0.10)
+    door.z_index = 3
+    stove.add_child(door)
+
+    var ember_window = ColorRect.new()
+    ember_window.name = "EmberWindow"
+    ember_window.size = Vector2(28, 16)
+    ember_window.position = Vector2(-14, 2)
+    ember_window.color = Color(0.90, 0.45, 0.12, 0.85)
+    ember_window.z_index = 4
+    stove.add_child(ember_window)
+
+    var glow = ColorRect.new()
+    glow.name = "Glow"
+    glow.size = Vector2(64, 48)
+    glow.position = Vector2(-32, -8)
+    glow.color = Color(1.0, 0.55, 0.15, 0.3)
+    glow.z_index = 1
+    stove.add_child(glow)
+
+    var handle = ColorRect.new()
+    handle.name = "Handle"
+    handle.size = Vector2(6, 12)
+    handle.position = Vector2(18, 4)
+    handle.color = Color(0.70, 0.65, 0.55)
+    handle.z_index = 5
+    stove.add_child(handle)
+
     var pipe = ColorRect.new()
     pipe.name = "Pipe"
-    pipe.size = Vector2(12, 60)
-    pipe.position = Vector2(-6, -82)
-    pipe.color = Color(0.15, 0.15, 0.15)
+    pipe.size = Vector2(14, 84)
+    pipe.position = Vector2(-7, -100)
+    pipe.color = Color(0.12, 0.12, 0.12)
     pipe.z_index = 1
     stove.add_child(pipe)
 
+    var pipe_cap = ColorRect.new()
+    pipe_cap.name = "PipeCap"
+    pipe_cap.size = Vector2(24, 12)
+    pipe_cap.position = Vector2(-12, -112)
+    pipe_cap.color = Color(0.18, 0.18, 0.18)
+    pipe_cap.z_index = 1
+    stove.add_child(pipe_cap)
+
     var prompt = Label.new()
     prompt.name = "PromptLabel"
-    prompt.position = Vector2(-72, -72)
+    prompt.position = Vector2(-64, -132)
     prompt.add_theme_color_override("font_color", Color.WHITE)
     prompt.add_theme_font_size_override("font_size", 12)
     prompt.visible = false
@@ -470,8 +518,8 @@ func create_wood_stove():
     var name_label = Label.new()
     name_label.name = "NameLabel"
     name_label.text = "Wood Stove"
-    name_label.position = Vector2(-52, -96)
-    name_label.custom_minimum_size = Vector2(104, 16)
+    name_label.position = Vector2(-60, -116)
+    name_label.custom_minimum_size = Vector2(120, 16)
     name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     name_label.add_theme_color_override("font_color", Color.WHITE)
     name_label.add_theme_font_size_override("font_size", 12)
