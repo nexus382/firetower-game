@@ -11,6 +11,7 @@ const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const NewsBroadcastSystem = preload("res://scripts/systems/NewsBroadcastSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
+const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
@@ -20,6 +21,10 @@ const RECON_WINDOW_END_MINUTE: int = 18 * 60
 const LURE_WINDOW_MINUTES: int = 120
 const LURE_DURATION_HOURS: float = 4.0
 const LURE_CALORIE_COST: float = 1000.0
+const LURE_SUCCESS_INJURY_CHANCE: float = 0.10
+const LURE_SUCCESS_INJURY_DAMAGE: float = 5.0
+const LURE_FAILURE_INJURY_CHANCE: float = 0.25
+const LURE_FAILURE_INJURY_DAMAGE: float = 10.0
 const FISHING_ROLLS_PER_HOUR: int = 5
 const FISHING_ROLL_SUCCESS_CHANCE: float = 0.30
 const FISHING_REST_COST_PERCENT: float = 10.0
@@ -31,7 +36,11 @@ const TRAP_DEPLOY_HOURS: float = 2.0
 const TRAP_CALORIE_COST: float = 500.0
 const TRAP_REST_COST_PERCENT: float = 15.0
 const TRAP_BREAK_CHANCE: float = 0.5
+const TRAP_INJURY_CHANCE: float = 0.15
+const TRAP_INJURY_DAMAGE: float = 10.0
 const TRAP_ITEM_ID := "spike_trap"
+const CRAFT_ACTION_HOURS: float = 1.0
+const CRAFT_CALORIE_COST: float = 250.0
 const FISHING_SIZE_TABLE := [
     {
         "size": "small",
@@ -59,7 +68,7 @@ const CRAFTING_RECIPES := {
         "cost": {
             "grubs": 1
         },
-        "hours": 0.5,
+        "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 2.5,
         "quantity": 1
     },
@@ -72,7 +81,7 @@ const CRAFTING_RECIPES := {
             "string": 2,
             "wood": 2
         },
-        "hours": 1.5,
+        "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 7.5,
         "quantity": 1
     },
@@ -83,7 +92,7 @@ const CRAFTING_RECIPES := {
         "cost": {
             "vines": 3
         },
-        "hours": 1.0,
+        "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 5.0,
         "quantity": 1
     },
@@ -94,7 +103,7 @@ const CRAFTING_RECIPES := {
         "cost": {
             "wood": 6
         },
-        "hours": 2.0,
+        "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 12.5,
         "quantity": 1
     },
@@ -105,7 +114,7 @@ const CRAFTING_RECIPES := {
         "cost": {
             "wood": 1
         },
-        "hours": 1.0,
+        "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 5.0,
         "quantity": 1
     },
@@ -116,8 +125,23 @@ const CRAFTING_RECIPES := {
         "cost": {
             "ripped_cloth": 1
         },
-        "hours": 0.5,
+        "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 2.5,
+        "quantity": 1
+    },
+    "herbal_first_aid_kit": {
+        "item_id": "herbal_first_aid_kit",
+        "display_name": "Herbal First Aid Kit",
+        "description": "Bundle of salves and wraps to restore health.",
+        "cost": {
+            "mushrooms": 3,
+            "ripped_cloth": 1,
+            "string": 1,
+            "wood": 1,
+            "medicinal_herbs": 2
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 12.5,
         "quantity": 1
     }
 }
@@ -144,6 +168,7 @@ signal weather_changed(new_state: String, previous_state: String, hours_remainin
 signal weather_multiplier_changed(new_multiplier: float, state: String)
 signal lure_status_changed(status: Dictionary)
 signal trap_state_changed(active: bool, state: Dictionary)
+signal recon_alerts_changed(alerts: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -160,6 +185,7 @@ var inventory_system: InventorySystem = InventorySystem.new()
 var time_system: TimeSystem = TimeSystem.new()
 var weather_system: WeatherSystem = WeatherSystem.new()
 var tower_health_system: TowerHealthSystem = TowerHealthSystem.new()
+var health_system: PlayerHealthSystem = PlayerHealthSystem.new()
 var news_system: NewsBroadcastSystem = NewsBroadcastSystem.new()
 var zombie_system: ZombieSystem = ZombieSystem.new()
 var _last_awake_minute_stamp: int = 0
@@ -175,6 +201,7 @@ var _trap_state: Dictionary = {
     "deployed_at_minutes": -1,
     "deployed_at_time": ""
 }
+var _recon_alerts: Dictionary = {}
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -195,6 +222,8 @@ func _ready():
         weather_system = WeatherSystem.new()
     if tower_health_system == null:
         tower_health_system = TowerHealthSystem.new()
+    if health_system == null:
+        health_system = PlayerHealthSystem.new()
     if news_system == null:
         news_system = NewsBroadcastSystem.new()
     if zombie_system == null:
@@ -307,6 +336,12 @@ func get_trap_state() -> Dictionary:
 
 func _broadcast_trap_state():
     trap_state_changed.emit(_trap_state.get("active", false), _trap_state.duplicate(true))
+
+func get_recon_alerts() -> Dictionary:
+    return _recon_alerts.duplicate(true)
+
+func get_health_system() -> PlayerHealthSystem:
+    return health_system
 
 func get_crafting_recipes() -> Dictionary:
     var copy := {}
@@ -932,6 +967,16 @@ func perform_lure_incoming_zombies() -> Dictionary:
     result["spawn_prevented_clock"] = status.get("clock_time", time_report.get("ended_at_time", ""))
     result["window_minutes"] = LURE_WINDOW_MINUTES
     result["calorie_cost"] = LURE_CALORIE_COST
+    var attempted = int(status.get("quantity", cancelled_event.get("quantity", prevented)))
+    if attempted < prevented:
+        attempted = prevented
+    var failed = max(attempted - prevented, 0)
+    result["lure_attempted"] = max(attempted, 0)
+    result["lure_failed"] = failed
+    result["zombies_at_tower"] = zombie_system.get_active_zombies() if zombie_system else 0
+    var injury_report = _apply_lure_injury(prevented, failed)
+    if !injury_report.is_empty():
+        result["injury_report"] = injury_report
 
     _clear_lure_target("completed")
     print("🪤 Lure success -> diverted %d approaching undead" % max(prevented, 0))
@@ -1014,6 +1059,10 @@ func perform_trap_deployment() -> Dictionary:
     result["break_chance"] = TRAP_BREAK_CHANCE
     result["trap_consume_report"] = consume_report
 
+    var injury = _roll_injury(TRAP_INJURY_CHANCE, TRAP_INJURY_DAMAGE, "trap_setup", "trap")
+    if injury.get("triggered", false):
+        result["injury_report"] = injury
+
     print("🪤 Trap deployed -> stock %d" % int(result.get("trap_stock_after", 0)))
     return result
 
@@ -1060,6 +1109,8 @@ func perform_recon() -> Dictionary:
     result["weather_forecast"] = weather_outlook
     result["zombie_forecast"] = zombie_outlook
     result["window_status"] = get_recon_window_status()
+    _update_recon_alerts_from_forecast(weather_outlook, zombie_outlook)
+    result["alerts"] = _recon_alerts.duplicate(true)
 
     _update_lure_target_from_forecast(result.get("zombie_forecast", {}))
     print("🔭 Recon outlook -> %s" % result)
@@ -1110,7 +1161,7 @@ func craft_item(recipe_id: String) -> Dictionary:
                 "quantity": needed
             })
 
-    var hours = float(recipe.get("hours", 1.0))
+    var hours = CRAFT_ACTION_HOURS
     var time_report: Dictionary
     if hours <= 0.0:
         time_report = {
@@ -1141,6 +1192,8 @@ func craft_item(recipe_id: String) -> Dictionary:
     var rest_spent = 0.0
     if rest_cost > 0.0:
         rest_spent = sleep_system.consume_sleep(rest_cost)
+
+    var calorie_total = sleep_system.adjust_daily_calories(CRAFT_CALORIE_COST)
 
     var materials_spent: Array = []
     for requirement in requirements:
@@ -1188,6 +1241,8 @@ func craft_item(recipe_id: String) -> Dictionary:
     result["rest_spent_percent"] = rest_spent
     result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
     result["total_food_units"] = inventory_system.get_total_food_units()
+    result["calories_spent"] = CRAFT_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
 
     var material_summary: PackedStringArray = []
     for entry in materials_spent:
@@ -1198,6 +1253,26 @@ func craft_item(recipe_id: String) -> Dictionary:
         material_summary.append("No materials")
     print("🛠️ Crafted %s -> +%d (%s)" % [result.get("display_name", key.capitalize()), result.get("quantity_added", quantity), ", ".join(material_summary)])
     return result
+
+func use_inventory_item(item_id: String) -> Dictionary:
+    var key = item_id.to_lower()
+    if inventory_system == null or health_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "item_id": key
+        }
+
+    if key == "medicinal_herbs":
+        return _consume_health_item(key, 1, 10.0, "medicinal_herb_use")
+    if key == "herbal_first_aid_kit":
+        return _consume_health_item(key, 1, 50.0, "herbal_first_aid")
+
+    return {
+        "success": false,
+        "reason": "unsupported_item",
+        "item_id": key
+    }
 
 func _pick_fishing_size(roll: float) -> Dictionary:
     roll = clamp(roll, 0.0, 1.0)
@@ -1406,6 +1481,7 @@ func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
     var damage = float(report.get("total_damage", 0.0))
     if damage > 0.0:
         tower_health_system.apply_damage(damage, "zombie_presence")
+    _advance_recon_alerts(minutes)
     _refresh_lure_status(true)
 
 func _on_zombies_spawned(added: int, _total: int, day: int):
@@ -1527,6 +1603,238 @@ func _forecast_zombie_activity(minutes_horizon: int, rng: RandomNumberGenerator)
                     projection["type"] = "next_day_spawn"
                     forecast["events"].append(projection)
     return forecast
+
+func _apply_lure_injury(successes: int, failures: int) -> Dictionary:
+    var safe_successes = max(successes, 0)
+    var safe_failures = max(failures, 0)
+    if health_system == null or _rng == null:
+        return {
+            "successes": safe_successes,
+            "failures": safe_failures,
+            "triggered_successes": 0,
+            "triggered_failures": 0,
+            "events": [],
+            "total_damage": 0.0,
+            "health_before": 0.0,
+            "health_after": 0.0,
+            "triggered": false
+        }
+
+    var health_before = health_system.get_health()
+    var triggered_successes = 0
+    var triggered_failures = 0
+    var total_damage = 0.0
+    var events: Array = []
+
+    for _i in range(safe_successes):
+        var outcome = _roll_injury(LURE_SUCCESS_INJURY_CHANCE, LURE_SUCCESS_INJURY_DAMAGE, "lure_success", "success")
+        if outcome.get("triggered", false):
+            triggered_successes += 1
+            total_damage += float(outcome.get("damage", 0.0))
+            events.append(outcome)
+
+    for _j in range(safe_failures):
+        var outcome = _roll_injury(LURE_FAILURE_INJURY_CHANCE, LURE_FAILURE_INJURY_DAMAGE, "lure_failure", "failure")
+        if outcome.get("triggered", false):
+            triggered_failures += 1
+            total_damage += float(outcome.get("damage", 0.0))
+            events.append(outcome)
+
+    var health_after = health_system.get_health()
+    return {
+        "successes": safe_successes,
+        "failures": safe_failures,
+        "triggered_successes": triggered_successes,
+        "triggered_failures": triggered_failures,
+        "events": events,
+        "total_damage": total_damage,
+        "health_before": health_before,
+        "health_after": health_after,
+        "triggered": total_damage > 0.0
+    }
+
+func _roll_injury(chance: float, damage: float, source: String, tag: String) -> Dictionary:
+    var normalized_chance = clamp(chance, 0.0, 1.0)
+    if health_system == null or _rng == null or normalized_chance <= 0.0 or damage <= 0.0:
+        return {
+            "triggered": false,
+            "damage": 0.0,
+            "chance": normalized_chance,
+            "roll": 1.0,
+            "source": source,
+            "tag": tag,
+            "health_before": health_system.get_health() if health_system else 0.0,
+            "health_after": health_system.get_health() if health_system else 0.0
+        }
+
+    var before = health_system.get_health()
+    var roll = _rng.randf()
+    var outcome := {
+        "triggered": false,
+        "damage": 0.0,
+        "chance": normalized_chance,
+        "roll": roll,
+        "source": source,
+        "tag": tag,
+        "health_before": before,
+        "health_after": before
+    }
+
+    if roll >= normalized_chance:
+        return outcome
+
+    var damage_report = health_system.apply_damage(damage, source)
+    var applied = float(damage_report.get("applied", 0.0))
+    var after = float(damage_report.get("new_health", health_system.get_health()))
+    outcome["triggered"] = applied > 0.0
+    outcome["damage"] = applied
+    outcome["health_after"] = after
+    return outcome
+
+func _update_recon_alerts_from_forecast(weather_forecast: Dictionary, zombie_forecast: Dictionary):
+    var alerts: Dictionary = {}
+    var weather_alert = _resolve_weather_alert(weather_forecast)
+    if !weather_alert.is_empty():
+        alerts["weather"] = weather_alert
+    var zombie_alert = _resolve_zombie_alert(zombie_forecast)
+    if !zombie_alert.is_empty():
+        alerts["zombies"] = zombie_alert
+    _set_recon_alerts(alerts)
+
+func _resolve_weather_alert(forecast: Dictionary) -> Dictionary:
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return {}
+    var events: Array = forecast.get("events", [])
+    if events.is_empty():
+        return {}
+    var best_minutes = -1
+    var best_state = ""
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        if String(event.get("type", "")) != "start":
+            continue
+        var minutes = int(event.get("minutes_ahead", 0))
+        if minutes <= 0:
+            continue
+        var state = String(event.get("state", WeatherSystem.WEATHER_SPRINKLING))
+        var precipitating = weather_system.is_precipitating_state(state) if weather_system else state != WeatherSystem.WEATHER_CLEAR
+        if !precipitating:
+            continue
+        if best_minutes < 0 or minutes < best_minutes:
+            best_minutes = minutes
+            best_state = state
+    if best_minutes < 0:
+        return {}
+    var label = weather_system.get_state_display_name_for(best_state) if weather_system else best_state.capitalize()
+    return {
+        "type": "weather",
+        "minutes_until": float(best_minutes),
+        "state": best_state,
+        "label": label,
+        "active": true,
+        "clock_time": time_system.get_formatted_time_after(best_minutes) if time_system else ""
+    }
+
+func _resolve_zombie_alert(forecast: Dictionary) -> Dictionary:
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return {}
+    var events: Array = forecast.get("events", [])
+    if events.is_empty():
+        return {}
+    var best_event: Dictionary = {}
+    var best_minutes = -1
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        var minutes = int(event.get("minutes_ahead", 0))
+        if minutes <= 0:
+            continue
+        if best_minutes < 0 or minutes < best_minutes:
+            best_minutes = minutes
+            best_event = event
+    if best_minutes < 0 or best_event.is_empty():
+        return {}
+    var quantity = int(best_event.get("quantity", best_event.get("spawns", best_event.get("added", 0))))
+    return {
+        "type": "zombies",
+        "minutes_until": float(best_minutes),
+        "quantity": max(quantity, 0),
+        "active": true,
+        "clock_time": String(best_event.get("clock_time", time_system.get_formatted_time_after(best_minutes) if time_system else "")),
+        "label": "Zombies"
+    }
+
+func _set_recon_alerts(alerts: Dictionary):
+    var normalized: Dictionary = {}
+    for key in alerts.keys():
+        var entry = alerts.get(key, {})
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        normalized[key] = entry.duplicate(true)
+    _recon_alerts = normalized
+    _emit_recon_alerts_changed()
+
+func _advance_recon_alerts(minutes: int):
+    if minutes <= 0 or _recon_alerts.is_empty():
+        return
+    var changed = false
+    for key in _recon_alerts.keys():
+        var entry = _recon_alerts.get(key, {})
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        var remaining = float(entry.get("minutes_until", -1))
+        if remaining < 0.0:
+            continue
+        var updated = max(remaining - minutes, 0.0)
+        if !is_equal_approx(updated, remaining):
+            entry["minutes_until"] = updated
+            if updated <= 0.0:
+                entry["active"] = false
+            _recon_alerts[key] = entry
+            changed = true
+    if changed:
+        _emit_recon_alerts_changed()
+
+func _emit_recon_alerts_changed():
+    recon_alerts_changed.emit(_recon_alerts.duplicate(true))
+
+func _consume_health_item(item_id: String, quantity: int, heal_amount: float, source: String) -> Dictionary:
+    quantity = max(quantity, 1)
+    heal_amount = max(heal_amount, 0.0)
+    var available = inventory_system.get_item_count(item_id)
+    if available < quantity:
+        return {
+            "success": false,
+            "reason": "insufficient_stock",
+            "item_id": item_id,
+            "required": quantity,
+            "available": available
+        }
+
+    var consume_report = inventory_system.consume_item(item_id, quantity)
+    if !consume_report.get("success", false):
+        var failure = consume_report.duplicate(true)
+        failure["success"] = false
+        failure["reason"] = failure.get("reason", "consume_failed")
+        return failure
+
+    var before = health_system.get_health()
+    var heal_report = health_system.apply_heal(heal_amount, source)
+    var applied = float(heal_report.get("applied", 0.0))
+    var after = float(heal_report.get("new_health", health_system.get_health()))
+
+    return {
+        "success": true,
+        "item_id": item_id,
+        "display_name": consume_report.get("display_name", inventory_system.get_item_display_name(item_id)),
+        "quantity_used": quantity,
+        "heal_requested": heal_amount,
+        "heal_applied": applied,
+        "health_before": before,
+        "health_after": after,
+        "quantity_remaining": consume_report.get("quantity_remaining", inventory_system.get_item_count(item_id))
+    }
 
 func _spend_activity_time(hours: float, activity: String) -> Dictionary:
     if not time_system or not sleep_system:

@@ -12,6 +12,7 @@ const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 @onready var items_scroll: ScrollContainer = $Panel/Margin/VBox/ItemScroll
 @onready var items_container: VBoxContainer = $Panel/Margin/VBox/ItemScroll/Items
 @onready var placeholder_label: Label = $Panel/Margin/VBox/ItemScroll/Items/Placeholder
+@onready var status_label: Label = $Panel/Margin/VBox/StatusLabel
 @onready var close_button: Button = $Panel/Margin/VBox/ButtonRow/CloseButton
 
 var game_manager: GameManager
@@ -110,6 +111,17 @@ func _refresh_items():
         qty_label.text = "x%d" % int(entry.get("quantity", 0))
         qty_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
         row.add_child(qty_label)
+        if _supports_use_action(String(entry.get("item_id", ""))):
+            var spacer = Control.new()
+            spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+            row.add_child(spacer)
+            var use_button = Button.new()
+            use_button.text = "Use"
+            use_button.focus_mode = Control.FOCUS_ALL
+            use_button.add_theme_color_override("font_color", Color.WHITE)
+            var item_key = String(entry.get("item_id", ""))
+            use_button.pressed.connect(Callable(self, "_on_use_item_pressed").bind(item_key))
+            row.add_child(use_button)
         items_container.add_child(row)
 
 func _show_placeholder(text: String):
@@ -117,6 +129,11 @@ func _show_placeholder(text: String):
         return
     placeholder_label.text = text
     placeholder_label.show()
+
+func _set_status(text: String):
+    if !is_instance_valid(status_label):
+        return
+    status_label.text = text
 
 func _apply_theme_overrides():
     if panel:
@@ -134,3 +151,41 @@ func _apply_theme_overrides():
     if close_button:
         close_button.text = "Close"
         close_button.add_theme_color_override("font_color", Color.WHITE)
+    if status_label:
+        status_label.add_theme_color_override("font_color", Color.WHITE)
+        status_label.text = ""
+
+func _supports_use_action(item_id: String) -> bool:
+    var key = item_id.to_lower()
+    return key == "medicinal_herbs" or key == "herbal_first_aid_kit"
+
+func _on_use_item_pressed(item_id: String):
+    if game_manager == null:
+        _set_status("Inventory offline")
+        return
+    var result = game_manager.use_inventory_item(item_id)
+    if !result.get("success", false):
+        var reason = String(result.get("reason", "failed"))
+        var label = inventory_system.get_item_display_name(item_id) if inventory_system else item_id.capitalize()
+        match reason:
+            "insufficient_stock":
+                _set_status("No %s left" % label)
+            "consume_failed":
+                _set_status("Use failed")
+            "systems_unavailable":
+                _set_status("Systems unavailable")
+            "unsupported_item":
+                _set_status("Can't use that")
+            _:
+                _set_status("Use failed")
+        _refresh_items()
+        return
+
+    var display_name = result.get("display_name", inventory_system.get_item_display_name(item_id) if inventory_system else item_id.capitalize())
+    var healed = float(result.get("heal_applied", 0.0))
+    var health_after = float(result.get("health_after", 0.0))
+    if healed > 0.0:
+        _set_status("Used %s (+%d health -> %d%%)" % [display_name, int(round(healed)), int(round(health_after))])
+    else:
+        _set_status("Used %s (already full)" % display_name)
+    _refresh_items()
