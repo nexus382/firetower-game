@@ -135,6 +135,11 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
     })
+    register_item_definition("herbal_first_aid_kit", {
+        KEY_DISPLAY_NAME: "Herbal First Aid Kit",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 10
+    })
     register_item_definition("fuel", {
         KEY_DISPLAY_NAME: "Fuel",
         KEY_FOOD_UNITS: 0.0,

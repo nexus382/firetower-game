@@ -9,6 +9,7 @@ const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
+const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd")
 
 const LBS_PER_KG: float = 2.2
 
@@ -16,6 +17,8 @@ const LBS_PER_KG: float = 2.2
 @onready var game_manager: GameManager = _resolve_game_manager()
 @onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
 @onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
+@onready var health_bar: ProgressBar = $StatsBar/Metrics/HealthStat/HealthMeter/HealthBar
+@onready var health_value_label: Label = $StatsBar/Metrics/HealthStat/HealthMeter/HealthValue
 @onready var daily_cal_value_label: Label = $StatsBar/Metrics/DailyCalStat/DailyCalValue
 @onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
 @onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
@@ -24,6 +27,7 @@ const LBS_PER_KG: float = 2.2
 @onready var weather_label: Label = $DayTimeHeader/WeatherLabel
 @onready var day_label: Label = $DayTimeHeader/DayLabel
 @onready var clock_label: Label = $DayTimeHeader/ClockLabel
+@onready var recon_alert_label: Label = $DayTimeHeader/ReconAlertLabel
 @onready var food_counter_label: Label = $TopRightStats/ResourceList/FoodCounter
 @onready var wood_counter_label: Label = $TopRightStats/ResourceList/WoodCounter
 @onready var zombie_counter_label: Label = $TopRightStats/ResourceList/ZombieCounter
@@ -38,6 +42,7 @@ var weather_system: WeatherSystem
 var inventory_system: InventorySystem
 var tower_health_system: TowerHealthSystem
 var zombie_system: ZombieSystem
+var health_system: PlayerHealthSystem
 var _weight_unit: String = "lbs"
 var _latest_weight_lbs: float = 0.0
 var _latest_weight_category: String = "average"
@@ -48,8 +53,11 @@ func _ready():
     # Wire HUD widgets to the various systems as soon as the scene loads.
     daily_cal_value_label.add_theme_color_override("font_color", Color.WHITE)
     tired_value_label.add_theme_color_override("font_color", Color.WHITE)
+    health_value_label.add_theme_color_override("font_color", Color.WHITE)
     day_label.add_theme_color_override("font_color", Color.WHITE)
     clock_label.add_theme_color_override("font_color", Color.WHITE)
+    recon_alert_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+    recon_alert_label.visible = false
     weight_value_label.add_theme_color_override("font_color", Color.WHITE)
     weight_status_label.add_theme_color_override("font_color", Color.WHITE)
     weight_header_label.add_theme_color_override("font_color", Color.WHITE)
@@ -86,8 +94,15 @@ func _ready():
     else:
         push_warning("TimeSystem not available on GameManager")
 
+    health_system = game_manager.get_health_system()
+    if health_system:
+        health_system.health_changed.connect(_on_health_changed)
+        _on_health_changed(health_system.get_health(), health_system.get_health())
+
     game_manager.day_changed.connect(_on_day_changed)
+    game_manager.recon_alerts_changed.connect(_on_recon_alerts_changed)
     _update_day_label(game_manager.current_day)
+    _on_recon_alerts_changed(game_manager.get_recon_alerts())
 
     weather_system = game_manager.get_weather_system()
     if weather_system:
@@ -131,6 +146,12 @@ func _on_sleep_percent_changed(value: float):
     tired_bar.value = value
     tired_value_label.text = "%d%%" % int(round(value))
 
+func _on_health_changed(value: float, _previous: float):
+    if is_instance_valid(health_bar):
+        health_bar.value = value
+    if is_instance_valid(health_value_label):
+        health_value_label.text = "%d%%" % int(round(value))
+
 func _on_daily_calories_used_changed(value: float):
     daily_cal_value_label.text = "%d" % int(round(value))
 
@@ -172,6 +193,13 @@ func _on_weather_changed(new_state: String, _previous_state: String, hours_remai
     _latest_weather_state = new_state
     _latest_weather_hours = max(hours_remaining, 0)
     _update_weather_label()
+
+func _on_recon_alerts_changed(alerts: Dictionary):
+    if !is_instance_valid(recon_alert_label):
+        return
+    var text = _resolve_recon_alert_text(alerts)
+    recon_alert_label.visible = text != ""
+    recon_alert_label.text = text
 
 func _on_food_total_changed(new_total: float):
     if !is_instance_valid(food_counter_label):
@@ -318,6 +346,50 @@ func _update_weather_label():
         weather_label.text = "%s (%s)" % [title, " | ".join(detail_parts)]
     else:
         weather_label.text = title
+
+func _resolve_recon_alert_text(alerts: Dictionary) -> String:
+    if typeof(alerts) != TYPE_DICTIONARY or alerts.is_empty():
+        return ""
+    var chosen_entry: Dictionary = {}
+    var chosen_minutes: float = -1.0
+    for key in alerts.keys():
+        var entry = alerts.get(key, {})
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        if !entry.get("active", true):
+            continue
+        var remaining = float(entry.get("minutes_until", -1))
+        if remaining <= 0.0:
+            continue
+        if chosen_minutes < 0.0 or remaining < chosen_minutes:
+            chosen_minutes = remaining
+            chosen_entry = entry
+    if chosen_entry.is_empty():
+        return ""
+    var eta = _format_recon_eta(chosen_entry.get("minutes_until", 0.0))
+    var label = String(chosen_entry.get("label", ""))
+    var entry_type = String(chosen_entry.get("type", ""))
+    if entry_type == "weather":
+        if label == "":
+            label = "Weather"
+        return "%s in %s" % [label, eta]
+    if entry_type == "zombies":
+        return "Zombies approaching in %s" % eta
+    if label == "":
+        label = "Event"
+    return "%s in %s" % [label, eta]
+
+func _format_recon_eta(value: float) -> String:
+    var minutes = int(round(value))
+    if minutes <= 0:
+        return "0h"
+    var hours = minutes / 60
+    var mins = minutes % 60
+    if hours > 0 and mins > 0:
+        return "%dh %dm" % [hours, mins]
+    if hours > 0:
+        return "%dh" % hours
+    return "%dm" % mins
 
 func _format_weight_category_title(category: String) -> String:
     match category:

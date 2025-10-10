@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://clrcv081gblwd"]
+[gd_scene load_steps=12 format=3 uid="uid://clrcv081gblwd"]
 
 [ext_resource type="Script" path="res://scripts/GameManager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/Player.gd" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/ui/CraftingPanel.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/ui/InventoryPanel.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/ui/ForgingResultsPanel.gd" id="10"]
+[ext_resource type="Script" path="res://scripts/ui/ActionPopupPanel.gd" id="11"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(32, 32)
@@ -98,6 +99,11 @@ horizontal_alignment = 1
 [node name="WeatherLabel" type="Label" parent="UI/HUD/DayTimeHeader"]
 text = "Clear Skies (x1.00)"
 horizontal_alignment = 1
+
+[node name="ReconAlertLabel" type="Label" parent="UI/HUD/DayTimeHeader"]
+visible = false
+horizontal_alignment = 1
+text = ""
 
 [node name="StatsBar" type="MarginContainer" parent="UI/HUD"]
 anchor_left = 1.0
@@ -202,6 +208,33 @@ size_flags_vertical = 1
 horizontal_alignment = 2
 text = "75%"
 
+[node name="HealthStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
+custom_minimum_size = Vector2(160, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 1
+
+[node name="HealthLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/HealthStat"]
+text = "Health"
+
+[node name="HealthMeter" type="HBoxContainer" parent="UI/HUD/StatsBar/Metrics/HealthStat"]
+size_flags_horizontal = 3
+size_flags_vertical = 1
+alignment = 0
+
+[node name="HealthBar" type="ProgressBar" parent="UI/HUD/StatsBar/Metrics/HealthStat/HealthMeter"]
+min_value = 0.0
+max_value = 100.0
+value = 100.0
+size_flags_horizontal = 3
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="HealthValue" type="Label" parent="UI/HUD/StatsBar/Metrics/HealthStat/HealthMeter"]
+size_flags_horizontal = 1
+size_flags_vertical = 1
+horizontal_alignment = 2
+text = "100%"
+
 [node name="DailyCalStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
 custom_minimum_size = Vector2(160, 0)
 size_flags_horizontal = 3
@@ -243,6 +276,7 @@ text = "Average (x1.0)"
 
 [node name="TaskMenu" type="Panel" parent="UI"]
 forging_results_panel_path = NodePath("../ForgingResultsPanel")
+action_popup_path = NodePath("../ActionPopupPanel")
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
@@ -806,6 +840,11 @@ custom_constants/separation = 6
 text = "Inventory offline"
 autowrap_mode = 2
 
+[node name="StatusLabel" type="Label" parent="UI/InventoryPanel/Panel/Margin/VBox"]
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="ButtonRow" type="HBoxContainer" parent="UI/InventoryPanel/Panel/Margin/VBox"]
 alignment = 2
 
@@ -864,6 +903,50 @@ autowrap_mode = 2
 alignment = 2
 
 [node name="CloseButton" type="Button" parent="UI/ForgingResultsPanel/Panel/Margin/VBox/ButtonRow"]
+text = "Close"
+
+[node name="ActionPopupPanel" type="Control" parent="UI"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -140.0
+offset_right = 220.0
+offset_bottom = 140.0
+visible = false
+script = ExtResource("11")
+
+[node name="Panel" type="Panel" parent="UI/ActionPopupPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Margin" type="MarginContainer" parent="UI/ActionPopupPanel/Panel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="UI/ActionPopupPanel/Panel/Margin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="UI/ActionPopupPanel/Panel/Margin/VBox"]
+text = "Action Report"
+horizontal_alignment = 1
+
+[node name="BodyText" type="RichTextLabel" parent="UI/ActionPopupPanel/Panel/Margin/VBox"]
+size_flags_vertical = 3
+bbcode_enabled = true
+autowrap_mode = 2
+
+[node name="ButtonRow" type="HBoxContainer" parent="UI/ActionPopupPanel/Panel/Margin/VBox"]
+alignment = 2
+
+[node name="CloseButton" type="Button" parent="UI/ActionPopupPanel/Panel/Margin/VBox/ButtonRow"]
 text = "Close"
 
 [node name="CloseButton" type="Button" parent="UI/RadioPanel/Panel/VBox"]

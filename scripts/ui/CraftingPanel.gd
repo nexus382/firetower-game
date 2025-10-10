@@ -193,6 +193,9 @@ func _attempt_craft(recipe_id: String):
     var rest_spent = result.get("rest_spent_percent", 0.0)
     if rest_spent > 0.0:
         parts.append("-%d%% rest" % int(round(rest_spent)))
+    var calories_spent = int(round(result.get("calories_spent", GameManager.CRAFT_CALORIE_COST)))
+    if calories_spent > 0:
+        parts.append("+%d burn" % calories_spent)
     if end_time != "":
         parts.append("End %s" % end_time)
     status_label.text = " | ".join(parts)
@@ -224,6 +227,7 @@ func _refresh_detail_text():
     if duration > 0.0:
         var minutes = int(ceil(duration * 60.0 * max(_resolve_multiplier(), 0.01)))
         lines.append("Takes %s" % _format_duration(minutes))
+    lines.append("Burns %d cal" % int(round(GameManager.CRAFT_CALORIE_COST)))
     var rest_cost = float(recipe.get("rest_cost_percent", 0.0))
     if rest_cost > 0.0:
         lines.append("Costs %d%% rest" % int(round(rest_cost)))
@@ -270,6 +274,7 @@ func _format_recipe_cost(recipe: Dictionary) -> String:
     var rest_cost = float(recipe.get("rest_cost_percent", 0.0))
     if rest_cost > 0.0:
         parts.append("%d%% rest" % int(round(rest_cost)))
+    parts.append("%d cal" % int(round(GameManager.CRAFT_CALORIE_COST)))
     if parts.is_empty():
         return "No cost"
     return "Cost: " + " | ".join(parts)

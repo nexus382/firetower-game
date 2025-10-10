@@ -7,6 +7,7 @@ extends Control
 # Maximum hours the player can queue for sleep (keep within 4 - 16 for balance).
 @export var max_sleep_hours: int = 12
 @export var forging_results_panel_path: NodePath
+@export var action_popup_path: NodePath
 
 const SLEEP_PERCENT_PER_HOUR: int = 10
 const SleepSystem = preload("res://scripts/systems/SleepSystem.gd")
@@ -16,6 +17,7 @@ const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 const ForgingResultsPanel = preload("res://scripts/ui/ForgingResultsPanel.gd")
+const ActionPopupPanel = preload("res://scripts/ui/ActionPopupPanel.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_CHANCE_PERCENT: int = int(round(ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE * 100.0))
@@ -101,6 +103,7 @@ var _trap_state: Dictionary = {}
 @onready var info_calorie_value_label: Label = $Layout/InfoPanel/InfoMargin/InfoList/InfoStats/CalorieRow/CalorieValue
 @onready var go_button: Button = $Layout/InfoPanel/InfoMargin/InfoList/GoRow/GoButton
 @onready var forging_results_panel: ForgingResultsPanel = get_node_or_null(forging_results_panel_path) if forging_results_panel_path != NodePath("") else null
+@onready var action_popup_panel: ActionPopupPanel = get_node_or_null(action_popup_path) if action_popup_path != NodePath("") else null
 @onready var meal_size_option: OptionButton = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption
 @onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealText/MealSummary
 @onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairText/RepairSummary
@@ -237,6 +240,14 @@ func _ready():
                 var candidate: Node = root.get_node_or_null("Main/UI/ForgingResultsPanel")
                 if candidate is ForgingResultsPanel:
                     forging_results_panel = candidate
+    if action_popup_panel == null:
+        var popup_tree = get_tree()
+        if popup_tree:
+            var popup_root = popup_tree.get_root()
+            if popup_root:
+                var popup_candidate: Node = popup_root.get_node_or_null("Main/UI/ActionPopupPanel")
+                if popup_candidate is ActionPopupPanel:
+                    action_popup_panel = popup_candidate
 
 func _input(event):
     _handle_menu_input(event)
@@ -601,9 +612,9 @@ func _build_lead_description() -> String:
     var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
     multiplier = max(multiplier, 0.01)
     var lead_minutes = int(ceil(60.0 * multiplier))
-    lines.append("Spend 1 hr (x%.1f) guiding undead away." % multiplier)
+    lines.append("Spend 1 hr (x%.1f) scouting a diversion route." % multiplier)
     lines.append("Energy -15%% | %d%% success per 🧟" % LEAD_AWAY_CHANCE_PERCENT)
-    lines.append("Takes %s" % _format_duration(lead_minutes))
+    lines.append("Action time: %s" % _format_duration(lead_minutes))
     if zombie_system:
         var count = zombie_system.get_active_zombies()
         if count > 0:
@@ -611,8 +622,8 @@ func _build_lead_description() -> String:
         else:
             lines.append("Needs at least 1 undead present")
     var lure_minutes = int(ceil(LURE_DURATION_HOURS * 60.0 * multiplier))
-    lines.append("Lure window: %dh (<=%dh ETA)" % [int(round(LURE_DURATION_HOURS)), int(round(LURE_WINDOW_MINUTES / 60.0))])
-    lines.append("Costs %d cal | Takes %s when scouted" % [int(round(LURE_CALORIE_COST)), _format_duration(lure_minutes)])
+    lines.append("Patrol covers %dh; waves must be ≤%dh out to divert." % [int(round(LURE_DURATION_HOURS)), int(round(LURE_WINDOW_MINUTES / 60.0))])
+    lines.append("Costs %d cal | Patrol runtime %s when underway" % [int(round(LURE_CALORIE_COST)), _format_duration(lure_minutes)])
     return "\n".join(lines)
 
 func _build_trap_description() -> String:
@@ -777,6 +788,8 @@ func _execute_lead_action():
     else:
         result = game_manager.perform_lead_away_undead()
     _set_lead_feedback(_format_lead_result(result), "result")
+    if action_popup_panel and String(result.get("action", "")) == "lure" and result.get("success", false):
+        _show_lure_popup(result)
     _refresh_display()
 
 func _execute_trap_action():
@@ -811,6 +824,8 @@ func _execute_trap_action():
     _set_action_result("trap", message, true)
     _trap_state = game_manager.get_trap_state()
     _update_trap_summary()
+    if action_popup_panel and result.has("injury_report"):
+        _show_trap_injury_popup(result.get("injury_report", {}))
 
 func _execute_recon_action():
     if game_manager == null:
@@ -851,8 +866,9 @@ func _execute_recon_action():
         _set_action_result("recon", message, true)
         return
 
-    var message = _format_recon_result(result)
-    _set_action_result("recon", message, true)
+    _set_action_result("recon", "Recon data updated", true)
+    if action_popup_panel:
+        _show_recon_popup(result)
     _refresh_display()
 
 func _on_meal_size_option_item_selected(index: int):
@@ -1212,6 +1228,179 @@ func _format_recon_result(result: Dictionary) -> String:
     if zombie_text != "":
         parts.append(zombie_text)
     return "Recon -> %s" % " | ".join(parts)
+
+func _show_lure_popup(result: Dictionary):
+    if action_popup_panel == null:
+        return
+    var total = int(result.get("lure_attempted", result.get("zombies_prevented", 0)))
+    var diverted = int(result.get("zombies_prevented", 0))
+    if total < diverted:
+        total = diverted
+    var stayed = int(result.get("lure_failed", max(total - diverted, 0)))
+    stayed = max(stayed, 0)
+    var tower_now = int(result.get("zombies_at_tower", zombie_system.get_active_zombies() if zombie_system else 0))
+    var injury: Dictionary = result.get("injury_report", {})
+    var damage = float(injury.get("total_damage", injury.get("damage", 0.0)))
+    var health_after = float(injury.get("health_after", _get_player_health()))
+    var triggered_successes = int(injury.get("triggered_successes", 0))
+    var triggered_failures = int(injury.get("triggered_failures", 0))
+
+    var tower_lines: PackedStringArray = []
+    tower_lines.append("Undead at tower: %d" % max(tower_now, 0))
+
+    var lure_lines: PackedStringArray = []
+    lure_lines.append("Total targeted: %d" % max(total, 0))
+    lure_lines.append("Diverted: %d" % max(diverted, 0))
+    lure_lines.append("Stayed: %d" % stayed)
+
+    var health_lines: PackedStringArray = []
+    if damage > 0.0:
+        health_lines.append("Damage taken: %d" % int(round(damage)))
+        if triggered_successes > 0 or triggered_failures > 0:
+            var detail_parts: PackedStringArray = []
+            if triggered_successes > 0:
+                detail_parts.append("%d from successes" % triggered_successes)
+            if triggered_failures > 0:
+                detail_parts.append("%d from failures" % triggered_failures)
+            if !detail_parts.is_empty():
+                health_lines.append("Hits: %s" % ", ".join(detail_parts))
+    else:
+        health_lines.append("Damage taken: 0")
+    health_lines.append("Health now: %d%%" % int(round(health_after)))
+
+    action_popup_panel.show_sections("Lure Report", [
+        {
+            "title": "Tower Status",
+            "lines": tower_lines
+        },
+        {
+            "title": "Lure Outcome",
+            "lines": lure_lines
+        },
+        {
+            "title": "Health Impact",
+            "lines": health_lines
+        }
+    ])
+
+func _show_trap_injury_popup(injury: Dictionary):
+    if action_popup_panel == null:
+        return
+    var damage = float(injury.get("damage", injury.get("total_damage", 0.0)))
+    if damage <= 0.0:
+        return
+    var health_after = float(injury.get("health_after", _get_player_health()))
+    var options = PackedStringArray([
+        "Ouch, you hurt your self setting a trap and take 10 damage.",
+        "You got hurt setting that trap, Lose 10 Health."
+    ])
+    var rng := RandomNumberGenerator.new()
+    rng.randomize()
+    var index = options.size() - 1
+    if options.size() > 0:
+        index = rng.randi_range(0, options.size() - 1)
+    var message = options[index] if options.size() > 0 else "Trap injury suffered."
+    var lines: PackedStringArray = []
+    lines.append(message)
+    lines.append("Health now: %d%%" % int(round(health_after)))
+    action_popup_panel.show_message("Trap Injury", lines)
+
+func _show_recon_popup(result: Dictionary):
+    if action_popup_panel == null:
+        return
+    var sections: Array = []
+    var weather_lines = _build_weather_forecast_lines(result.get("weather_forecast", {}))
+    if weather_lines.is_empty():
+        weather_lines.append("No major changes detected.")
+    sections.append({
+        "title": "Weather (Next 6h)",
+        "lines": weather_lines
+    })
+    var zombie_lines = _build_zombie_forecast_lines(result.get("zombie_forecast", {}))
+    if zombie_lines.is_empty():
+        zombie_lines.append("No waves detected.")
+    sections.append({
+        "title": "Zombie Activity",
+        "lines": zombie_lines
+    })
+    action_popup_panel.show_sections("Recon Outlook", sections)
+
+func _build_weather_forecast_lines(forecast: Dictionary) -> PackedStringArray:
+    var lines: PackedStringArray = []
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return lines
+    var state = String(forecast.get("current_state", WeatherSystem.WEATHER_CLEAR))
+    var label = weather_system.get_state_display_name_for(state) if weather_system else state.capitalize()
+    var multiplier = weather_system.get_multiplier_for_state(state) if weather_system else 1.0
+    lines.append("Now: %s (x%.2f)" % [label, multiplier])
+    var events: Array = forecast.get("events", [])
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        var minutes = int(event.get("minutes_ahead", 0))
+        if minutes <= 0:
+            continue
+        var when = _format_forecast_eta(minutes)
+        match String(event.get("type", "")):
+            "start":
+                var future_state = String(event.get("state", state))
+                var future_label = weather_system.get_state_display_name_for(future_state) if weather_system else future_state.capitalize()
+                var duration = int(event.get("duration_hours", event.get("hours_remaining", 0)))
+                var text = "%s: %s" % [when, future_label]
+                if duration > 0:
+                    text += " (%dh)" % duration
+                lines.append(text)
+            "stop":
+                lines.append("%s: Clears" % when)
+            _:
+                continue
+    return lines
+
+func _build_zombie_forecast_lines(forecast: Dictionary) -> PackedStringArray:
+    var lines: PackedStringArray = []
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return lines
+    var active_now = int(forecast.get("active_now", 0))
+    if active_now > 0:
+        lines.append("Now: %d nearby" % max(active_now, 0))
+    var events: Array = forecast.get("events", [])
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        var minutes = int(event.get("minutes_ahead", 0))
+        if minutes <= 0:
+            continue
+        var when = _format_forecast_eta(minutes)
+        var quantity = int(event.get("quantity", event.get("spawns", event.get("added", 0))))
+        var clock_time = String(event.get("clock_time", ""))
+        var text = "%s: %d approaching" % [when, max(quantity, 0)]
+        if clock_time != "":
+            text += " (%s)" % clock_time
+        if String(event.get("type", "")) == "next_day_spawn":
+            var day = int(event.get("day", forecast.get("current_day", 0) + 1))
+            text += " (Day %d)" % day
+        lines.append(text)
+    return lines
+
+func _format_forecast_eta(minutes: int) -> String:
+    if minutes <= 0:
+        return "Now"
+    var total_minutes = max(minutes, 0)
+    var hours = total_minutes / 60
+    var mins = total_minutes % 60
+    if hours > 0 and mins > 0:
+        return "In %dh %dm" % [hours, mins]
+    if hours > 0:
+        return "In %dh" % hours
+    return "In %dm" % mins
+
+func _get_player_health() -> float:
+    if game_manager == null:
+        return 0.0
+    var health_system = game_manager.get_health_system()
+    if health_system == null:
+        return 0.0
+    return health_system.get_health()
 
 func _summarize_weather_forecast(forecast: Dictionary) -> String:
     if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
