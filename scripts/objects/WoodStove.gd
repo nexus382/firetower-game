@@ -6,7 +6,6 @@ class_name WoodStove
 
 @export var prompt_text: String = "Press [%s] to manage stove"
 
-const WoodStovePanelScript := preload("res://scripts/ui/WoodStovePanel.gd")
 const PANEL_PATH := NodePath("Main/UI/WoodStovePanel")
 
 @onready var prompt_label: Label = $PromptLabel
@@ -29,12 +28,16 @@ func _ready():
     _resolve_panel()
 
 func _resolve_panel():
-    var root = get_tree().get_root()
+    var tree = get_tree()
+    if tree == null:
+        _panel = null
+        return
+    var root = tree.get_root()
     if root == null:
         _panel = null
         return
     var panel_node = root.get_node_or_null(PANEL_PATH)
-    if panel_node and panel_node is Control and panel_node.get_script() == WoodStovePanelScript:
+    if panel_node is Control and panel_node.has_method("open_panel"):
         _panel = panel_node
     else:
         _panel = null
@@ -48,6 +51,8 @@ func _unhandled_input(event):
     get_viewport().set_input_as_handled()
 
 func _handle_interaction():
+    if !is_instance_valid(_panel):
+        _panel = null
     if _panel == null:
         _resolve_panel()
     if _panel and _panel.has_method("open_panel"):
