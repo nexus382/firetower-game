@@ -7,6 +7,7 @@ class_name WoodStove
 @export var prompt_text: String = "Press [%s] to manage stove"
 
 const PANEL_PATH := NodePath("Main/UI/WoodStovePanel")
+const PANEL_GROUP := "wood_stove_panel"
 
 @onready var prompt_label: Label = $PromptLabel
 
@@ -29,18 +30,21 @@ func _ready():
 
 func _resolve_panel():
     var tree = get_tree()
+    _panel = null
     if tree == null:
-        _panel = null
         return
     var root = tree.get_root()
     if root == null:
-        _panel = null
         return
     var panel_node = root.get_node_or_null(PANEL_PATH)
     if panel_node is Control and panel_node.has_method("open_panel"):
         _panel = panel_node
-    else:
-        _panel = null
+        return
+    var group_nodes = tree.get_nodes_in_group(PANEL_GROUP)
+    for candidate in group_nodes:
+        if candidate is Control and candidate.has_method("open_panel"):
+            _panel = candidate
+            return
 
 func _unhandled_input(event):
     if !_player_in_range:
@@ -89,6 +93,8 @@ func _format_prompt_text(key_label: String) -> String:
 func _on_body_entered(body):
     if body is Player:
         _player_in_range = true
+        if _panel == null:
+            _resolve_panel()
         if prompt_label:
             prompt_label.visible = true
 

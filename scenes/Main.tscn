@@ -854,10 +854,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -240.0
-offset_top = -160.0
-offset_right = 240.0
-offset_bottom = 160.0
+offset_left = -320.0
+offset_top = -220.0
+offset_right = 320.0
+offset_bottom = 220.0
 visible = false
 script = ExtResource("8")
 
@@ -868,25 +868,55 @@ anchor_bottom = 1.0
 [node name="Margin" type="MarginContainer" parent="UI/CraftingPanel/Panel"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
 
 [node name="VBox" type="VBoxContainer" parent="UI/CraftingPanel/Panel/Margin"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 
 [node name="TitleLabel" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox"]
-text = "Crafting"
+text = "Workshop Planner"
 horizontal_alignment = 1
 
-[node name="RecipeList" type="VBoxContainer" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+[node name="ContentColumns" type="HBoxContainer" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="RecipeColumn" type="VBoxContainer" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns"]
+size_flags_horizontal = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="RecipeHeader" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns/RecipeColumn"]
+text = "Blueprints"
+
+[node name="RecipeScroll" type="ScrollContainer" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns/RecipeColumn"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="RecipeList" type="VBoxContainer" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns/RecipeColumn/RecipeScroll"]
+size_flags_horizontal = 3
 custom_constants/separation = 8
 
-[node name="DetailLabel" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox"]
+[node name="DetailColumn" type="VBoxContainer" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns"]
+size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="DetailHeader" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns/DetailColumn"]
+text = "Build Details"
+
+[node name="DetailScroll" type="ScrollContainer" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns/DetailColumn"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="DetailLabel" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox/ContentColumns/DetailColumn/DetailScroll"]
+size_flags_horizontal = 3
 autowrap_mode = 2
 
 [node name="StatusLabel" type="Label" parent="UI/CraftingPanel/Panel/Margin/VBox"]
@@ -1077,9 +1107,6 @@ theme_override_constants/separation = 12
 [node name="TitleLabel" type="Label" parent="UI/ForgingResultsPanel/Panel/Margin/VBox"]
 text = "Forge Finds"
 horizontal_alignment = 1
-
-[node name="MessageLabel" type="Label" parent="UI/ForgingResultsPanel/Panel/Margin/VBox"]
-autowrap_mode = 2
 
 [node name="ItemScroll" type="ScrollContainer" parent="UI/ForgingResultsPanel/Panel/Margin/VBox"]
 size_flags_horizontal = 3

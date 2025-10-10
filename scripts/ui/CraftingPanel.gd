@@ -9,8 +9,10 @@ const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
 # Cache common UI nodes for quick refreshes when recipes change.
 @onready var panel: Panel = $Panel
 @onready var title_label: Label = $Panel/Margin/VBox/TitleLabel
-@onready var recipe_list: VBoxContainer = $Panel/Margin/VBox/RecipeList
-@onready var detail_label: Label = $Panel/Margin/VBox/DetailLabel
+@onready var recipe_header: Label = $Panel/Margin/VBox/ContentColumns/RecipeColumn/RecipeHeader
+@onready var recipe_list: VBoxContainer = $Panel/Margin/VBox/ContentColumns/RecipeColumn/RecipeScroll/RecipeList
+@onready var detail_header: Label = $Panel/Margin/VBox/ContentColumns/DetailColumn/DetailHeader
+@onready var detail_label: Label = $Panel/Margin/VBox/ContentColumns/DetailColumn/DetailScroll/DetailLabel
 @onready var status_label: Label = $Panel/Margin/VBox/StatusLabel
 @onready var button_row: HBoxContainer = $Panel/Margin/VBox/ButtonRow
 @onready var close_button: Button = $Panel/Margin/VBox/ButtonRow/CloseButton
@@ -102,6 +104,7 @@ func _build_recipe_list():
         placeholder.text = "No recipes available"
         placeholder.add_theme_color_override("font_color", Color.WHITE)
         recipe_list.add_child(placeholder)
+        _update_recipe_header()
         return
     var keys = _recipes.keys()
     keys.sort()
@@ -111,11 +114,13 @@ func _build_recipe_list():
         var recipe: Dictionary = _recipes.get(key, {})
         var recipe_id := String(key)
         var row = HBoxContainer.new()
-        row.add_theme_constant_override("separation", 8)
+        row.add_theme_constant_override("separation", 12)
+        row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
         var button = Button.new()
         button.text = recipe.get("display_name", key.capitalize())
         button.focus_mode = Control.FOCUS_ALL
+        button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         button.pressed.connect(Callable(self, "_attempt_craft").bind(recipe_id))
         button.mouse_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
         button.focus_entered.connect(Callable(self, "_on_recipe_hovered").bind(recipe_id))
@@ -126,6 +131,8 @@ func _build_recipe_list():
         cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
         cost_label.text = _format_recipe_cost(recipe)
         cost_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+        cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+        cost_label.size_flags_horizontal = Control.SIZE_FILL
         row.add_child(cost_label)
 
         recipe_list.add_child(row)
@@ -137,6 +144,7 @@ func _build_recipe_list():
             _active_recipe = key
         if preserved_active == key:
             _active_recipe = key
+    _update_recipe_header()
 
 func _attempt_craft(recipe_id: String):
     # Delegate crafting to the GameManager and surface a concise status summary.
@@ -214,12 +222,15 @@ func _refresh_detail_text():
     # Show the highlighted recipe with duration estimates adjusted for multipliers.
     if !is_instance_valid(detail_label):
         return
+    if detail_header:
+        detail_header.text = "Build Details"
     if !_recipes.has(_active_recipe):
         detail_label.text = "Select a recipe to view details."
         return
     var recipe: Dictionary = _recipes.get(_active_recipe, {})
+    if detail_header:
+        detail_header.text = recipe.get("display_name", _active_recipe.capitalize())
     var lines: PackedStringArray = []
-    lines.append(recipe.get("display_name", _active_recipe.capitalize()))
     var description = String(recipe.get("description", ""))
     if !description.is_empty():
         lines.append(description)
@@ -334,11 +345,17 @@ func _apply_theme_overrides():
         backdrop.border_color = Color(0.3, 0.3, 0.3, 1.0)
         panel.add_theme_stylebox_override("panel", backdrop)
     if title_label:
-        title_label.text = "Crafting"
+        title_label.text = "Workshop Planner"
         title_label.add_theme_color_override("font_color", Color.WHITE)
+    if recipe_header:
+        recipe_header.text = "Blueprints"
+        recipe_header.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
     if detail_label:
         detail_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
         detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+    if detail_header:
+        detail_header.text = "Build Details"
+        detail_header.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
     if status_label:
         status_label.add_theme_color_override("font_color", Color.WHITE)
     if button_row:
@@ -346,3 +363,12 @@ func _apply_theme_overrides():
     if close_button:
         close_button.text = "Close"
         close_button.add_theme_color_override("font_color", Color.WHITE)
+
+func _update_recipe_header():
+    if recipe_header == null:
+        return
+    var count := _recipes.size()
+    if count <= 0:
+        recipe_header.text = "Blueprints"
+    else:
+        recipe_header.text = "Blueprints (%d)" % count
