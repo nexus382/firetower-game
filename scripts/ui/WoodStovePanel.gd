@@ -5,6 +5,7 @@ extends Control
 class_name WoodStovePanel
 
 const InventorySystem = preload("res://scripts/systems/InventorySystem.gd")
+const PANEL_GROUP := "wood_stove_panel"
 const KINDLING_ID := "kindling"
 const FIRE_STARTING_BOW_ID := "fire_starting_bow"
 const FLINT_AND_STEEL_ID := "flint_and_steel"
@@ -31,6 +32,7 @@ var _last_state: Dictionary = {}
 func _ready():
     visible = false
     set_process_unhandled_input(true)
+    add_to_group(PANEL_GROUP)
     if add_button:
         add_button.pressed.connect(_on_add_wood_pressed)
     if close_button:

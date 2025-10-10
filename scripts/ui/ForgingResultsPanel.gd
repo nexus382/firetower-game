@@ -4,20 +4,6 @@
 extends Control
 class_name ForgingResultsPanel
 
-const BASIC_FIND_MESSAGES := [
-    "Looking thru the woods you find",
-    "Luckily you were able to locate",
-    "You have found",
-    "You came across"
-]
-
-const ADVANCED_FIND_MESSAGES := [
-    "You come across an abandoned vehicle",
-    "You came across a Camp Site",
-    "You found a torn up Backpack",
-    "You found some abandoned items"
-]
-
 const ITEM_DETAILS := {
     "berries": "Bright berries bump food by 1.0 unit.",
     "duct_tape": "Adhesive fix-all for quick structural patches.",
@@ -46,19 +32,16 @@ const ITEM_DETAILS := {
 
 # Cache UI nodes so we can rebuild the loot list quickly per result.
 @onready var panel: Panel = $Panel
-@onready var message_label: Label = $Panel/Margin/VBox/MessageLabel
+@onready var title_label: Label = $Panel/Margin/VBox/TitleLabel
 @onready var scroll: ScrollContainer = $Panel/Margin/VBox/ItemScroll
 @onready var items_container: VBoxContainer = $Panel/Margin/VBox/ItemScroll/Items
 @onready var placeholder_label: Label = $Panel/Margin/VBox/ItemScroll/Items/Placeholder
 @onready var close_button: Button = $Panel/Margin/VBox/ButtonRow/CloseButton
 
-var _rng := RandomNumberGenerator.new()
-
 func _ready():
     # Start hidden and wait for task results to feed content in.
     visible = false
     set_process_unhandled_input(true)
-    _rng.randomize()
     _apply_theme_overrides()
     if close_button:
         close_button.pressed.connect(hide_panel)
@@ -80,7 +63,7 @@ func show_result(result: Dictionary):
         hide_panel()
         return
     visible = true
-    _populate_message(loot)
+    _update_title(loot)
     _populate_items(loot)
     if close_button:
         close_button.focus_mode = Control.FOCUS_ALL
@@ -89,26 +72,18 @@ func show_result(result: Dictionary):
 func hide_panel():
     visible = false
 
-func _populate_message(loot: Array):
-    # Summarize the haul and pick a flavorful line based on tier quality.
-    if !is_instance_valid(message_label):
+func _update_title(loot: Array):
+    if !is_instance_valid(title_label):
         return
-    var advanced_found = false
-    var summary: PackedStringArray = []
+    var total_items := 0
     for entry in loot:
-        var label = String(entry.get("display_name", entry.get("item_id", "")))
         var qty = int(entry.get("quantity_added", entry.get("quantity", 1)))
-        if qty <= 0:
-            continue
-        summary.append("%s x%d" % [label, qty])
-        if String(entry.get("tier", "basic")) == "advanced":
-            advanced_found = true
-    if summary.is_empty():
-        message_label.text = "Nothing new surfaced."
-        return
-    var pool = ADVANCED_FIND_MESSAGES if advanced_found else BASIC_FIND_MESSAGES
-    var prefix = pool[_rng.randi_range(0, pool.size() - 1)] if pool.size() > 0 else "Found"
-    message_label.text = "%s %s." % [prefix, ", ".join(summary)]
+        if qty > 0:
+            total_items += qty
+    if total_items <= 0:
+        title_label.text = "Forge Finds"
+    else:
+        title_label.text = "Forge Finds (%d)" % total_items
 
 func _populate_items(loot: Array):
     if !is_instance_valid(items_container):
@@ -171,6 +146,6 @@ func _apply_theme_overrides():
     if placeholder_label:
         placeholder_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
         placeholder_label.text = "No items collected."
-    if message_label:
-        message_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-        message_label.add_theme_color_override("font_color", Color.WHITE)
+    if title_label:
+        title_label.text = "Forge Finds"
+        title_label.add_theme_color_override("font_color", Color.WHITE)
