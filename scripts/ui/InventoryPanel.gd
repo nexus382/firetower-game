@@ -113,6 +113,8 @@ func _refresh_items():
         var qty_label = Label.new()
         qty_label.text = "x%d" % int(entry.get("quantity", 0))
         qty_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+        if item_id == "flint_and_steel":
+            qty_label.visible = false
         row.add_child(qty_label)
 
         var actions = _get_item_actions(item_id)
@@ -185,6 +187,9 @@ func _format_item_label(item_id: String, entry: Dictionary) -> String:
             if status.get("active", false):
                 fragments.append("Active")
             label = "%s (%s)" % [label, " | ".join(fragments)]
+    elif item_id == "flint_and_steel":
+        var uses = int(entry.get("quantity", 0))
+        label = "%s (%d uses)" % [label, max(uses, 0)]
     return label
 
 func _get_item_actions(item_id: String) -> Array:

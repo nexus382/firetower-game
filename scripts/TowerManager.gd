@@ -10,6 +10,7 @@ var catwalk_width: float = 0.05  # 5% of tower width (keep between 0.04 - 0.08 f
 
 const Radio = preload("res://scripts/objects/Radio.gd")
 const CraftingTable = preload("res://scripts/objects/CraftingTable.gd")
+const WoodStove = preload("res://scripts/objects/WoodStove.gd")
 
 # Room configurations (public for other scripts to access)
 var living_area_rect: Rect2
@@ -71,6 +72,9 @@ func setup_tower_layout():
 
     # Create radio station in living area
     create_radio_station()
+
+    # Create wood stove at the three-way wall intersection
+    create_wood_stove()
 
     # Create crafting table in the kitchen
     create_crafting_table()
@@ -414,6 +418,76 @@ func create_crafting_table():
     table.add_to_group("interactable")
     kitchen_node.add_child(table)
     print("🛠️ Crafting table placed at: %s" % table_pos)
+
+func create_wood_stove():
+    """Create a wood stove hugging the living/kitchen/bath intersection."""
+    if WoodStove == null:
+        return
+
+    var living_node: Node = inside_view.get_node_or_null("LivingArea")
+    if living_node == null:
+        return
+
+    var stove_node := Area2D.new()
+    stove_node.set_script(WoodStove)
+    var stove: WoodStove = stove_node as WoodStove
+    if stove == null:
+        stove_node.queue_free()
+        return
+    stove.name = "WoodStove"
+
+    var horizontal_split = kitchen_rect.position.y + kitchen_rect.size.y
+    var position = Vector2(
+        living_area_rect.position.x + living_area_rect.size.x - 32,
+        horizontal_split + 24
+    )
+    stove.position = position
+
+    var body = ColorRect.new()
+    body.name = "Body"
+    body.size = Vector2(44, 44)
+    body.position = Vector2(-22, -22)
+    body.color = Color(0.20, 0.20, 0.20)
+    body.z_index = 2
+    stove.add_child(body)
+
+    var pipe = ColorRect.new()
+    pipe.name = "Pipe"
+    pipe.size = Vector2(12, 60)
+    pipe.position = Vector2(-6, -82)
+    pipe.color = Color(0.15, 0.15, 0.15)
+    pipe.z_index = 1
+    stove.add_child(pipe)
+
+    var prompt = Label.new()
+    prompt.name = "PromptLabel"
+    prompt.position = Vector2(-72, -72)
+    prompt.add_theme_color_override("font_color", Color.WHITE)
+    prompt.add_theme_font_size_override("font_size", 12)
+    prompt.visible = false
+    stove.add_child(prompt)
+
+    var name_label = Label.new()
+    name_label.name = "NameLabel"
+    name_label.text = "Wood Stove"
+    name_label.position = Vector2(-52, -96)
+    name_label.custom_minimum_size = Vector2(104, 16)
+    name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    name_label.add_theme_color_override("font_color", Color.WHITE)
+    name_label.add_theme_font_size_override("font_size", 12)
+    name_label.z_index = 3
+    stove.add_child(name_label)
+
+    var collision = CollisionShape2D.new()
+    collision.name = "InteractShape"
+    var shape = RectangleShape2D.new()
+    shape.size = Vector2(84, 64)
+    collision.shape = shape
+    stove.add_child(collision)
+
+    stove.add_to_group("interactable")
+    living_node.add_child(stove)
+    print("🔥 Wood stove placed at: %s" % position)
 
 func create_vertical_wall_with_doorway(x: float, y: float, height: float, doorway_size: float, wall_thickness: float):
     """Create a vertical wall with a doorway gap in the middle"""

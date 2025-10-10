@@ -75,6 +75,11 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 999
     })
+    register_item_definition("kindling", {
+        KEY_DISPLAY_NAME: "Kindling",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 999
+    })
     register_item_definition("spear", {
         KEY_DISPLAY_NAME: "The Spear",
         KEY_FOOD_UNITS: 0.0,
@@ -96,7 +101,7 @@ func bootstrap_defaults():
         KEY_STACK_LIMIT: 99
     })
     register_item_definition("rock", {
-        KEY_DISPLAY_NAME: "Rock",
+        KEY_DISPLAY_NAME: "Stone",
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
     })
@@ -132,6 +137,21 @@ func bootstrap_defaults():
     })
     register_item_definition("medicinal_herbs", {
         KEY_DISPLAY_NAME: "Medicinal Herbs",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("crafted_knife", {
+        KEY_DISPLAY_NAME: "Crafted Knife",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 10
+    })
+    register_item_definition("fire_starting_bow", {
+        KEY_DISPLAY_NAME: "Fire Starting Bow",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 10
+    })
+    register_item_definition("flint_and_steel", {
+        KEY_DISPLAY_NAME: "Flint and Steel",
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
     })

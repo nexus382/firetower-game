@@ -13,6 +13,7 @@ const NewsBroadcastSystem = preload("res://scripts/systems/NewsBroadcastSystem.g
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
 const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd")
 const WarmthSystem = preload("res://scripts/systems/WarmthSystem.gd")
+const WoodStoveSystem = preload("res://scripts/systems/WoodStoveSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
@@ -44,6 +45,13 @@ const TRAP_INJURY_DAMAGE: float = 10.0
 const TRAP_ITEM_ID := "spike_trap"
 const CRAFT_ACTION_HOURS: float = 1.0
 const CRAFT_CALORIE_COST: float = 250.0
+const FIRE_STARTING_BOW_ID := "fire_starting_bow"
+const KINDLING_ID := "kindling"
+const FLINT_AND_STEEL_ID := "flint_and_steel"
+const CRAFTED_KNIFE_ID := "crafted_knife"
+const FIRE_STARTING_BOW_SUCCESS_CHANCE: float = 0.75
+const FIRE_STARTING_BOW_KINDLING_RETURN_CHANCE: float = 0.5
+const FLINT_AND_STEEL_SUCCESS_CHANCE: float = 0.90
 const FISHING_SIZE_TABLE := [
     {
         "size": "small",
@@ -109,6 +117,53 @@ const CRAFTING_RECIPES := {
         "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 12.5,
         "quantity": 1
+    },
+    "kindling": {
+        "item_id": KINDLING_ID,
+        "display_name": "Kindling",
+        "description": "Dry shavings that boost fire starting odds.",
+        "cost": {
+            "wood": 1
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 2.5,
+        "quantity": 3
+    },
+    "crafted_knife": {
+        "item_id": CRAFTED_KNIFE_ID,
+        "display_name": "Crafted Knife",
+        "description": "Sharp edge for prepping fuel and projects.",
+        "cost": {
+            "wood": 1,
+            "metal_scrap": 2
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 7.5,
+        "quantity": 1
+    },
+    "fire_starting_bow": {
+        "item_id": FIRE_STARTING_BOW_ID,
+        "display_name": "Fire Starting Bow",
+        "description": "Bow drill offering 75% spark chance.",
+        "cost": {
+            "string": 2,
+            "wood": 2
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 10.0,
+        "quantity": 1
+    },
+    "flint_and_steel": {
+        "item_id": FLINT_AND_STEEL_ID,
+        "display_name": "Flint and Steel",
+        "description": "Reliable sparks (5 uses, 90% success).",
+        "cost": {
+            CRAFTED_KNIFE_ID: 1,
+            "rock": 2
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 10.0,
+        "quantity": 5
     },
     "spear": {
         "item_id": "spear",
@@ -195,6 +250,7 @@ signal weather_multiplier_changed(new_multiplier: float, state: String)
 signal lure_status_changed(status: Dictionary)
 signal trap_state_changed(active: bool, state: Dictionary)
 signal recon_alerts_changed(alerts: Dictionary)
+signal wood_stove_state_changed(state: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -215,6 +271,7 @@ var health_system: PlayerHealthSystem = PlayerHealthSystem.new()
 var news_system: NewsBroadcastSystem = NewsBroadcastSystem.new()
 var zombie_system: ZombieSystem = ZombieSystem.new()
 var warmth_system: WarmthSystem = WarmthSystem.new()
+var wood_stove_system: WoodStoveSystem = WoodStoveSystem.new()
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _lure_target: Dictionary = {}
@@ -259,6 +316,8 @@ func _ready():
         zombie_system = ZombieSystem.new()
     if warmth_system == null:
         warmth_system = WarmthSystem.new()
+    if wood_stove_system == null:
+        wood_stove_system = WoodStoveSystem.new()
     if _rng == null:
         _rng = RandomNumberGenerator.new()
     _rng.randomize()
@@ -286,6 +345,8 @@ func _ready():
         zombie_system.zombies_damaged_tower.connect(_on_zombie_damage_tower)
         zombie_system.zombies_spawned.connect(_on_zombies_spawned)
         zombie_system.start_day(current_day, _rng)
+    if wood_stove_system:
+        wood_stove_system.stove_state_changed.connect(_on_wood_stove_state_changed)
 
     _refresh_lure_status(true)
     _broadcast_trap_state()
@@ -309,6 +370,12 @@ func get_time_system() -> TimeSystem:
 func get_inventory_system() -> InventorySystem:
     """Expose the inventory system for UI consumers."""
     return inventory_system
+
+func get_wood_stove_system() -> WoodStoveSystem:
+    return wood_stove_system
+
+func get_wood_stove_state() -> Dictionary:
+    return wood_stove_system.get_state() if wood_stove_system else {}
 
 func get_recon_window_status() -> Dictionary:
     var status := {
@@ -402,6 +469,174 @@ func get_crafting_recipes() -> Dictionary:
     for key in CRAFTING_RECIPES.keys():
         copy[key] = CRAFTING_RECIPES[key].duplicate(true)
     return copy
+
+func add_wood_to_stove(quantity: int = 1) -> Dictionary:
+    if wood_stove_system == null or inventory_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "requested": max(quantity, 0)
+        }
+
+    var request = max(quantity, 0)
+    if request <= 0:
+        request = 1
+    var capacity = wood_stove_system.get_capacity_remaining()
+    if capacity <= 0:
+        return {
+            "success": false,
+            "reason": "no_capacity",
+            "state": wood_stove_system.get_state()
+        }
+
+    var wood_stock = inventory_system.get_item_count("wood")
+    if wood_stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_wood",
+            "state": wood_stove_system.get_state()
+        }
+
+    var amount = min(request, capacity, wood_stock)
+    if amount <= 0:
+        return {
+            "success": false,
+            "reason": "no_amount",
+            "state": wood_stove_system.get_state()
+        }
+
+    var consume_report = inventory_system.consume_item("wood", amount)
+    if !consume_report.get("success", false):
+        return {
+            "success": false,
+            "reason": "consume_failed",
+            "required": amount,
+            "available": wood_stock,
+            "state": wood_stove_system.get_state()
+        }
+
+    var stove_report = wood_stove_system.add_logs(amount)
+    var state: Dictionary = stove_report.get("state", wood_stove_system.get_state())
+    return {
+        "success": true,
+        "added": stove_report.get("accepted", amount),
+        "state": state,
+        "wood_remaining": inventory_system.get_item_count("wood")
+    }
+
+func light_wood_stove(tool_id: String) -> Dictionary:
+    var key = tool_id.to_lower()
+    if wood_stove_system == null or inventory_system == null or _rng == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "tool": key,
+            "state": wood_stove_system.get_state() if wood_stove_system else {}
+        }
+
+    if wood_stove_system.is_lit():
+        return {
+            "success": false,
+            "reason": "already_lit",
+            "tool": key,
+            "state": wood_stove_system.get_state()
+        }
+
+    if wood_stove_system.get_logs_loaded() <= 0:
+        return {
+            "success": false,
+            "reason": "no_fuel",
+            "tool": key,
+            "state": wood_stove_system.get_state()
+        }
+
+    if inventory_system.get_item_count(KINDLING_ID) <= 0:
+        return {
+            "success": false,
+            "reason": "no_kindling",
+            "tool": key,
+            "state": wood_stove_system.get_state()
+        }
+
+    var chance = 0.0
+    match key:
+        FIRE_STARTING_BOW_ID:
+            if inventory_system.get_item_count(FIRE_STARTING_BOW_ID) <= 0:
+                return {
+                    "success": false,
+                    "reason": "missing_tool",
+                    "tool": key,
+                    "state": wood_stove_system.get_state()
+                }
+            chance = FIRE_STARTING_BOW_SUCCESS_CHANCE
+        FLINT_AND_STEEL_ID:
+            if inventory_system.get_item_count(FLINT_AND_STEEL_ID) <= 0:
+                return {
+                    "success": false,
+                    "reason": "missing_tool",
+                    "tool": key,
+                    "state": wood_stove_system.get_state()
+                }
+            chance = FLINT_AND_STEEL_SUCCESS_CHANCE
+        _:
+            return {
+                "success": false,
+                "reason": "unsupported_tool",
+                "tool": key,
+                "state": wood_stove_system.get_state()
+            }
+
+    var kindling_spent = inventory_system.consume_item(KINDLING_ID, 1)
+    if !kindling_spent.get("success", false):
+        return {
+            "success": false,
+            "reason": "kindling_consume_failed",
+            "tool": key,
+            "state": wood_stove_system.get_state()
+        }
+
+    var roll = _rng.randf()
+    var success = roll < chance
+    var reason = success ? "lit" : "failed_roll"
+    var kindling_returned = false
+    var tool_use_spent = 0
+
+    if key == FLINT_AND_STEEL_ID:
+        var flint_report = inventory_system.consume_item(FLINT_AND_STEEL_ID, 1)
+        tool_use_spent = flint_report.get("quantity_removed", 0) if flint_report.get("success", false) else 0
+        if !flint_report.get("success", false):
+            reason = "flint_consume_failed"
+            success = false
+            inventory_system.add_item(KINDLING_ID, 1)
+            kindling_returned = true
+
+    if success:
+        var ignite_report = wood_stove_system.ignite()
+        success = ignite_report.get("success", false)
+        reason = ignite_report.get("reason", reason) if !success else "lit"
+        if !success:
+            inventory_system.add_item(KINDLING_ID, 1)
+            kindling_returned = true
+    else:
+        if key == FIRE_STARTING_BOW_ID:
+            if _rng.randf() < FIRE_STARTING_BOW_KINDLING_RETURN_CHANCE:
+                inventory_system.add_item(KINDLING_ID, 1)
+                kindling_returned = true
+
+    var state = wood_stove_system.get_state()
+    return {
+        "success": success,
+        "reason": reason,
+        "tool": key,
+        "chance": chance,
+        "roll": roll,
+        "state": state,
+        "kindling_spent": 1,
+        "kindling_returned": kindling_returned,
+        "kindling_remaining": inventory_system.get_item_count(KINDLING_ID),
+        "tool_uses_spent": tool_use_spent,
+        "tool_stock_remaining": inventory_system.get_item_count(key)
+    }
 
 func get_sleep_percent() -> float:
     """Convenience accessor for tired meter value."""
@@ -1584,6 +1819,7 @@ func _on_weather_hour_elapsed(state: String):
 func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
     if zombie_system == null or tower_health_system == null or time_system == null:
         return
+    _advance_wood_stove(minutes)
     var report = zombie_system.advance_time(minutes, time_system.get_minutes_since_daybreak(), rolled_over)
     var spawn_event = report.get("spawn_event")
     if spawn_event is Dictionary:
@@ -1644,6 +1880,9 @@ func _on_zombies_spawned(added: int, _total: int, day: int):
 func _on_zombie_damage_tower(damage: float, count: int):
     print("🧟 Zombies inflicted %.2f damage (%d active)" % [damage, count])
 
+func _on_wood_stove_state_changed(state: Dictionary):
+    wood_stove_state_changed.emit(state.duplicate(true))
+
 func _apply_awake_time_up_to(current_minutes: int):
     if not sleep_system or not time_system:
         return
@@ -1655,7 +1894,13 @@ func _apply_awake_time_up_to(current_minutes: int):
         sleep_system.apply_awake_minutes(delta)
         if warmth_system:
             warmth_system.apply_environment_minutes(delta, _last_awake_minute_stamp, false)
+        _advance_wood_stove(delta)
     _last_awake_minute_stamp = current_minutes
+
+func _advance_wood_stove(minutes: int):
+    if wood_stove_system == null or minutes <= 0:
+        return
+    wood_stove_system.advance_minutes(minutes, warmth_system)
 
 func _resolve_meal_portion(portion_key: String) -> Dictionary:
     var key = portion_key.to_lower()
