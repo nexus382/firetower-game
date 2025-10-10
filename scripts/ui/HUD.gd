@@ -16,29 +16,29 @@ const LBS_PER_KG: float = 2.2
 
 # Cached node references so we only traverse the tree once on startup.
 @onready var game_manager: GameManager = _resolve_game_manager()
-@onready var tired_bar: ProgressBar = $StatsBar/Metrics/TiredStat/TiredMeter/TiredBar
-@onready var tired_value_label: Label = $StatsBar/Metrics/TiredStat/TiredMeter/TiredValue
-@onready var health_bar: ProgressBar = $StatsBar/Metrics/HealthStat/HealthMeter/HealthBar
-@onready var health_value_label: Label = $StatsBar/Metrics/HealthStat/HealthMeter/HealthValue
-@onready var warmth_label: Label = $StatsBar/Metrics/WarmthStat/WarmthLabel
-@onready var warmth_bar: ProgressBar = $StatsBar/Metrics/WarmthStat/WarmthMeter/WarmthBar
-@onready var warmth_value_label: Label = $StatsBar/Metrics/WarmthStat/WarmthMeter/WarmthValue
-@onready var daily_cal_value_label: Label = $StatsBar/Metrics/DailyCalStat/DailyCalValue
-@onready var weight_value_label: Label = $StatsBar/Metrics/WeightStat/WeightRow/WeightValue
-@onready var weight_unit_button: Button = $StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton
-@onready var weight_status_label: Label = $StatsBar/Metrics/WeightStat/WeightStatus
-@onready var weight_header_label: Label = $TopRightStats/WeightHeader
-@onready var weather_label: Label = $DayTimeHeader/WeatherLabel
-@onready var day_label: Label = $DayTimeHeader/DayLabel
-@onready var clock_label: Label = $DayTimeHeader/ClockLabel
-@onready var recon_alert_label: Label = $DayTimeHeader/ReconAlertLabel
-@onready var food_counter_label: Label = $TopRightStats/ResourceList/FoodCounter
-@onready var wood_counter_label: Label = $TopRightStats/ResourceList/WoodCounter
-@onready var zombie_counter_label: Label = $TopRightStats/ResourceList/ZombieCounter
-@onready var tower_health_label: Label = $TopRightStats/ResourceList/TowerHealthLabel
-@onready var trap_indicator: HBoxContainer = $TopRightStats/TrapIndicator
-@onready var trap_icon_label: Label = $TopRightStats/TrapIndicator/TrapIconLabel
-@onready var trap_status_label: Label = $TopRightStats/TrapIndicator/TrapStatusLabel
+@onready var tired_bar: ProgressBar = %TiredBar
+@onready var tired_value_label: Label = %TiredValue
+@onready var health_bar: ProgressBar = %HealthBar
+@onready var health_value_label: Label = %HealthValue
+@onready var warmth_label: Label = %WarmthLabel
+@onready var warmth_bar: ProgressBar = %WarmthBar
+@onready var warmth_value_label: Label = %WarmthValue
+@onready var daily_cal_value_label: Label = %DailyCalValue
+@onready var weight_value_label: Label = %WeightValue
+@onready var weight_unit_button: Button = %WeightUnitButton
+@onready var weight_status_label: Label = %WeightStatus
+@onready var weight_header_label: Label = %WeightHeader
+@onready var weather_label: Label = %WeatherLabel
+@onready var day_label: Label = %DayLabel
+@onready var clock_label: Label = %ClockLabel
+@onready var recon_alert_label: Label = %ReconAlertLabel
+@onready var food_counter_label: Label = %FoodCounter
+@onready var wood_counter_label: Label = %WoodCounter
+@onready var zombie_counter_label: Label = %ZombieCounter
+@onready var tower_health_label: Label = %TowerHealthLabel
+@onready var trap_indicator: HBoxContainer = %TrapIndicator
+@onready var trap_icon_label: Label = %TrapIconLabel
+@onready var trap_status_label: Label = %TrapStatusLabel
 
 var time_system: TimeSystem
 var sleep_system: SleepSystem

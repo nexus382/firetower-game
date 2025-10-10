@@ -48,6 +48,20 @@ corner_radius_bottom_left = 10
 shadow_color = Color(0, 0, 0, 0.25)
 shadow_size = 4
 
+[sub_resource type="StyleBoxFlat" id="4"]
+bg_color = Color(0.054902, 0.062745, 0.0823529, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.219608, 0.266667, 0.32549, 0.9)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 6
+
 [node name="Main" type="Node2D"]
 
 [node name="Camera2D" type="Camera2D" parent="."]
@@ -80,228 +94,272 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("5")
 
-[node name="DayTimeHeader" type="VBoxContainer" parent="UI/HUD"]
+[node name="DayTimePanel" type="PanelContainer" parent="UI/HUD"]
 anchor_left = 0.5
+anchor_top = 0.0
 anchor_right = 0.5
-offset_left = -96.0
+anchor_bottom = 0.0
+offset_left = -180.0
 offset_top = 24.0
-offset_right = 96.0
-offset_bottom = 88.0
-theme_override_constants/separation = 4
+offset_right = 180.0
+offset_bottom = 136.0
+theme_override_styles/panel = SubResource("4")
 
-[node name="DayLabel" type="Label" parent="UI/HUD/DayTimeHeader"]
+[node name="DayTimeMargin" type="MarginContainer" parent="UI/HUD/DayTimePanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="DayTimeHeader" type="VBoxContainer" parent="UI/HUD/DayTimePanel/DayTimeMargin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 6
+
+[node name="DayLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
 text = "Day 1"
-horizontal_alignment = 1
 
-[node name="ClockLabel" type="Label" parent="UI/HUD/DayTimeHeader"]
+[node name="ClockLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
 text = "6:00 AM"
-horizontal_alignment = 1
 
-[node name="WeatherLabel" type="Label" parent="UI/HUD/DayTimeHeader"]
+[node name="WeatherLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
+unique_name_in_owner = true
+horizontal_alignment = 1
 text = "Clear Skies (x1.00)"
-horizontal_alignment = 1
 
-[node name="ReconAlertLabel" type="Label" parent="UI/HUD/DayTimeHeader"]
+[node name="ReconAlertLabel" type="Label" parent="UI/HUD/DayTimePanel/DayTimeMargin/DayTimeHeader"]
+unique_name_in_owner = true
 visible = false
 horizontal_alignment = 1
 text = ""
 
-[node name="StatsBar" type="MarginContainer" parent="UI/HUD"]
-anchor_left = 1.0
-anchor_right = 1.0
-anchor_bottom = 0.0
-offset_left = -448.0
-offset_top = 32.0
-offset_right = -32.0
-offset_bottom = 116.0
-custom_constants/margin_left = 24
-custom_constants/margin_top = 16
-custom_constants/margin_right = 24
-custom_constants/margin_bottom = 24
-
-[node name="TopRightStats" type="VBoxContainer" parent="UI/HUD"]
-anchor_left = 1.0
+[node name="StatsPanel" type="PanelContainer" parent="UI/HUD"]
+anchor_left = 0.0
 anchor_top = 0.0
-anchor_right = 1.0
+anchor_right = 0.0
 anchor_bottom = 0.0
-offset_left = -260.0
-offset_top = 16.0
-offset_right = -32.0
-offset_bottom = 148.0
-theme_override_constants/separation = 6
+offset_left = 32.0
+offset_top = 24.0
+offset_right = 360.0
+offset_bottom = 408.0
+theme_override_styles/panel = SubResource("4")
 
-[node name="WeightHeader" type="Label" parent="UI/HUD/TopRightStats"]
-horizontal_alignment = 2
-vertical_alignment = 1
-text = "175.0 LBS [Healthy]"
+[node name="StatsMargin" type="MarginContainer" parent="UI/HUD/StatsPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 24
 
-[node name="ResourceList" type="VBoxContainer" parent="UI/HUD/TopRightStats"]
-size_flags_horizontal = 3
-theme_override_constants/separation = 4
-
-[node name="FoodCounter" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
-horizontal_alignment = 2
-vertical_alignment = 1
-text = "Food: 5.0"
-
-[node name="WoodCounter" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
-horizontal_alignment = 2
-vertical_alignment = 1
-text = "Wood: 0"
-
-[node name="ZombieCounter" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
-horizontal_alignment = 2
-vertical_alignment = 1
-text = "Zombies: 0"
-
-[node name="TowerHealthLabel" type="Label" parent="UI/HUD/TopRightStats/ResourceList"]
-horizontal_alignment = 2
-vertical_alignment = 1
-text = "Tower: 100/100"
-
-[node name="TrapIndicator" type="HBoxContainer" parent="UI/HUD/TopRightStats"]
-visible = false
-alignment = 2
-custom_constants/separation = 6
-
-[node name="TrapIconLabel" type="Label" parent="UI/HUD/TopRightStats/TrapIndicator"]
-theme_override_font_sizes/font_size = 22
-text = "🪤"
-
-[node name="TrapStatusLabel" type="Label" parent="UI/HUD/TopRightStats/TrapIndicator"]
-size_flags_horizontal = 3
-horizontal_alignment = 2
-theme_override_font_sizes/font_size = 14
-text = "Trap Armed (50% break)"
-
-[node name="Metrics" type="GridContainer" parent="UI/HUD/StatsBar"]
+[node name="Metrics" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 size_flags_horizontal = 3
-size_flags_vertical = 1
-columns = 2
-theme_override_constants/h_separation = 24
-theme_override_constants/v_separation = 12
+size_flags_vertical = 3
+theme_override_constants/separation = 18
 
-[node name="TiredStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
-custom_minimum_size = Vector2(160, 0)
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="TiredStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
+theme_override_constants/separation = 6
 
-[node name="TiredLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/TiredStat"]
+[node name="TiredLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat"]
+unique_name_in_owner = true
 text = "Energy"
 
-[node name="TiredMeter" type="HBoxContainer" parent="UI/HUD/StatsBar/Metrics/TiredStat"]
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="TiredMeter" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat"]
 alignment = 0
+custom_constants/separation = 12
 
-[node name="TiredBar" type="ProgressBar" parent="UI/HUD/StatsBar/Metrics/TiredStat/TiredMeter"]
+[node name="TiredBar" type="ProgressBar" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat/TiredMeter"]
+unique_name_in_owner = true
 min_value = 0.0
 max_value = 100.0
 value = 75.0
 size_flags_horizontal = 3
-size_flags_vertical = 1
 show_percentage = false
 
-[node name="TiredValue" type="Label" parent="UI/HUD/StatsBar/Metrics/TiredStat/TiredMeter"]
-size_flags_horizontal = 1
-size_flags_vertical = 1
+[node name="TiredValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/TiredStat/TiredMeter"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 horizontal_alignment = 2
 text = "75%"
 
-[node name="HealthStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
-custom_minimum_size = Vector2(160, 0)
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="HealthStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
+theme_override_constants/separation = 6
 
-[node name="HealthLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/HealthStat"]
+[node name="HealthLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat"]
+unique_name_in_owner = true
 text = "Health"
 
-[node name="HealthMeter" type="HBoxContainer" parent="UI/HUD/StatsBar/Metrics/HealthStat"]
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="HealthMeter" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat"]
 alignment = 0
+custom_constants/separation = 12
 
-[node name="HealthBar" type="ProgressBar" parent="UI/HUD/StatsBar/Metrics/HealthStat/HealthMeter"]
+[node name="HealthBar" type="ProgressBar" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat/HealthMeter"]
+unique_name_in_owner = true
 min_value = 0.0
 max_value = 100.0
 value = 100.0
 size_flags_horizontal = 3
-size_flags_vertical = 1
 show_percentage = false
 
-[node name="HealthValue" type="Label" parent="UI/HUD/StatsBar/Metrics/HealthStat/HealthMeter"]
-size_flags_horizontal = 1
-size_flags_vertical = 1
+[node name="HealthValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/HealthStat/HealthMeter"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 horizontal_alignment = 2
 text = "100%"
 
-[node name="WarmthStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
-custom_minimum_size = Vector2(160, 0)
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="WarmthStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
+theme_override_constants/separation = 6
 
-[node name="WarmthLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/WarmthStat"]
+[node name="WarmthLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat"]
+unique_name_in_owner = true
 text = "Warmth"
 
-[node name="WarmthMeter" type="HBoxContainer" parent="UI/HUD/StatsBar/Metrics/WarmthStat"]
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="WarmthMeter" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat"]
 alignment = 0
+custom_constants/separation = 12
 
-[node name="WarmthBar" type="ProgressBar" parent="UI/HUD/StatsBar/Metrics/WarmthStat/WarmthMeter"]
+[node name="WarmthBar" type="ProgressBar" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat/WarmthMeter"]
+unique_name_in_owner = true
 min_value = 0.0
 max_value = 100.0
 value = 65.0
 size_flags_horizontal = 3
-size_flags_vertical = 1
 show_percentage = false
 
-[node name="WarmthValue" type="Label" parent="UI/HUD/StatsBar/Metrics/WarmthStat/WarmthMeter"]
-size_flags_horizontal = 1
-size_flags_vertical = 1
+[node name="WarmthValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WarmthStat/WarmthMeter"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 horizontal_alignment = 2
 text = "65%"
 
-[node name="DailyCalStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
-custom_minimum_size = Vector2(160, 0)
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="DailyCalStat" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
+alignment = 0
+custom_constants/separation = 12
 
-[node name="DailyCalLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/DailyCalStat"]
+[node name="DailyCalLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/DailyCalStat"]
 text = "Daily Cal Used"
 
-[node name="DailyCalValue" type="Label" parent="UI/HUD/StatsBar/Metrics/DailyCalStat"]
-text = "0"
+[node name="DailyCalValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/DailyCalStat"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
 horizontal_alignment = 2
 vertical_alignment = 1
+text = "0"
 
-[node name="WeightStat" type="VBoxContainer" parent="UI/HUD/StatsBar/Metrics"]
-custom_minimum_size = Vector2(160, 0)
-size_flags_horizontal = 3
-size_flags_vertical = 1
+[node name="WeightStat" type="VBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics"]
+theme_override_constants/separation = 6
 
-[node name="WeightLabel" type="Label" parent="UI/HUD/StatsBar/Metrics/WeightStat"]
+[node name="WeightLabel" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat"]
 text = "Weight"
 
-[node name="WeightRow" type="HBoxContainer" parent="UI/HUD/StatsBar/Metrics/WeightStat"]
-size_flags_horizontal = 3
-alignment = 2
-custom_constants/separation = 8
+[node name="WeightRow" type="HBoxContainer" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat"]
+alignment = 0
+custom_constants/separation = 12
 
-[node name="WeightValue" type="Label" parent="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow"]
+[node name="WeightValue" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat/WeightRow"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(72, 0)
 horizontal_alignment = 2
 text = "175.0"
 
-[node name="WeightUnitButton" type="Button" parent="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow"]
+[node name="WeightUnitButton" type="Button" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat/WeightRow"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(56, 0)
+size_flags_horizontal = 0
 text = "LBS"
 
-[node name="WeightStatus" type="Label" parent="UI/HUD/StatsBar/Metrics/WeightStat"]
+[node name="WeightStatus" type="Label" parent="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
 horizontal_alignment = 2
 text = "Average (x1.0)"
+
+[node name="ResourcePanel" type="PanelContainer" parent="UI/HUD"]
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -320.0
+offset_top = 24.0
+offset_right = -32.0
+offset_bottom = 256.0
+theme_override_styles/panel = SubResource("4")
+
+[node name="ResourceMargin" type="MarginContainer" parent="UI/HUD/ResourcePanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 24
+
+[node name="ResourceStack" type="VBoxContainer" parent="UI/HUD/ResourcePanel/ResourceMargin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="WeightHeader" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack"]
+unique_name_in_owner = true
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "175.0 LBS [Healthy]"
+
+[node name="ResourceList" type="VBoxContainer" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="FoodCounter" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+unique_name_in_owner = true
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Food: 5.0"
+
+[node name="WoodCounter" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+unique_name_in_owner = true
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Wood: 0"
+
+[node name="ZombieCounter" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+unique_name_in_owner = true
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Zombies: 0"
+
+[node name="TowerHealthLabel" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/ResourceList"]
+unique_name_in_owner = true
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Tower: 100/100"
+
+[node name="TrapIndicator" type="HBoxContainer" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack"]
+unique_name_in_owner = true
+visible = false
+alignment = 2
+custom_constants/separation = 8
+
+[node name="TrapIconLabel" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/TrapIndicator"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 22
+text = "🪤"
+
+[node name="TrapStatusLabel" type="Label" parent="UI/HUD/ResourcePanel/ResourceMargin/ResourceStack/TrapIndicator"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 14
+text = "Trap Armed (50% break)"
 
 [node name="TaskMenu" type="Panel" parent="UI"]
 forging_results_panel_path = NodePath("../ForgingResultsPanel")
@@ -1075,4 +1133,4 @@ text = "Close"
 [connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/DecreaseButton" to="UI/TaskMenu" method="_on_decrease_button_pressed"]
 [connection signal="pressed" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/HourSelector/IncreaseButton" to="UI/TaskMenu" method="_on_increase_button_pressed"]
 [connection signal="item_selected" from="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSizeOption" to="UI/TaskMenu" method="_on_meal_size_option_item_selected"]
-[connection signal="pressed" from="UI/HUD/StatsBar/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]
+[connection signal="pressed" from="UI/HUD/StatsPanel/StatsMargin/Metrics/WeightStat/WeightRow/WeightUnitButton" to="UI/HUD" method="_on_weight_unit_button_pressed"]

@@ -12,7 +12,7 @@ const PANEL_PATH := NodePath("Main/UI/WoodStovePanel")
 @onready var prompt_label: Label = $PromptLabel
 
 var _player_in_range: bool = false
-var _panel: WoodStovePanel = null
+var _panel: Control = null
 var _prompt_template: String = ""
 
 func _ready():
@@ -50,8 +50,8 @@ func _unhandled_input(event):
 func _handle_interaction():
     if _panel == null:
         _resolve_panel()
-    if _panel:
-        _panel.open_panel()
+    if _panel and _panel.has_method("open_panel"):
+        _panel.call("open_panel")
     else:
         print("🔥 Wood stove panel unavailable")
 
@@ -92,5 +92,5 @@ func _on_body_exited(body):
         _player_in_range = false
         if prompt_label:
             prompt_label.visible = false
-        if _panel and _panel.visible:
-            _panel.close_panel()
+        if _panel and _panel.visible and _panel.has_method("close_panel"):
+            _panel.call("close_panel")
