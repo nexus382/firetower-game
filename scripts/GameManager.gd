@@ -15,6 +15,7 @@ const WolfSystem = preload("res://scripts/systems/WolfSystem.gd")
 const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd")
 const WarmthSystem = preload("res://scripts/systems/WarmthSystem.gd")
 const WoodStoveSystem = preload("res://scripts/systems/WoodStoveSystem.gd")
+const ExpeditionSystem = preload("res://scripts/systems/ExpeditionSystem.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
@@ -86,6 +87,11 @@ const FIRE_STARTING_BOW_ID := "fire_starting_bow"
 const KINDLING_ID := "kindling"
 const FLINT_AND_STEEL_ID := "flint_and_steel"
 const CRAFTED_KNIFE_ID := "crafted_knife"
+const PORTABLE_CRAFT_STATION_ID := "portable_craft_station"
+const TRAVEL_REST_COST_PERCENT: float = 15.0
+const TRAVEL_CALORIE_COST: float = 600.0
+const TRAVEL_HOURS_MIN: float = 3.0
+const TRAVEL_HOURS_MAX: float = 8.0
 const FIRE_STARTING_BOW_SUCCESS_CHANCE: float = 0.75
 const FIRE_STARTING_BOW_KINDLING_RETURN_CHANCE: float = 0.5
 const FLINT_AND_STEEL_SUCCESS_CHANCE: float = 0.90
@@ -248,6 +254,23 @@ const CRAFTING_RECIPES := {
         "rest_cost_percent": 10.0,
         "quantity": 5
     },
+    "portable_craft_station": {
+        "item_id": PORTABLE_CRAFT_STATION_ID,
+        "display_name": "Portable Craft Station",
+        "description": "Fold-out bench for on-foot crafting stops.",
+        "cost": {
+            "metal_scrap": 2,
+            "wood": 4,
+            "cloth_scraps": 1,
+            "plastic_sheet": 2,
+            "nails": 5,
+            "rock": 2,
+            CRAFTED_KNIFE_ID: 1
+        },
+        "hours": 1.5,
+        "rest_cost_percent": 17.5,
+        "quantity": 1
+    },
     "spear": {
         "item_id": "spear",
         "display_name": "The Spear",
@@ -399,6 +422,7 @@ signal wood_stove_state_changed(state: Dictionary)
 signal hunt_stock_changed(stock: Dictionary)
 signal snare_state_changed(state: Dictionary)
 signal wolf_state_changed(state: Dictionary)
+signal expedition_state_changed(state: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -421,6 +445,7 @@ var zombie_system: ZombieSystem = ZombieSystem.new()
 var wolf_system: WolfSystem = WolfSystem.new()
 var warmth_system: WarmthSystem = WarmthSystem.new()
 var wood_stove_system: WoodStoveSystem = WoodStoveSystem.new()
+var expedition_system: ExpeditionSystem = ExpeditionSystem.new()
 var _last_awake_minute_stamp: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _lure_target: Dictionary = {}
@@ -481,6 +506,8 @@ func _ready():
         warmth_system = WarmthSystem.new()
     if wood_stove_system == null:
         wood_stove_system = WoodStoveSystem.new()
+    if expedition_system == null:
+        expedition_system = ExpeditionSystem.new()
     if _rng == null:
         _rng = RandomNumberGenerator.new()
     _rng.randomize()
@@ -513,6 +540,11 @@ func _ready():
         wolf_system.start_day(current_day, _rng)
     if wood_stove_system:
         wood_stove_system.stove_state_changed.connect(_on_wood_stove_state_changed)
+
+    if expedition_system:
+        expedition_system.expedition_state_changed.connect(_on_expedition_system_state_changed)
+        expedition_system.initialize(_rng)
+        _emit_expedition_state()
 
     _refresh_lure_status(true)
     _broadcast_trap_state()
@@ -791,6 +823,33 @@ func _broadcast_trap_state():
 
 func _broadcast_snare_state():
     snare_state_changed.emit(get_snare_state())
+
+func get_expedition_state() -> Dictionary:
+    return expedition_system.get_state() if expedition_system else {}
+
+func get_selected_travel_option() -> Dictionary:
+    return expedition_system.get_selected_option() if expedition_system else {}
+
+func select_travel_option(index: int) -> Dictionary:
+    if expedition_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "travel_select"
+        }
+    var result = expedition_system.select_option(index)
+    if !result.get("success", false):
+        _emit_expedition_state()
+    return result
+
+func _emit_expedition_state():
+    if expedition_system:
+        expedition_state_changed.emit(expedition_system.get_state())
+    else:
+        expedition_state_changed.emit({})
+
+func _on_expedition_system_state_changed(state: Dictionary) -> void:
+    expedition_state_changed.emit(state)
 
 func _rebuild_snare_state():
     var waiting: Array = []
@@ -2430,6 +2489,73 @@ func perform_recon() -> Dictionary:
 
     _update_lure_target_from_forecast(result.get("zombie_forecast", {}))
     print("🔭 Recon outlook -> %s" % result)
+    return result
+
+func perform_travel_to_next_location() -> Dictionary:
+    if expedition_system == null or time_system == null or sleep_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "travel"
+        }
+
+    var state = expedition_system.get_state()
+    if state.get("journey_complete", false):
+        return {
+            "success": false,
+            "reason": "journey_complete",
+            "action": "travel",
+            "state": state
+        }
+
+    var option = expedition_system.get_selected_option()
+    if option.is_empty():
+        return {
+            "success": false,
+            "reason": "no_selection",
+            "action": "travel",
+            "state": state
+        }
+
+    var hours = float(option.get("travel_hours", TRAVEL_HOURS_MIN))
+    if hours <= 0.0:
+        hours = max(TRAVEL_HOURS_MIN, 0.5)
+    hours = clamp(hours, TRAVEL_HOURS_MIN, TRAVEL_HOURS_MAX)
+
+    var time_report = _spend_activity_time(hours, "travel")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "travel"
+        return failure
+
+    var rest_cost = float(option.get("rest_cost_percent", TRAVEL_REST_COST_PERCENT))
+    var calorie_cost = float(option.get("calorie_cost", TRAVEL_CALORIE_COST))
+    var rest_spent = sleep_system.consume_sleep(rest_cost)
+    var calorie_burn = sleep_system.adjust_daily_calories(calorie_cost)
+
+    var journey_report = expedition_system.commit_selected_route()
+    if !journey_report.get("success", false):
+        var rollback := time_report.duplicate()
+        rollback["action"] = "travel"
+        rollback["success"] = false
+        rollback["reason"] = journey_report.get("reason", "journey_blocked")
+        rollback["state"] = expedition_system.get_state()
+        return rollback
+
+    var result := time_report.duplicate()
+    result["action"] = "travel"
+    result["status"] = result.get("status", "applied")
+    result["success"] = true
+    result["option"] = option.duplicate(true)
+    result["journey"] = journey_report.duplicate(true)
+    result["rest_spent_percent"] = rest_spent
+    result["rest_cost_percent"] = rest_cost
+    result["calories_spent"] = calorie_cost
+    result["daily_calories_used"] = calorie_burn
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["travel_hours"] = hours
+    result["minutes_required"] = time_report.get("minutes_required", result.get("minutes_spent", 0))
+    result["state"] = expedition_system.get_state()
     return result
 
 func craft_item(recipe_id: String) -> Dictionary:

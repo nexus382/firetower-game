@@ -67,6 +67,8 @@ const SNARE_CHECK_HOURS: float = GameManager.SNARE_CHECK_HOURS
 const SNARE_CHECK_REST_COST_PERCENT: float = GameManager.SNARE_CHECK_REST_COST_PERCENT
 const SNARE_CHECK_CALORIE_COST: float = GameManager.SNARE_CHECK_CALORIE_COST
 const SNARE_CATCH_PERCENT: int = int(round(GameManager.SNARE_CATCH_CHANCE * 100.0))
+const TRAVEL_REST_COST_PERCENT: float = GameManager.TRAVEL_REST_COST_PERCENT
+const TRAVEL_CALORIE_COST: float = GameManager.TRAVEL_CALORIE_COST
 const FISHING_SIZE_LABELS := {
     "small": "Small",
     "medium": "Medium",
@@ -119,6 +121,7 @@ var _action_results_active: Dictionary = {}
 var _action_buttons: Dictionary = {}
 var _trap_state: Dictionary = {}
 var _snare_state: Dictionary = {}
+var _expedition_state: Dictionary = {}
 
 # Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
@@ -143,6 +146,7 @@ var _snare_state: Dictionary = {}
 @onready var hunt_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow/HuntText/HuntSummary
 @onready var lead_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadText/LeadSummary
 @onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceText/ReinforceSummary
+@onready var travel_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TravelRow/TravelText/TravelSummary
 @onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/SleepSelectButton
 @onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton
 @onready var camp_search_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchSelectButton
@@ -157,6 +161,7 @@ var _snare_state: Dictionary = {}
 @onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSelectButton
 @onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSelectButton
 @onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton
+@onready var travel_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TravelRow/TravelSelectButton
 @onready var trap_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapText/TrapSummary
 @onready var trap_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton
 @onready var snare_place_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceText/SnarePlaceSummary
@@ -201,6 +206,10 @@ const TASK_DESCRIPTION_META := {
     "lead": {
         "title": "Lead Away",
         "hint": "Draw undead from the tower."
+    },
+    "travel": {
+        "title": "Travel to Next Location",
+        "hint": "Select a checkpoint route on the map then commit the trek."
     },
     "fight_back": {
         "title": "Fight Back",
@@ -274,6 +283,7 @@ func _ready():
     _register_action_selector(meal_select_button, "meal")
     _register_action_selector(repair_select_button, "repair")
     _register_action_selector(reinforce_select_button, "reinforce")
+    _register_action_selector(travel_select_button, "travel")
     _register_action_selector(butcher_select_button, "butcher")
     _register_action_selector(cook_whole_select_button, "cook_whole")
 
@@ -319,6 +329,9 @@ func _ready():
             game_manager.lure_status_changed.connect(_on_lure_status_changed)
             _lure_status = game_manager.get_lure_status()
             _refresh_lead_feedback()
+        if game_manager.has_signal("expedition_state_changed"):
+            game_manager.expedition_state_changed.connect(_on_expedition_state_changed)
+        _expedition_state = game_manager.get_expedition_state()
     else:
         _set_forging_feedback("Forging unavailable", "offline")
         _set_lead_feedback("Lead Away unavailable", "offline")
@@ -387,6 +400,7 @@ func _refresh_display():
     _update_snare_check_summary()
     _update_butcher_summary()
     _update_cook_whole_summary()
+    _update_travel_summary()
     _update_description_body()
     _update_info_status()
     _update_info_stats()
@@ -524,6 +538,8 @@ func _get_description_body(key: String) -> String:
             return _build_fishing_description()
         "recon":
             return _build_recon_description()
+        "travel":
+            return _build_travel_description()
         "lead":
             return _build_lead_description()
         "fight_back":
@@ -692,6 +708,8 @@ func _trigger_selected_action():
             _execute_fishing_action()
         "recon":
             _execute_recon_action()
+        "travel":
+            _execute_travel_action()
         "lead":
             _execute_lead_action()
         "fight_back":
@@ -868,6 +886,66 @@ func _build_recon_description() -> String:
     else:
         lines.append("Next dawn beyond outlook (%s)" % _format_duration(window_minutes))
     lines.append("Day left: %s" % _format_duration(minutes_remaining))
+    return "\n".join(lines)
+
+func _build_travel_description() -> String:
+    if game_manager:
+        _expedition_state = game_manager.get_expedition_state()
+    var state: Dictionary = _expedition_state
+    if state.is_empty():
+        return "Expedition map offline. Progress the story to unlock travel."
+
+    var lines: PackedStringArray = []
+    var total = int(state.get("total_checkpoints", 8))
+    var completed = int(state.get("completed_count", 0))
+    lines.append("Checkpoints cleared: %d/%d." % [completed, total])
+
+    if state.get("journey_complete", false):
+        lines.append("All checkpoints reached. Recuperate at the tower before charting new routes.")
+        return "\n".join(lines)
+
+    var checkpoint = int(state.get("current_checkpoint", completed + 1))
+    lines.append("Next leg: Checkpoint %d of %d." % [checkpoint, total])
+
+    var options: Array = state.get("options", [])
+    if options.is_empty():
+        lines.append("Route options refreshing, check back after the next dawn.")
+    else:
+        for i in range(options.size()):
+            var option: Dictionary = options[i]
+            if typeof(option) != TYPE_DICTIONARY:
+                continue
+            var letter = char(65 + i)
+            var range_min = float(option.get("hours_min", GameManager.TRAVEL_HOURS_MIN))
+            var range_max = float(option.get("hours_max", GameManager.TRAVEL_HOURS_MAX))
+            var rest_cost = float(option.get("rest_cost_percent", TRAVEL_REST_COST_PERCENT))
+            var calories = int(round(option.get("calorie_cost", TRAVEL_CALORIE_COST)))
+            var summary = String(option.get("summary", ""))
+            var line = "%s) %s: %.1f-%.1fh | -%s%% energy | -%d cal" % [
+                letter,
+                option.get("label", "Route"),
+                range_min,
+                range_max,
+                _format_percent_value(rest_cost),
+                calories
+            ]
+            if !summary.is_empty():
+                line += " | %s" % summary
+            lines.append(line)
+
+    var selected = _resolve_selected_travel_option()
+    if selected.is_empty():
+        lines.append("Select a route on the map (M) to enable the trek action.")
+    else:
+        lines.append("Selected: %s" % _format_travel_option_summary(selected, state))
+        var eta_hours = float(selected.get("travel_hours", GameManager.TRAVEL_HOURS_MIN))
+        var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+        multiplier = max(multiplier, 0.01)
+        var minutes = int(ceil(eta_hours * 60.0 * multiplier))
+        if minutes > 0 and time_system and minutes <= _get_minutes_left_today():
+            lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
+
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
     return "\n".join(lines)
 
 func _build_lead_description() -> String:
@@ -1374,6 +1452,40 @@ func _execute_recon_action():
     _set_action_result("recon", "Recon data updated", true)
     if action_popup_panel:
         _show_recon_popup(result)
+    _refresh_display()
+
+func _execute_travel_action():
+    if game_manager == null:
+        _set_action_result("travel", "Travel unavailable", true)
+        return
+
+    var result = game_manager.perform_travel_to_next_location()
+    if !result.get("success", false):
+        var reason = String(result.get("reason", "failed"))
+        var message: String
+        match reason:
+            "systems_unavailable":
+                message = "Travel systems offline"
+            "no_selection":
+                message = "Select a route on the map (M)"
+            "journey_complete":
+                message = "All checkpoints reached"
+            "exceeds_day":
+                var minutes_available = int(result.get("minutes_available", 0))
+                message = _format_daybreak_warning(minutes_available)
+            "invalid_option":
+                message = "Route selection invalid"
+            _:
+                message = "Travel failed"
+        _set_action_result("travel", message, true)
+        _expedition_state = result.get("state", _expedition_state)
+        _update_travel_summary()
+        return
+
+    var message = _format_travel_result(result)
+    _set_action_result("travel", message, true)
+    _expedition_state = result.get("state", game_manager.get_expedition_state())
+    _update_travel_summary()
     _refresh_display()
 
 func _on_meal_size_option_item_selected(index: int):
@@ -2553,6 +2665,28 @@ func _summarize_wolf_forecast(forecast: Dictionary) -> String:
 
     return "Wolves: No activity"
 
+func _format_travel_result(result: Dictionary) -> String:
+    var option: Dictionary = result.get("option", {})
+    var label = String(option.get("label", "Route"))
+    var hours = float(result.get("travel_hours", option.get("travel_hours", GameManager.TRAVEL_HOURS_MIN)))
+    var rest_spent = float(result.get("rest_spent_percent", option.get("rest_cost_percent", TRAVEL_REST_COST_PERCENT)))
+    var calories = int(round(result.get("calories_spent", option.get("calorie_cost", TRAVEL_CALORIE_COST))))
+    var ended_at = String(result.get("ended_at_time", ""))
+    var parts: PackedStringArray = []
+    parts.append("%.1fh" % hours)
+    parts.append("-%s%% energy" % _format_percent_value(rest_spent))
+    parts.append("-%d cal" % calories)
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    var journey: Dictionary = result.get("journey", {})
+    var total = int(journey.get("total_checkpoints", _expedition_state.get("total_checkpoints", 8)))
+    var completed = int(journey.get("completed_count", _expedition_state.get("completed_count", 0)))
+    var progress_text = "Progress %d/%d" % [completed, max(total, 1)]
+    if journey.get("journey_complete", false):
+        progress_text = "Journey complete"
+    parts.append(progress_text)
+    return "%s -> %s" % [label, " | ".join(parts)]
+
 func _format_trap_deploy_result(result: Dictionary) -> String:
     var parts: PackedStringArray = []
     parts.append("Break %d%%" % TRAP_BREAK_PERCENT)
@@ -3090,6 +3224,67 @@ func _update_cook_whole_summary():
         cook_whole_select_button.disabled = !ready
 
 
+func _update_travel_summary():
+    if !is_instance_valid(travel_summary_label):
+        return
+
+    if game_manager:
+        _expedition_state = game_manager.get_expedition_state()
+
+    var state: Dictionary = _expedition_state
+    var text := "Map offline"
+    var enable_button := false
+
+    if state.is_empty():
+        text = "Map offline"
+    elif state.get("journey_complete", false):
+        var total = int(state.get("total_checkpoints", 8))
+        var completed = int(state.get("completed_count", total))
+        text = "Journey complete (%d/%d)" % [completed, total]
+    else:
+        var selected_index = int(state.get("selected_option_index", -1))
+        var options: Array = state.get("options", [])
+        if selected_index >= 0 and selected_index < options.size():
+            var option: Dictionary = options[selected_index]
+            text = _format_travel_option_summary(option, state)
+            enable_button = true
+        else:
+            var checkpoint = int(state.get("current_checkpoint", 1))
+            var total_points = int(state.get("total_checkpoints", 8))
+            text = "Checkpoint %d/%d -> Select route on Map (M)" % [checkpoint, total_points]
+
+    travel_summary_label.text = text
+    _set_action_default("travel", text, true)
+    if is_instance_valid(travel_select_button):
+        travel_select_button.disabled = !enable_button
+
+func _format_travel_option_summary(option: Dictionary, state: Dictionary = {}) -> String:
+    var label = String(option.get("label", "Route"))
+    var hours = float(option.get("travel_hours", GameManager.TRAVEL_HOURS_MIN))
+    var rest_cost = float(option.get("rest_cost_percent", TRAVEL_REST_COST_PERCENT))
+    var calorie_cost = int(round(option.get("calorie_cost", TRAVEL_CALORIE_COST)))
+    var checkpoint = int(option.get("checkpoint_index", state.get("current_checkpoint", 1)))
+    var total_points = int(state.get("total_checkpoints", 8))
+    return "%s (CP %d/%d | %.1fh | -%s%% energy | -%d cal)" % [
+        label,
+        clamp(checkpoint, 1, max(total_points, 1)),
+        max(total_points, 1),
+        hours,
+        _format_percent_value(rest_cost),
+        calorie_cost
+    ]
+
+func _resolve_selected_travel_option() -> Dictionary:
+    var state: Dictionary = _expedition_state
+    var options: Array = state.get("options", [])
+    var index = int(state.get("selected_option_index", -1))
+    if index >= 0 and index < options.size():
+        var option = options[index]
+        if typeof(option) == TYPE_DICTIONARY:
+            return option
+    return {}
+
+
 func _resolve_meal_option(key: String) -> Dictionary:
     var normalized = key.to_lower()
     for option in MEAL_OPTIONS:
@@ -3120,6 +3315,10 @@ func _get_action_energy_text(action: String) -> String:
             return "-%s%% cost" % _format_percent_value(FISHING_REST_COST_PERCENT)
         "recon":
             return "0% (Focus only)"
+        "travel":
+            var option = _resolve_selected_travel_option()
+            var rest_cost = float(option.get("rest_cost_percent", TRAVEL_REST_COST_PERCENT))
+            return "-%s%% cost" % _format_percent_value(rest_cost)
         "lead":
             if _lure_status.get("available", false):
                 return "0% (Lure intercept)"
@@ -3163,6 +3362,10 @@ func _get_action_calorie_text(action: String) -> String:
             return "+%d burn" % int(round(FISHING_CALORIE_COST))
         "recon":
             return "+%d burn" % int(round(GameManager.RECON_CALORIE_COST))
+        "travel":
+            var option = _resolve_selected_travel_option()
+            var calories = int(round(option.get("calorie_cost", TRAVEL_CALORIE_COST)))
+            return "+%d burn" % calories
         "lead":
             if _lure_status.get("available", false):
                 return "+%d burn" % int(round(GameManager.LURE_CALORIE_COST))
@@ -3475,6 +3678,13 @@ func _on_wolf_state_changed(state: Dictionary):
     _wolf_state = state.duplicate(true)
     _update_fight_summary()
     _refresh_info_stats_if_selected("fight_back")
+
+func _on_expedition_state_changed(state: Dictionary):
+    _expedition_state = state.duplicate(true)
+    _update_travel_summary()
+    if _selected_action == "travel":
+        _update_description_body()
+    _refresh_info_stats_if_selected("travel")
 
 func _on_trap_state_changed(_active: bool, state: Dictionary):
     _trap_state = state.duplicate(true)
