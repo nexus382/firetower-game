@@ -35,6 +35,9 @@ const FISHING_GRUB_LOSS_PERCENT: int = int(round(FISHING_GRUB_LOSS_CHANCE * 100.
 const FISHING_SIZE_TABLE := GameManager.FISHING_SIZE_TABLE
 const FORGING_REST_COST_PERCENT: float = GameManager.FORGING_REST_COST_PERCENT
 const FORGING_CALORIE_COST: float = GameManager.FORGING_CALORIE_COST
+const CAMP_SEARCH_HOURS: float = GameManager.CAMP_SEARCH_HOURS
+const CAMP_SEARCH_REST_COST_PERCENT: float = GameManager.CAMP_SEARCH_REST_COST_PERCENT
+const CAMP_SEARCH_CALORIE_COST: float = GameManager.CAMP_SEARCH_CALORIE_COST
 const TRAP_CALORIE_COST: float = GameManager.TRAP_CALORIE_COST
 const TRAP_ENERGY_COST_PERCENT: float = GameManager.TRAP_REST_COST_PERCENT
 const TRAP_BREAK_PERCENT: int = int(round(GameManager.TRAP_BREAK_CHANCE * 100.0))
@@ -110,10 +113,12 @@ var _trap_state: Dictionary = {}
 @onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealText/MealSummary
 @onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairText/RepairSummary
 @onready var forging_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingText/ForgingSummary
+@onready var camp_search_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchText/CampSearchSummary
 @onready var lead_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadText/LeadSummary
 @onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceText/ReinforceSummary
 @onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/SleepSelectButton
 @onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton
+@onready var camp_search_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchSelectButton
 @onready var fishing_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingText/FishingSummary
 @onready var fishing_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton
 @onready var recon_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconText/ReconSummary
@@ -138,6 +143,10 @@ const TASK_DESCRIPTION_META := {
     "forging": {
         "title": "Forge",
         "hint": "Search the forest for supplies."
+    },
+    "camp_search": {
+        "title": "Search Campground",
+        "hint": "Sweep abandoned campsites for bulk supplies."
     },
     "fishing": {
         "title": "Fish",
@@ -191,6 +200,7 @@ func _ready():
 
     _register_action_selector(sleep_select_button, "sleep")
     _register_action_selector(forging_select_button, "forging")
+    _register_action_selector(camp_search_select_button, "camp_search")
     _register_action_selector(fishing_select_button, "fishing")
     _register_action_selector(recon_select_button, "recon")
     _register_action_selector(lead_select_button, "lead")
@@ -283,6 +293,7 @@ func _refresh_display():
         hours_value_label.text = str(selected_hours)
 
     _update_sleep_summary()
+    _update_camp_search_summary()
     _update_meal_summary()
     _update_fishing_summary()
     _update_recon_summary()
@@ -316,6 +327,11 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingText/ForgingSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton"
+        ],
+        "camp_search": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchText/CampSearchSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchSelectButton"
         ],
         "fishing": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow",
@@ -383,6 +399,8 @@ func _get_description_body(key: String) -> String:
             return _build_sleep_description()
         "forging":
             return _build_forging_description()
+        "camp_search":
+            return _build_camp_search_description()
         "fishing":
             return _build_fishing_description()
         "recon":
@@ -471,6 +489,9 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "forging":
                 if is_instance_valid(forging_summary_label):
                     forging_summary_label.text = text
+            "camp_search":
+                if is_instance_valid(camp_search_summary_label):
+                    camp_search_summary_label.text = text
             "fishing":
                 if is_instance_valid(fishing_summary_label):
                     fishing_summary_label.text = text
@@ -516,6 +537,8 @@ func _trigger_selected_action():
             _execute_sleep_action()
         "forging":
             _execute_forging_action()
+        "camp_search":
+            _execute_camp_search_action()
         "fishing":
             _execute_fishing_action()
         "recon":
@@ -588,6 +611,25 @@ func _build_forging_description() -> String:
     lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(FORGING_REST_COST_PERCENT), int(round(FORGING_CALORIE_COST))])
     lines.append("Food finds: Mushrooms 25%% / Berries 25%% / Walnuts 25%% / Grubs 20%% / Apples 20%% / Oranges 20%% / Raspberries 20%% / Blueberries 20%%")
     lines.append("Advanced finds (10%%): Plastic Sheet, Metal Scrap, Nails x3, Duct Tape, Medicinal Herbs, Fuel (3-5), Mechanical Parts, Electrical Parts")
+    lines.append("Takes %s" % _format_duration(minutes))
+    if zombie_system and zombie_system.has_active_zombies():
+        lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
+    else:
+        lines.append("Ready while the area is clear")
+    return "\n".join(lines)
+
+func _build_camp_search_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(CAMP_SEARCH_HOURS * 60.0 * multiplier))
+    lines.append("Spend %dh (x%.1f) sweeping old camps." % [int(round(CAMP_SEARCH_HOURS)), multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(CAMP_SEARCH_REST_COST_PERCENT), int(round(CAMP_SEARCH_CALORIE_COST))])
+    lines.append("Basics 10%% each: Mushrooms, Berries, Apples, Oranges, Raspberries, Blueberries, Walnuts, Grubs")
+    lines.append("Textiles 40%% Ripped Cloth | Wood 25%% | Feathers 50%% | Canned Food 15%% | Nails Pack 20%%")
+    lines.append("Advanced 25%% (2x): Plastic Sheet, Metal Scrap, Nails x3, Duct Tape, Medicinal Herbs, Mechanical Parts, Electrical Parts | Fuel 3-5")
+    var capacity = game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY
+    lines.append("Carry %d slots (Backpack raises to 12)" % max(capacity, 0))
     lines.append("Takes %s" % _format_duration(minutes))
     if zombie_system and zombie_system.has_active_zombies():
         lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
@@ -795,6 +837,17 @@ func _execute_forging_action():
     _lock_forging_feedback()
     var result = game_manager.perform_forging()
     _set_forging_feedback(_format_forging_result(result), "result")
+    if forging_results_panel:
+        forging_results_panel.show_result(result)
+    _refresh_display()
+
+func _execute_camp_search_action():
+    if game_manager == null:
+        _set_action_result("camp_search", "Camp search unavailable", true)
+        return
+
+    var result = game_manager.perform_campground_search()
+    _set_action_result("camp_search", _format_camp_search_result(result), true)
     if forging_results_panel:
         forging_results_panel.show_result(result)
     _refresh_display()
@@ -1063,10 +1116,33 @@ func _execute_reinforce_action():
 
 
 func _format_forging_ready(total_food: float) -> String:
-    return "Forging ready (-%s%% energy | +%d cal burn | Food %.1f)" % [
+    var capacity = game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY
+    var base_capacity = InventorySystem.DEFAULT_CARRY_CAPACITY
+    var capacity_fragment = "Carry %d slots" % max(capacity, 0)
+    if capacity <= base_capacity:
+        capacity_fragment += " (12 w/Backpack)"
+    else:
+        capacity_fragment += " (Base %d)" % base_capacity
+    return "Forging ready (-%s%% energy | +%d cal burn | %s | Food %.1f)" % [
         _format_percent_value(FORGING_REST_COST_PERCENT),
         int(round(FORGING_CALORIE_COST)),
+        capacity_fragment,
         total_food
+    ]
+
+func _format_camp_search_ready() -> String:
+    var capacity = game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY
+    var base_capacity = InventorySystem.DEFAULT_CARRY_CAPACITY
+    var capacity_fragment = "Carry %d slots" % max(capacity, 0)
+    if capacity <= base_capacity:
+        capacity_fragment += " (12 w/Backpack)"
+    else:
+        capacity_fragment += " (Base %d)" % base_capacity
+    return "Camp Search ready (-%s%% energy | +%d cal burn | %s | %dh sweep)" % [
+        _format_percent_value(CAMP_SEARCH_REST_COST_PERCENT),
+        int(round(CAMP_SEARCH_CALORIE_COST)),
+        capacity_fragment,
+        int(round(CAMP_SEARCH_HOURS))
     ]
 
 func _format_forging_result(result: Dictionary) -> String:
@@ -1085,16 +1161,29 @@ func _format_forging_result(result: Dictionary) -> String:
                 if !is_zero_approx(food_gain):
                     entry += " (+%s food)" % _format_food(food_gain)
                 parts.append(entry)
+        var carried = int(result.get("items_carried", loot.size()))
+        var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+        if capacity > 0:
+            parts.append("Carry %d/%d" % [max(min(carried, capacity), 0), capacity])
+        var dropped: Array = result.get("dropped_loot", [])
+        if !dropped.is_empty():
+            var dropped_fragments: PackedStringArray = []
+            for item in dropped:
+                var label = item.get("display_name", item.get("item_id", "Drop"))
+                var qty = int(item.get("quantity", 1))
+                dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+            if !dropped_fragments.is_empty():
+                parts.append("Dropped: %s" % ", ".join(dropped_fragments))
         parts.append("Total %s" % _format_food(result.get("total_food_units", 0.0)))
         var rest_spent = result.get("rest_spent_percent", 0.0)
         if rest_spent > 0.0:
             parts.append("-%s%% energy" % _format_percent_value(rest_spent))
-        var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
-        if calories_spent > 0:
-            parts.append("+%d cal burn" % calories_spent)
-        if end_at != "":
-            parts.append("End %s" % end_at)
-        return " | ".join(parts)
+            var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+            if calories_spent > 0:
+                parts.append("+%d cal burn" % calories_spent)
+            if end_at != "":
+                parts.append("End %s" % end_at)
+            return " | ".join(parts)
 
     var reason = result.get("reason", "")
     match reason:
@@ -1103,6 +1192,28 @@ func _format_forging_result(result: Dictionary) -> String:
         "zombies_present":
             var count = int(result.get("zombie_count", 0))
             return "Zombies nearby! Forging blocked (%d)" % max(count, 1)
+        "carry_limit_reached":
+            var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+            var fragments: PackedStringArray = []
+            fragments.append("Carry full (%d slots)" % max(capacity, 0))
+            var dropped: Array = result.get("dropped_loot", [])
+            if !dropped.is_empty():
+                var dropped_fragments: PackedStringArray = []
+                for item in dropped:
+                    var label = item.get("display_name", item.get("item_id", "Drop"))
+                    var qty = int(item.get("quantity", 1))
+                    dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+                if !dropped_fragments.is_empty():
+                    fragments.append("Dropped: %s" % ", ".join(dropped_fragments))
+            if end_at != "":
+                fragments.append("End %s" % end_at)
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fragments.append("-%s%% energy" % _format_percent_value(rest_spent))
+            var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+            if calories_spent > 0:
+                fragments.append("+%d cal burn" % calories_spent)
+            return "Forging blocked -> %s" % " | ".join(fragments)
         "nothing_found":
             var message = "Found nothing"
             var rest_spent = result.get("rest_spent_percent", 0.0)
@@ -1123,6 +1234,94 @@ func _format_forging_result(result: Dictionary) -> String:
             if rest_spent > 0.0:
                 fallback += " | -%s%% energy" % _format_percent_value(rest_spent)
             var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+            if calories_spent > 0:
+                fallback += " | +%d cal burn" % calories_spent
+            return fallback
+
+func _format_camp_search_result(result: Dictionary) -> String:
+    var end_at = result.get("ended_at_time", "")
+    if result.get("success", false):
+        var parts: PackedStringArray = []
+        var loot: Array = result.get("loot", [])
+        if loot.is_empty():
+            parts.append("Supplies secured")
+        else:
+            for item in loot:
+                var label = item.get("display_name", item.get("item_id", "Find"))
+                var qty = int(item.get("quantity_added", item.get("quantity", 1)))
+                parts.append("%s x%d" % [label, max(qty, 1)])
+        var carried = int(result.get("items_carried", loot.size()))
+        var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+        if capacity > 0:
+            parts.append("Carry %d/%d" % [max(min(carried, capacity), 0), capacity])
+        var dropped: Array = result.get("dropped_loot", [])
+        if !dropped.is_empty():
+            var dropped_fragments: PackedStringArray = []
+            for item in dropped:
+                var label = item.get("display_name", item.get("item_id", "Drop"))
+                var qty = int(item.get("quantity", 1))
+                dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+            if !dropped_fragments.is_empty():
+                parts.append("Dropped: %s" % ", ".join(dropped_fragments))
+        var rest_spent = result.get("rest_spent_percent", 0.0)
+        if rest_spent > 0.0:
+            parts.append("-%s%% energy" % _format_percent_value(rest_spent))
+        var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
+        if calories_spent > 0:
+            parts.append("+%d cal burn" % calories_spent)
+        if end_at != "":
+            parts.append("End %s" % end_at)
+        return " | ".join(parts)
+
+    var reason = result.get("reason", "")
+    match reason:
+        "systems_unavailable":
+            return "Camp search offline"
+        "zombies_present":
+            var count = int(result.get("zombie_count", 0))
+            return "Zombies nearby! Camp search blocked (%d)" % max(count, 1)
+        "carry_limit_reached":
+            var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+            var fragments: PackedStringArray = []
+            fragments.append("Carry full (%d slots)" % max(capacity, 0))
+            var dropped: Array = result.get("dropped_loot", [])
+            if !dropped.is_empty():
+                var dropped_fragments: PackedStringArray = []
+                for item in dropped:
+                    var label = item.get("display_name", item.get("item_id", "Drop"))
+                    var qty = int(item.get("quantity", 1))
+                    dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+                if !dropped_fragments.is_empty():
+                    fragments.append("Dropped: %s" % ", ".join(dropped_fragments))
+            if end_at != "":
+                fragments.append("End %s" % end_at)
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fragments.append("-%s%% energy" % _format_percent_value(rest_spent))
+            var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
+            if calories_spent > 0:
+                fragments.append("+%d cal burn" % calories_spent)
+            return "Camp search blocked -> %s" % " | ".join(fragments)
+        "nothing_found":
+            var message = "Camps were empty"
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                message += " | -%s%% energy" % _format_percent_value(rest_spent)
+            var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
+            if calories_spent > 0:
+                message += " | +%d cal burn" % calories_spent
+            if end_at != "":
+                message += " | End %s" % end_at
+            return message
+        "exceeds_day":
+            var minutes_available = result.get("minutes_available", 0)
+            return _format_daybreak_warning(minutes_available)
+        _:
+            var fallback = "Camp search failed"
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fallback += " | -%s%% energy" % _format_percent_value(rest_spent)
+            var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
             if calories_spent > 0:
                 fallback += " | +%d cal burn" % calories_spent
             return fallback
@@ -1671,6 +1870,14 @@ func _update_sleep_summary():
     sleep_summary_label.text = summary
     _set_action_default("sleep", summary, true)
 
+func _update_camp_search_summary():
+    if !is_instance_valid(camp_search_summary_label):
+        return
+
+    var summary = _format_camp_search_ready()
+    camp_search_summary_label.text = summary
+    _set_action_default("camp_search", summary, true)
+
 func _update_meal_summary():
     if !is_instance_valid(meal_summary_label):
         return
@@ -1859,6 +2066,8 @@ func _get_action_energy_text(action: String) -> String:
             return "+%d%% per hr" % per_hour
         "forging":
             return "-%s%% cost" % _format_percent_value(FORGING_REST_COST_PERCENT)
+        "camp_search":
+            return "-%s%% cost" % _format_percent_value(CAMP_SEARCH_REST_COST_PERCENT)
         "fishing":
             return "-%s%% cost" % _format_percent_value(FISHING_REST_COST_PERCENT)
         "recon":
@@ -1888,6 +2097,8 @@ func _get_action_calorie_text(action: String) -> String:
             return "+%d burn/hr" % per_hour
         "forging":
             return "+%d burn" % int(round(FORGING_CALORIE_COST))
+        "camp_search":
+            return "+%d burn" % int(round(CAMP_SEARCH_CALORIE_COST))
         "fishing":
             return "+%d burn" % int(round(FISHING_CALORIE_COST))
         "recon":
@@ -2069,6 +2280,7 @@ func _format_weather_state_label(state: String) -> String:
 
 func _on_inventory_food_total_changed(new_total: float):
     _update_meal_summary()
+    _update_camp_search_summary()
     if _forging_feedback_locked:
         return
     if _forging_feedback_state == "offline":
@@ -2079,6 +2291,9 @@ func _on_inventory_item_changed(_item_id: String, _quantity_delta: int, _food_de
     _update_repair_summary()
     _update_reinforce_summary()
     _update_trap_summary()
+    _update_camp_search_summary()
+    if !_forging_feedback_locked and _forging_feedback_state != "offline" and inventory_system:
+        _set_forging_feedback(_format_forging_ready(inventory_system.get_total_food_units()), "ready")
 
 
 func _on_tower_health_changed(_new: float, _old: float):

@@ -12,6 +12,10 @@ const KEY_DISPLAY_NAME := "display_name"
 const KEY_FOOD_UNITS := "food_units"
 const KEY_STACK_LIMIT := "stack_limit"
 
+const BACKPACK_ITEM_ID := "backpack"
+const DEFAULT_CARRY_CAPACITY: int = 5
+const BACKPACK_CARRY_CAPACITY: int = 12
+
 var _item_definitions: Dictionary = {}
 var _item_counts: Dictionary = {}
 var _total_food_units: float = 0.0
@@ -115,6 +119,11 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
     })
+    register_item_definition("cloth_scraps", {
+        KEY_DISPLAY_NAME: "Cloth Scraps",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
     register_item_definition("plastic_sheet", {
         KEY_DISPLAY_NAME: "Plastic Sheet",
         KEY_FOOD_UNITS: 0.0,
@@ -150,6 +159,16 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 10
     })
+    register_item_definition("bow", {
+        KEY_DISPLAY_NAME: "Bow",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 1
+    })
+    register_item_definition("arrow", {
+        KEY_DISPLAY_NAME: "Arrow",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
     register_item_definition("flint_and_steel", {
         KEY_DISPLAY_NAME: "Flint and Steel",
         KEY_FOOD_UNITS: 0.0,
@@ -174,6 +193,26 @@ func bootstrap_defaults():
         KEY_DISPLAY_NAME: "Electrical Parts",
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("canned_food", {
+        KEY_DISPLAY_NAME: "Canned Food",
+        KEY_FOOD_UNITS: 1.5,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("nails_pack", {
+        KEY_DISPLAY_NAME: "Nails (5 Pack)",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition("feather", {
+        KEY_DISPLAY_NAME: "Feather",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 99
+    })
+    register_item_definition(BACKPACK_ITEM_ID, {
+        KEY_DISPLAY_NAME: "Backpack",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 1
     })
     register_item_definition("batteries", {
         KEY_DISPLAY_NAME: "Batteries",
@@ -235,6 +274,10 @@ func get_item_counts() -> Dictionary:
 
 func get_total_food_units() -> float:
     return _total_food_units
+
+func get_carry_capacity() -> int:
+    var has_pack = get_item_count(BACKPACK_ITEM_ID) > 0
+    return BACKPACK_CARRY_CAPACITY if has_pack else DEFAULT_CARRY_CAPACITY
 
 func set_total_food_units(amount: float) -> float:
     amount = max(amount, 0.0)

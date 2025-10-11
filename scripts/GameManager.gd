@@ -34,6 +34,9 @@ const FISHING_CALORIE_COST: float = 650.0
 const FISHING_GRUB_LOSS_CHANCE: float = 0.5
 const FORGING_REST_COST_PERCENT: float = 10.0
 const FORGING_CALORIE_COST: float = 300.0
+const CAMP_SEARCH_HOURS: float = 4.0
+const CAMP_SEARCH_REST_COST_PERCENT: float = 20.0
+const CAMP_SEARCH_CALORIE_COST: float = 800.0
 const FLASHLIGHT_BATTERY_MAX: float = 100.0
 const FLASHLIGHT_BATTERY_DRAIN_PER_HOUR: float = 10.0
 const TRAP_DEPLOY_HOURS: float = 2.0
@@ -187,6 +190,17 @@ const CRAFTING_RECIPES := {
         "rest_cost_percent": 2.5,
         "quantity": 1
     },
+    "cloth_scraps": {
+        "item_id": "cloth_scraps",
+        "display_name": "Cloth Scraps",
+        "description": "Cut fabric strips for pack projects.",
+        "cost": {
+            "ripped_cloth": 1
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 2.5,
+        "quantity": 2
+    },
     "bandage": {
         "item_id": "bandage",
         "display_name": "Bandage",
@@ -223,6 +237,45 @@ const CRAFTING_RECIPES := {
         },
         "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 7.5,
+        "quantity": 1
+    },
+    "backpack": {
+        "item_id": "backpack",
+        "display_name": "Backpack",
+        "description": "Rugged pack expanding carry slots to 12.",
+        "cost": {
+            "wood": 4,
+            "string": 1,
+            "rope": 1,
+            "cloth_scraps": 3
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 15.0,
+        "quantity": 1
+    },
+    "bow": {
+        "item_id": "bow",
+        "display_name": "Bow",
+        "description": "Flexible bow for silent ranged attacks.",
+        "cost": {
+            "rope": 1,
+            "wood": 1
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 10.0,
+        "quantity": 1
+    },
+    "arrow": {
+        "item_id": "arrow",
+        "display_name": "Arrow",
+        "description": "Straight shaft for the crafted bow.",
+        "cost": {
+            "feather": 2,
+            "rock": 1,
+            "wood": 1
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 5.0,
         "quantity": 1
     }
 }
@@ -370,6 +423,11 @@ func get_time_system() -> TimeSystem:
 func get_inventory_system() -> InventorySystem:
     """Expose the inventory system for UI consumers."""
     return inventory_system
+
+func get_carry_capacity() -> int:
+    if inventory_system:
+        return inventory_system.get_carry_capacity()
+    return InventorySystem.DEFAULT_CARRY_CAPACITY
 
 func get_wood_stove_system() -> WoodStoveSystem:
     return wood_stove_system
@@ -1125,8 +1183,25 @@ func perform_forging() -> Dictionary:
         print("🌲 Forging yielded nothing")
         return result
 
+    var capacity_report = _apply_carry_capacity(loot_roll)
+    var carried_entries: Array = capacity_report.get("retained", loot_roll)
+    var dropped_entries: Array = capacity_report.get("dropped", [])
+    var capacity = int(capacity_report.get("capacity", get_carry_capacity()))
+    result["carry_capacity"] = capacity
+
+    if carried_entries.is_empty():
+        result["success"] = false
+        result["reason"] = "carry_limit_reached"
+        if !dropped_entries.is_empty():
+            var dropped_only = _format_dropped_entries(dropped_entries)
+            if !dropped_only.is_empty():
+                result["dropped_loot"] = dropped_only
+                result["items_dropped"] = dropped_only.size()
+        print("🌲 Forging haul dropped (capacity %d)" % capacity)
+        return result
+
     var loot_reports: Array = []
-    for item in loot_roll:
+    for item in carried_entries:
         var report = inventory_system.add_item(item.get("item_id", ""), item.get("quantity", 1))
         report["roll"] = item.get("roll", 0.0)
         report["chance"] = item.get("chance", 0.0)
@@ -1139,12 +1214,99 @@ func perform_forging() -> Dictionary:
                 flashlight_active = false
         loot_reports.append(report)
 
-    result["success"] = true
     result["loot"] = loot_reports
     result["items_found"] = loot_reports.size()
     result["total_food_units"] = inventory_system.get_total_food_units()
     result["flashlight_status"] = get_flashlight_status()
+    result["items_carried"] = carried_entries.size()
+    if !dropped_entries.is_empty():
+        var dropped_reports = _format_dropped_entries(dropped_entries)
+        if !dropped_reports.is_empty():
+            result["dropped_loot"] = dropped_reports
+            result["items_dropped"] = dropped_reports.size()
+    result["success"] = true
     print("🌲 Forging success: %s" % result)
+    return result
+
+func perform_campground_search() -> Dictionary:
+    if inventory_system == null or _rng == null or time_system == null or sleep_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "camp_search"
+        }
+
+    if zombie_system and zombie_system.has_active_zombies():
+        return {
+            "success": false,
+            "reason": "zombies_present",
+            "action": "camp_search",
+            "zombie_count": zombie_system.get_active_zombies()
+        }
+
+    var time_report = _spend_activity_time(CAMP_SEARCH_HOURS, "camp_search")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["success"] = false
+        failure["action"] = "camp_search"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        failure["status"] = failure.get("status", "rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(CAMP_SEARCH_REST_COST_PERCENT)
+    var calorie_burn = sleep_system.adjust_daily_calories(CAMP_SEARCH_CALORIE_COST)
+    var loot_roll = _roll_campground_loot()
+    var result := time_report.duplicate()
+    result["action"] = "camp_search"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["calories_spent"] = CAMP_SEARCH_CALORIE_COST
+    result["daily_calories_used"] = calorie_burn
+
+    if loot_roll.is_empty():
+        result["success"] = false
+        result["reason"] = "nothing_found"
+        print("⛺ Camp search yielded nothing")
+        return result
+
+    var capacity_report = _apply_carry_capacity(loot_roll)
+    var carried_entries: Array = capacity_report.get("retained", loot_roll)
+    var dropped_entries: Array = capacity_report.get("dropped", [])
+    var capacity = int(capacity_report.get("capacity", get_carry_capacity()))
+    result["carry_capacity"] = capacity
+
+    if carried_entries.is_empty():
+        result["success"] = false
+        result["reason"] = "carry_limit_reached"
+        if !dropped_entries.is_empty():
+            var dropped_only = _format_dropped_entries(dropped_entries)
+            if !dropped_only.is_empty():
+                result["dropped_loot"] = dropped_only
+                result["items_dropped"] = dropped_only.size()
+        print("⛺ Camp search haul dropped (capacity %d)" % capacity)
+        return result
+
+    var loot_reports: Array = []
+    for item in carried_entries:
+        var report = inventory_system.add_item(item.get("item_id", ""), item.get("quantity", 1))
+        report["roll"] = item.get("roll", 0.0)
+        report["chance"] = item.get("chance", 0.0)
+        report["tier"] = item.get("tier", "basic")
+        report["quantity_rolled"] = item.get("quantity", report.get("quantity_added", 1))
+        loot_reports.append(report)
+
+    result["loot"] = loot_reports
+    result["items_found"] = loot_reports.size()
+    result["total_food_units"] = inventory_system.get_total_food_units()
+    result["items_carried"] = carried_entries.size()
+    if !dropped_entries.is_empty():
+        var dropped_reports = _format_dropped_entries(dropped_entries)
+        if !dropped_reports.is_empty():
+            result["dropped_loot"] = dropped_reports
+            result["items_dropped"] = dropped_reports.size()
+    result["success"] = true
+    print("⛺ Camp search success: %s" % result)
     return result
 
 func perform_lead_away_undead() -> Dictionary:
@@ -1695,6 +1857,12 @@ func _roll_forging_loot() -> Array:
             "tier": "basic"
         },
         {
+            "item_id": "feather",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
             "item_id": "plastic_sheet",
             "chance": 0.10,
             "quantity": 1,
@@ -1762,6 +1930,141 @@ func _roll_forging_loot() -> Array:
         }
     ]
 
+    return _roll_loot_from_table(table)
+
+func _roll_campground_loot() -> Array:
+    var table = [
+        {
+            "item_id": "mushrooms",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "berries",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "apples",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "oranges",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "raspberries",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "blueberries",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "walnuts",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "grubs",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "ripped_cloth",
+            "chance": 0.40,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "wood",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "plastic_sheet",
+            "chance": 0.25,
+            "quantity": 2,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "metal_scrap",
+            "chance": 0.25,
+            "quantity": 2,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "nails",
+            "chance": 0.25,
+            "quantity": 3,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "duct_tape",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "medicinal_herbs",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "fuel",
+            "chance": 0.25,
+            "quantity_range": [3, 5],
+            "tier": "advanced"
+        },
+        {
+            "item_id": "mechanical_parts",
+            "chance": 0.25,
+            "quantity": 2,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "electrical_parts",
+            "chance": 0.25,
+            "quantity": 2,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "canned_food",
+            "chance": 0.15,
+            "quantity": 1,
+            "tier": "provision"
+        },
+        {
+            "item_id": "nails_pack",
+            "chance": 0.20,
+            "quantity": 5,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "feather",
+            "chance": 0.50,
+            "quantity": 1,
+            "tier": "basic"
+        }
+    ]
+
+    return _roll_loot_from_table(table)
+
+func _roll_loot_from_table(table: Array) -> Array:
     var rewards: Array = []
     for entry in table:
         var chance = float(entry.get("chance", 0.0))
@@ -1790,6 +2093,41 @@ func _roll_forging_loot() -> Array:
                 "tier": entry.get("tier", "basic")
             })
     return rewards
+
+func _apply_carry_capacity(entries: Array) -> Dictionary:
+    var capacity = get_carry_capacity()
+    var retained: Array = []
+    var dropped: Array = []
+    if capacity <= 0:
+        for entry in entries:
+            dropped.append(entry)
+    else:
+        for entry in entries:
+            if retained.size() < capacity:
+                retained.append(entry)
+            else:
+                dropped.append(entry)
+    return {
+        "capacity": capacity,
+        "retained": retained,
+        "dropped": dropped
+    }
+
+func _format_dropped_entries(entries: Array) -> Array:
+    var formatted: Array = []
+    for entry in entries:
+        var item_id = String(entry.get("item_id", ""))
+        if item_id.is_empty():
+            continue
+        var display = inventory_system.get_item_display_name(item_id) if inventory_system else item_id.capitalize()
+        formatted.append({
+            "item_id": item_id,
+            "display_name": display,
+            "quantity": int(entry.get("quantity", 1)),
+            "chance": float(entry.get("chance", 0.0)),
+            "roll": float(entry.get("roll", 0.0))
+        })
+    return formatted
 
 func _on_day_rolled_over():
     current_day += 1
