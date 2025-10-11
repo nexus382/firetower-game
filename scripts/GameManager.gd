@@ -54,6 +54,15 @@ const TRAP_BREAK_CHANCE: float = 0.5
 const TRAP_INJURY_CHANCE: float = 0.15
 const TRAP_INJURY_DAMAGE: float = 10.0
 const TRAP_ITEM_ID := "spike_trap"
+const SNARE_ITEM_ID := "animal_snare"
+const SNARE_PLACE_HOURS: float = 1.0
+const SNARE_PLACE_CALORIE_COST: float = 250.0
+const SNARE_PLACE_REST_COST_PERCENT: float = 5.0
+const SNARE_CHECK_HOURS: float = 0.5
+const SNARE_CHECK_CALORIE_COST: float = 50.0
+const SNARE_CHECK_REST_COST_PERCENT: float = 2.0
+const SNARE_CATCH_CHANCE: float = 0.40
+const SNARE_ANIMAL_IDS := ["rabbit", "squirrel"]
 const CRAFT_ACTION_HOURS: float = 1.0
 const CRAFT_CALORIE_COST: float = 250.0
 const FIRE_STARTING_BOW_ID := "fire_starting_bow"
@@ -331,6 +340,18 @@ const CRAFTING_RECIPES := {
         "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 5.0,
         "quantity": 1
+    },
+    "animal_snare": {
+        "item_id": SNARE_ITEM_ID,
+        "display_name": "Animal Snare",
+        "description": "Loop trap fit for rabbits or squirrels.",
+        "cost": {
+            "rope": 2,
+            "wood": 2
+        },
+        "hours": CRAFT_ACTION_HOURS,
+        "rest_cost_percent": 10.0,
+        "quantity": 1
     }
 }
 
@@ -359,6 +380,7 @@ signal trap_state_changed(active: bool, state: Dictionary)
 signal recon_alerts_changed(alerts: Dictionary)
 signal wood_stove_state_changed(state: Dictionary)
 signal hunt_stock_changed(stock: Dictionary)
+signal snare_state_changed(state: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -393,6 +415,16 @@ var _trap_state: Dictionary = {
     "deployed_at_minutes": -1,
     "deployed_at_time": ""
 }
+var _snare_deployments: Array = []
+var _snare_state: Dictionary = {
+    "total_deployed": 0,
+    "active_snares": 0,
+    "caught_snares": 0,
+    "animals_ready": 0,
+    "waiting_animals": [],
+    "roll_chance": SNARE_CATCH_CHANCE
+}
+var _next_snare_id: int = 1
 var _recon_alerts: Dictionary = {}
 var flashlight_battery_percent: float = 0.0
 var flashlight_active: bool = false
@@ -460,6 +492,7 @@ func _ready():
     _refresh_lure_status(true)
     _broadcast_trap_state()
     _emit_hunt_stock_changed()
+    _rebuild_snare_state()
     if wood_stove_system:
         _on_wood_stove_state_changed(wood_stove_system.get_state())
 
@@ -529,6 +562,27 @@ func get_hunt_status() -> Dictionary:
     if zombie_system:
         status["zombies_nearby"] = zombie_system.get_active_zombies()
     return status
+
+func get_snare_state() -> Dictionary:
+    return _snare_state.duplicate(true)
+
+func get_snare_status() -> Dictionary:
+    var status := get_snare_state()
+    status["place_hours"] = SNARE_PLACE_HOURS
+    status["place_rest_cost_percent"] = SNARE_PLACE_REST_COST_PERCENT
+    status["place_calorie_cost"] = SNARE_PLACE_CALORIE_COST
+    status["check_hours"] = SNARE_CHECK_HOURS
+    status["check_rest_cost_percent"] = SNARE_CHECK_REST_COST_PERCENT
+    status["check_calorie_cost"] = SNARE_CHECK_CALORIE_COST
+    status["catch_chance"] = SNARE_CATCH_CHANCE
+    if inventory_system:
+        status["snare_stock"] = inventory_system.get_item_count(SNARE_ITEM_ID)
+    if time_system:
+        status["current_time"] = time_system.get_formatted_time()
+    return status
+
+func has_deployed_snares() -> bool:
+    return int(_snare_state.get("total_deployed", 0)) > 0
 
 func get_butcher_status() -> Dictionary:
     var pending_stock = get_pending_game_stock()
@@ -634,6 +688,39 @@ func get_trap_state() -> Dictionary:
 
 func _broadcast_trap_state():
     trap_state_changed.emit(_trap_state.get("active", false), _trap_state.duplicate(true))
+
+func _broadcast_snare_state():
+    snare_state_changed.emit(get_snare_state())
+
+func _rebuild_snare_state():
+    var waiting: Array = []
+    var active: int = 0
+    var caught: int = 0
+    var total_food: float = 0.0
+    for entry in _snare_deployments:
+        if entry.get("has_animal", false):
+            caught += 1
+            var animal: Dictionary = entry.get("animal", {})
+            var snapshot = animal.duplicate(true)
+            waiting.append(snapshot)
+            total_food += float(snapshot.get("food_units", 0.0))
+        else:
+            active += 1
+    _snare_state = {
+        "total_deployed": _snare_deployments.size(),
+        "active_snares": active,
+        "caught_snares": caught,
+        "animals_ready": waiting.size(),
+        "waiting_animals": waiting,
+        "roll_chance": SNARE_CATCH_CHANCE,
+        "total_food_units_ready": total_food,
+        "pending_stock": get_pending_game_stock()
+    }
+    if time_system:
+        _snare_state["last_updated_time"] = time_system.get_formatted_time()
+        _snare_state["last_updated_minutes"] = time_system.get_minutes_since_daybreak()
+    _snare_state["current_day"] = current_day
+    _broadcast_snare_state()
 
 func get_recon_alerts() -> Dictionary:
     return _recon_alerts.duplicate(true)
@@ -1868,6 +1955,167 @@ func perform_trap_deployment() -> Dictionary:
     print("🪤 Trap deployed -> stock %d" % int(result.get("trap_stock_after", 0)))
     return result
 
+func perform_place_snare() -> Dictionary:
+    if time_system == null or sleep_system == null or inventory_system == null or _rng == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "snare_place"
+        }
+
+    var snare_stock = inventory_system.get_item_count(SNARE_ITEM_ID)
+    if snare_stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_snares",
+            "action": "snare_place",
+            "snare_stock": snare_stock
+        }
+
+    if zombie_system and zombie_system.has_active_zombies():
+        return {
+            "success": false,
+            "reason": "zombies_present",
+            "action": "snare_place",
+            "zombie_count": zombie_system.get_active_zombies()
+        }
+
+    var time_report = _spend_activity_time(SNARE_PLACE_HOURS, "snare_place")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "snare_place"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(SNARE_PLACE_REST_COST_PERCENT)
+    var calorie_total = sleep_system.adjust_daily_calories(SNARE_PLACE_CALORIE_COST)
+
+    var consume_report = inventory_system.consume_item(SNARE_ITEM_ID, 1)
+    if !consume_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "snare_place"
+        failure["success"] = false
+        failure["reason"] = "consume_failed"
+        failure["snare_stock"] = snare_stock
+        failure["consume_report"] = consume_report
+        return failure
+
+    var snare_id = _next_snare_id
+    _next_snare_id += 1
+    var minutes_now = time_system.get_minutes_since_daybreak() if time_system else -1
+    var placement := {
+        "id": snare_id,
+        "placed_day": current_day,
+        "placed_minutes": minutes_now,
+        "placed_time": time_system.get_formatted_time() if time_system else "",
+        "has_animal": false,
+        "minutes_buffer": 0.0,
+        "animal": {},
+        "last_progress_day": current_day,
+        "last_progress_minutes": minutes_now
+    }
+    _snare_deployments.append(placement)
+    _rebuild_snare_state()
+
+    var result := time_report.duplicate()
+    result["success"] = true
+    result["action"] = "snare_place"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["calories_spent"] = SNARE_PLACE_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["snare_stock_before"] = snare_stock
+    result["snare_stock_after"] = inventory_system.get_item_count(SNARE_ITEM_ID)
+    result["snare_consume_report"] = consume_report
+    result["snare_id"] = snare_id
+    result["total_deployed"] = _snare_state.get("total_deployed", _snare_deployments.size())
+    result["snare_state"] = get_snare_state()
+    print("🪢 Snare #%d placed -> %d active" % [snare_id, int(result.get("total_deployed", 0))])
+    return result
+
+func perform_check_snares() -> Dictionary:
+    if time_system == null or sleep_system == null or inventory_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "snare_check"
+        }
+
+    if _snare_deployments.is_empty():
+        return {
+            "success": false,
+            "reason": "no_snares",
+            "action": "snare_check",
+            "snare_state": get_snare_state()
+        }
+
+    if zombie_system and zombie_system.has_active_zombies():
+        return {
+            "success": false,
+            "reason": "zombies_present",
+            "action": "snare_check",
+            "zombie_count": zombie_system.get_active_zombies()
+        }
+
+    var time_report = _spend_activity_time(SNARE_CHECK_HOURS, "snare_check")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "snare_check"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(SNARE_CHECK_REST_COST_PERCENT)
+    var calorie_total = sleep_system.adjust_daily_calories(SNARE_CHECK_CALORIE_COST)
+
+    var animals_collected: Array = []
+    var total_food: float = 0.0
+    for entry in _snare_deployments:
+        if !entry.get("has_animal", false):
+            continue
+        var animal: Dictionary = entry.get("animal", {})
+        if animal.is_empty():
+            continue
+        var food_units = float(animal.get("food_units", 0.0))
+        var animal_id = String(animal.get("id", ""))
+        if !animal_id.is_empty() and food_units > 0.0:
+            _add_pending_game_food(animal_id, food_units)
+            if inventory_system:
+                inventory_system.add_food_units(food_units)
+        animals_collected.append(animal.duplicate(true))
+        total_food += food_units
+        entry["animal"] = {}
+        entry["has_animal"] = false
+        entry["minutes_buffer"] = 0.0
+        entry["last_progress_day"] = current_day
+        entry["last_progress_minutes"] = time_system.get_minutes_since_daybreak() if time_system else -1
+
+    _rebuild_snare_state()
+    _emit_hunt_stock_changed()
+
+    var result := time_report.duplicate()
+    result["action"] = "snare_check"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["calories_spent"] = SNARE_CHECK_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["animals_collected"] = animals_collected
+    result["animals_found"] = animals_collected.size()
+    result["food_units_gained"] = total_food
+    result["pending_stock"] = get_pending_game_stock()
+    result["snare_state"] = get_snare_state()
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["total_food_units"] = inventory_system.get_total_food_units()
+
+    if animals_collected.is_empty():
+        result["success"] = false
+        result["reason"] = "empty"
+        result["message"] = "The snare is empty still, try again later."
+        print("🪢 Snare check empty-handed")
+    else:
+        result["success"] = true
+        print("🪢 Snare check collected %d animal(s) (+%.1f food)" % [animals_collected.size(), total_food])
+    return result
+
 func perform_recon() -> Dictionary:
     if time_system == null or sleep_system == null or weather_system == null or zombie_system == null or _rng == null:
         return {
@@ -2418,6 +2666,19 @@ func _roll_hunt_animal() -> Dictionary:
             }
     return {}
 
+func _choose_snare_animal() -> Dictionary:
+    if _rng == null or SNARE_ANIMAL_IDS.is_empty():
+        return {}
+    var index = _rng.randi_range(0, SNARE_ANIMAL_IDS.size() - 1)
+    var animal_id = String(SNARE_ANIMAL_IDS[index])
+    var label = HUNT_ANIMAL_LABELS.get(animal_id, animal_id.capitalize())
+    var food_units = float(HUNT_ANIMAL_BASES.get(animal_id, 0.0))
+    return {
+        "id": animal_id,
+        "label": label,
+        "food_units": food_units
+    }
+
 func _add_pending_game_food(animal_id: String, amount: float):
     if animal_id.is_empty() or amount <= 0.0:
         return
@@ -2552,9 +2813,12 @@ func _on_weather_hour_elapsed(state: String):
         tower_health_system.register_weather_hour(state)
 
 func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
-    if zombie_system == null or tower_health_system == null or time_system == null:
+    if time_system == null:
         return
     _advance_wood_stove(minutes)
+    _advance_snares(minutes, rolled_over)
+    if zombie_system == null or tower_health_system == null:
+        return
     var report = zombie_system.advance_time(minutes, time_system.get_minutes_since_daybreak(), rolled_over)
     var spawn_event = report.get("spawn_event")
     if spawn_event is Dictionary:
@@ -2636,6 +2900,54 @@ func _advance_wood_stove(minutes: int):
     if wood_stove_system == null or minutes <= 0:
         return
     wood_stove_system.advance_minutes(minutes, warmth_system)
+
+func _advance_snares(minutes: int, rolled_over: bool):
+    if minutes <= 0:
+        return
+    if _snare_deployments.is_empty():
+        if rolled_over:
+            _rebuild_snare_state()
+        return
+    if _rng == null:
+        return
+    var changed: bool = false
+    var time_now = time_system.get_minutes_since_daybreak() if time_system else -1
+    for entry in _snare_deployments:
+        entry["last_progress_day"] = current_day
+        entry["last_progress_minutes"] = time_now
+        if entry.get("has_animal", false):
+            continue
+        var buffer = float(entry.get("minutes_buffer", 0.0)) + float(minutes)
+        var caught = false
+        while buffer >= 60.0 and !caught:
+            buffer -= 60.0
+            var roll = _rng.randf()
+            entry["last_roll"] = {
+                "roll": roll,
+                "chance": SNARE_CATCH_CHANCE,
+                "minutes": time_now,
+                "day": current_day
+            }
+            if roll < SNARE_CATCH_CHANCE:
+                var animal = _choose_snare_animal()
+                if animal.is_empty():
+                    continue
+                var snare_id = int(entry.get("id", 0))
+                animal["snare_id"] = snare_id
+                animal["caught_day"] = current_day
+                animal["caught_at_minutes"] = time_system.get_minutes_since_daybreak() if time_system else -1
+                animal["caught_at_time"] = time_system.get_formatted_time() if time_system else ""
+                animal["catch_roll"] = roll
+                animal["catch_chance"] = SNARE_CATCH_CHANCE
+                entry["animal"] = animal
+                entry["has_animal"] = true
+                buffer = max(buffer, 0.0)
+                caught = true
+                changed = true
+                print("🪢 Snare #%d caught %s (roll %.2f)" % [snare_id, animal.get("label", "Game"), roll])
+        entry["minutes_buffer"] = buffer
+    if changed or minutes >= 60 or rolled_over:
+        _rebuild_snare_state()
 
 func _resolve_meal_portion(portion_key: String) -> Dictionary:
     var key = portion_key.to_lower()

@@ -51,8 +51,10 @@
 - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls (boosted to 45% during 6–9 AM or 5–8 PM prime time), applies grub loss, and grants food per fish size.
   - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1,000 calories, cancels the pending wave, and rolls injury chances (10% per diverted zombie for 5 HP, 25% per straggler for 10 HP). The result includes tower zombie counts, lure success/failure tallies, and total damage for the action popup.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
-  - `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, flags HUD/task menu state updates, and has a 15% chance to inflict 10 HP self-injury with a dedicated popup.
-  - `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, returns six-hour weather and zombie forecasts, triggers the recon outlook popup, and seeds HUD countdown alerts for incoming rain or waves.
+- `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, flags HUD/task menu state updates, and has a 15% chance to inflict 10 HP self-injury with a dedicated popup.
+- `perform_place_snare()` – requires no nearby zombies and at least one crafted Animal Snare; consumes 1 scaled hour, spends 5% rest, burns 250 calories, removes one snare from inventory, and tracks the deployment for hourly 40% rabbit/squirrel catch rolls (each worth 2 food units) until collected.
+- `perform_check_snares()` – requires active snares and a clear area; consumes 0.5 scaled hours, spends 2% rest, burns 50 calories, retrieves any animals waiting in deployed snares (banking 2 food units per rabbit/squirrel into pending game stock), and reports when the lines are still empty.
+- `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, returns six-hour weather and zombie forecasts, triggers the recon outlook popup, and seeds HUD countdown alerts for incoming rain or waves.
   - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% energy bonus, restores 5 tower health (capped at 100).
   - `reinforce_tower(materials)` – costs 2 hours, 3 wood, 5 nails, burns 450 calories, spends 20% energy, adds 25 health up to 150 cap.
   - `craft_item(recipe_id)` – validates materials, spends a fixed 1 hour (scaled by multipliers), burns 250 calories, consumes recipe-specific rest, and adds crafted goods.
@@ -60,7 +62,7 @@
   - `_roll_forging_loot()` – iterates forging loot table (see Resource Catalog) using stored RNG.
   - `_on_day_rolled_over()` – increments `current_day`, resets calories, applies dry-day damage, refreshes news, and schedules the next zombie wave.
   - `_on_weather_system_changed()` / `_on_weather_hour_elapsed()` – rebroadcast weather and apply hourly precipitation wear.
-  - `_on_time_advanced_by_minutes(minutes, rolled_over)` – feeds elapsed minutes into `ZombieSystem` and applies resulting tower damage.
+  - `_on_time_advanced_by_minutes(minutes, rolled_over)` – feeds elapsed minutes into `ZombieSystem`, advances active snares, and applies resulting tower damage.
   - `_on_zombie_damage_tower(damage, count)` – logs wave damage.
   - `_apply_awake_time_up_to(current_minutes)` – burns baseline calories between actions.
   - `_resolve_meal_portion(portion_key)` – normalizes meal presets and computes calorie totals.
@@ -236,6 +238,7 @@
 | Backpack | 1 | 1.0 | 15.0 | Wood ×4, String ×1, Rope ×1, Cloth Scraps ×3 | Expands carry limit to 12 slots for forging/camp loot; burns 250 calories. |
 | Bow | 1 | 1.0 | 10.0 | Rope ×1, Wood ×1 | Flexible ranged base for Hunt (arrows have a 50% break chance per shot); burns 250 calories. |
 | Arrow | 1 | 1.0 | 5.0 | Feather ×2, Rock ×1, Wood ×1 | Ammunition for Hunt; each shot rolls 50% to break (consumed) or returns to inventory. |
+| Animal Snare | 1 | 1.0 | 10.0 | Rope ×2, Wood ×2 | Deployable loop trap for Place/Check Snare tasks; burns 250 calories. |
 
 ## Foraging Loot Table (`_roll_forging_loot`)
 * Rolls execute independently per entry each trip; success adds the specified quantity.
@@ -312,6 +315,7 @@
 | wood | Wood | 0.0 | 999 |
 | bow | Bow | 0.0 | 1 |
 | arrow | Arrow | 0.0 | 99 |
+| animal_snare | Animal Snare | 0.0 | 20 |
 | spear | The Spear | 0.0 | 1 |
 | spike_trap | Spike Trap | 0.0 | 10 |
 | ripped_cloth | Ripped Cloth | 0.0 | 99 |

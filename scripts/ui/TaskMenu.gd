@@ -51,6 +51,14 @@ const TRAP_ENERGY_COST_PERCENT: float = GameManager.TRAP_REST_COST_PERCENT
 const TRAP_BREAK_PERCENT: int = int(round(GameManager.TRAP_BREAK_CHANCE * 100.0))
 const TRAP_DEPLOY_HOURS: float = GameManager.TRAP_DEPLOY_HOURS
 const TRAP_ITEM_ID := GameManager.TRAP_ITEM_ID
+const SNARE_ITEM_ID := GameManager.SNARE_ITEM_ID
+const SNARE_PLACE_HOURS: float = GameManager.SNARE_PLACE_HOURS
+const SNARE_PLACE_REST_COST_PERCENT: float = GameManager.SNARE_PLACE_REST_COST_PERCENT
+const SNARE_PLACE_CALORIE_COST: float = GameManager.SNARE_PLACE_CALORIE_COST
+const SNARE_CHECK_HOURS: float = GameManager.SNARE_CHECK_HOURS
+const SNARE_CHECK_REST_COST_PERCENT: float = GameManager.SNARE_CHECK_REST_COST_PERCENT
+const SNARE_CHECK_CALORIE_COST: float = GameManager.SNARE_CHECK_CALORIE_COST
+const SNARE_CATCH_PERCENT: int = int(round(GameManager.SNARE_CATCH_CHANCE * 100.0))
 const FISHING_SIZE_LABELS := {
     "small": "Small",
     "medium": "Medium",
@@ -101,6 +109,7 @@ var _action_defaults: Dictionary = {}
 var _action_results_active: Dictionary = {}
 var _action_buttons: Dictionary = {}
 var _trap_state: Dictionary = {}
+var _snare_state: Dictionary = {}
 
 # Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
@@ -139,6 +148,10 @@ var _trap_state: Dictionary = {}
 @onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton
 @onready var trap_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapText/TrapSummary
 @onready var trap_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton
+@onready var snare_place_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceText/SnarePlaceSummary
+@onready var snare_place_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceSelectButton
+@onready var snare_check_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckText/SnareCheckSummary
+@onready var snare_check_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckSelectButton
 @onready var butcher_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherText/ButcherSummary
 @onready var butcher_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherSelectButton
 
@@ -179,6 +192,14 @@ const TASK_DESCRIPTION_META := {
     "trap": {
         "title": "Place Trap",
         "hint": "Arm a trap to intercept the next zombie."
+    },
+    "snare_place": {
+        "title": "Place Animal Snare",
+        "hint": "Deploy a crafted snare to hunt small game."
+    },
+    "snare_check": {
+        "title": "Check Snare",
+        "hint": "Inspect deployed snares for trapped animals."
     },
     "meal": {
         "title": "Eat",
@@ -226,6 +247,8 @@ func _ready():
     _register_action_selector(recon_select_button, "recon")
     _register_action_selector(lead_select_button, "lead")
     _register_action_selector(trap_select_button, "trap")
+    _register_action_selector(snare_place_select_button, "snare_place")
+    _register_action_selector(snare_check_select_button, "snare_check")
     _register_action_selector(meal_select_button, "meal")
     _register_action_selector(repair_select_button, "repair")
     _register_action_selector(reinforce_select_button, "reinforce")
@@ -239,6 +262,9 @@ func _ready():
         if game_manager.has_signal("trap_state_changed"):
             game_manager.trap_state_changed.connect(_on_trap_state_changed)
         _trap_state = game_manager.get_trap_state()
+        if game_manager.has_signal("snare_state_changed"):
+            game_manager.snare_state_changed.connect(_on_snare_state_changed)
+        _snare_state = game_manager.get_snare_state()
         if game_manager.has_signal("hunt_stock_changed"):
             game_manager.hunt_stock_changed.connect(_on_hunt_stock_changed)
         if game_manager.has_signal("wood_stove_state_changed"):
@@ -327,6 +353,8 @@ func _refresh_display():
     _update_repair_summary()
     _update_reinforce_summary()
     _update_trap_summary()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
     _update_butcher_summary()
     _update_description_body()
     _update_info_status()
@@ -392,6 +420,16 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapText/TrapSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton"
         ],
+        "snare_place": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceText/SnarePlaceSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceSelectButton"
+        ],
+        "snare_check": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckText/SnareCheckSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckSelectButton"
+        ],
         "butcher": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherText/ButcherSummary",
@@ -449,6 +487,10 @@ func _get_description_body(key: String) -> String:
             return _build_lead_description()
         "trap":
             return _build_trap_description()
+        "snare_place":
+            return _build_snare_place_description()
+        "snare_check":
+            return _build_snare_check_description()
         "meal":
             return _build_meal_description()
         "repair":
@@ -549,6 +591,12 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "trap":
                 if is_instance_valid(trap_summary_label):
                     trap_summary_label.text = text
+            "snare_place":
+                if is_instance_valid(snare_place_summary_label):
+                    snare_place_summary_label.text = text
+            "snare_check":
+                if is_instance_valid(snare_check_summary_label):
+                    snare_check_summary_label.text = text
             "meal":
                 if is_instance_valid(meal_summary_label):
                     meal_summary_label.text = text
@@ -597,6 +645,10 @@ func _trigger_selected_action():
             _execute_lead_action()
         "trap":
             _execute_trap_action()
+        "snare_place":
+            _execute_snare_place_action()
+        "snare_check":
+            _execute_snare_check_action()
         "meal":
             _execute_meal_action()
         "repair":
@@ -799,6 +851,51 @@ func _build_trap_description() -> String:
         if armed_time != "":
             lines.append("Currently armed since %s" % armed_time)
     lines.append("Takes %s" % _format_duration(minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
+    return "\n".join(lines)
+
+func _build_snare_place_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(SNARE_PLACE_HOURS * 60.0 * multiplier))
+    lines.append("Spend %.1f hr (x%.1f) to set a ground snare." % [SNARE_PLACE_HOURS, multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(SNARE_PLACE_REST_COST_PERCENT), int(round(SNARE_PLACE_CALORIE_COST))])
+    lines.append("Each hour: %d%% catch chance (Rabbit/Squirrel worth 2.0 food)." % SNARE_CATCH_PERCENT)
+    if inventory_system:
+        lines.append("Requires Animal Snare (Stock %d)" % inventory_system.get_item_count(SNARE_ITEM_ID))
+    else:
+        lines.append("Requires Animal Snare crafted")
+    if !_snare_state.is_empty():
+        var deployed = int(_snare_state.get("total_deployed", 0))
+        var waiting = int(_snare_state.get("animals_ready", 0))
+        if deployed > 0:
+            lines.append("Deployed snares: %d active | %d waiting" % [max(deployed - waiting, 0), waiting])
+    if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
+    return "\n".join(lines)
+
+func _build_snare_check_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(SNARE_CHECK_HOURS * 60.0 * multiplier))
+    lines.append("Spend %.1f hr (x%.1f) to inspect all snares." % [SNARE_CHECK_HOURS, multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(SNARE_CHECK_REST_COST_PERCENT), int(round(SNARE_CHECK_CALORIE_COST))])
+    if !_snare_state.is_empty():
+        var waiting = int(_snare_state.get("animals_ready", 0))
+        if waiting > 0:
+            lines.append("Animals waiting: %d" % waiting)
+        else:
+            lines.append("No animals waiting right now")
+        var total = int(_snare_state.get("total_deployed", 0))
+        if total > 0:
+            lines.append("Snares placed: %d" % total)
+    else:
+        lines.append("Requires snares placed in the field")
+    if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
     lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
     return "\n".join(lines)
 
@@ -1034,6 +1131,77 @@ func _execute_trap_action():
     _update_trap_summary()
     if action_popup_panel and result.has("injury_report"):
         _show_trap_injury_popup(result.get("injury_report", {}))
+
+func _execute_snare_place_action():
+    if game_manager == null:
+        _set_action_result("snare_place", "Snare placement offline", true)
+        return
+
+    var result = game_manager.perform_place_snare()
+    if !result.get("success", false):
+        var reason = String(result.get("reason", "failed"))
+        var message: String
+        match reason:
+            "systems_unavailable":
+                message = "Snare placement offline"
+            "no_snares":
+                var stock = int(result.get("snare_stock", 0))
+                message = "Need Animal Snare (Stock %d)" % max(stock, 0)
+            "zombies_present":
+                var count = int(result.get("zombie_count", 0))
+                message = "Zombies nearby (%d) - clear area first" % max(count, 0)
+            "exceeds_day":
+                var minutes_available = int(result.get("minutes_available", 0))
+                message = _format_daybreak_warning(minutes_available)
+            _:
+                message = "Snare placement failed"
+        _set_action_result("snare_place", message, true)
+        _snare_state = game_manager.get_snare_state()
+        _update_snare_place_summary()
+        _update_snare_check_summary()
+        return
+
+    var message = _format_snare_place_result(result)
+    _set_action_result("snare_place", message, true)
+    _snare_state = game_manager.get_snare_state()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
+
+func _execute_snare_check_action():
+    if game_manager == null:
+        _set_action_result("snare_check", "Snare checks offline", true)
+        return
+
+    var result = game_manager.perform_check_snares()
+    if !result.get("success", false):
+        var reason = String(result.get("reason", "failed"))
+        var message: String
+        match reason:
+            "systems_unavailable":
+                message = "Snare checks offline"
+            "no_snares":
+                message = "No snares placed yet"
+            "zombies_present":
+                var count = int(result.get("zombie_count", 0))
+                message = "Zombies nearby (%d) - clear area first" % max(count, 0)
+            "empty":
+                message = String(result.get("message", "The snare is empty still, try again later."))
+            "exceeds_day":
+                var minutes_available = int(result.get("minutes_available", 0))
+                message = _format_daybreak_warning(minutes_available)
+            _:
+                message = "Snare check failed"
+        _set_action_result("snare_check", message, true)
+        _snare_state = game_manager.get_snare_state()
+        _update_snare_place_summary()
+        _update_snare_check_summary()
+        return
+
+    var message = _format_snare_check_result(result)
+    _set_action_result("snare_check", message, true)
+    _snare_state = game_manager.get_snare_state()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
 
 func _execute_butcher_action():
     if game_manager == null:
@@ -2067,6 +2235,56 @@ func _format_trap_trigger_result(state: Dictionary) -> String:
         parts.append(time_text)
     return "Trap triggered -> %s" % " | ".join(parts)
 
+func _format_snare_place_result(result: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    var rest_spent = float(result.get("rest_spent_percent", SNARE_PLACE_REST_COST_PERCENT))
+    if rest_spent > 0.0:
+        parts.append("-%s%% rest" % _format_percent_value(rest_spent))
+    var calories = int(round(result.get("calories_spent", SNARE_PLACE_CALORIE_COST)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    var stock_after = int(result.get("snare_stock_after", 0))
+    parts.append("Stock %d" % max(stock_after, 0))
+    var deployed = int(result.get("total_deployed", 0))
+    if deployed > 0:
+        parts.append("Deployed %d" % deployed)
+    var ended_at = String(result.get("ended_at_time", ""))
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    return "Snare placed -> %s" % " | ".join(parts)
+
+func _format_snare_check_result(result: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    var animals: Array = result.get("animals_collected", [])
+    var count = int(result.get("animals_found", animals.size()))
+    parts.append("Collected %d" % max(count, 0))
+    if !animals.is_empty():
+        var tally: Dictionary = {}
+        for entry in animals:
+            if typeof(entry) != TYPE_DICTIONARY:
+                continue
+            var label = String(entry.get("label", entry.get("id", "Game")))
+            tally[label] = int(tally.get(label, 0)) + 1
+        var loot: PackedStringArray = []
+        for label in tally.keys():
+            loot.append("%s x%d" % [label, int(tally[label])])
+        if !loot.is_empty():
+            parts.append("Loot %s" % ", ".join(loot))
+    var food_units = float(result.get("food_units_gained", 0.0))
+    if food_units > 0.0:
+        parts.append("+%s food" % _format_food(food_units))
+    var rest_spent = float(result.get("rest_spent_percent", SNARE_CHECK_REST_COST_PERCENT))
+    if rest_spent > 0.0:
+        parts.append("-%s%% rest" % _format_percent_value(rest_spent))
+    var calories = int(round(result.get("calories_spent", SNARE_CHECK_CALORIE_COST)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    var snare_state: Dictionary = result.get("snare_state", {})
+    if typeof(snare_state) == TYPE_DICTIONARY and !snare_state.is_empty():
+        var waiting = int(snare_state.get("animals_ready", 0))
+        parts.append("Waiting %d" % max(waiting, 0))
+    return "Snare check -> %s" % " | ".join(parts)
+
 func _get_minutes_left_today() -> int:
     if time_system:
         return time_system.get_minutes_until_daybreak()
@@ -2388,6 +2606,60 @@ func _update_trap_summary():
     trap_summary_label.text = text
     _set_action_default("trap", text, true)
 
+func _update_snare_place_summary():
+    if !is_instance_valid(snare_place_summary_label):
+        return
+    var text: String
+    if game_manager == null:
+        text = "Snare placement offline"
+    else:
+        if _snare_state.is_empty():
+            _snare_state = game_manager.get_snare_state()
+        var stock = inventory_system.get_item_count(SNARE_ITEM_ID) if inventory_system else 0
+        if stock <= 0:
+            text = "Need Animal Snare (Stock 0)"
+        else:
+            var deployed = int(_snare_state.get("total_deployed", 0))
+            var waiting = int(_snare_state.get("animals_ready", 0))
+            var fragments: PackedStringArray = []
+            fragments.append("%.1fh" % SNARE_PLACE_HOURS)
+            fragments.append("-%s%% rest" % _format_percent_value(SNARE_PLACE_REST_COST_PERCENT))
+            fragments.append("-%d cal" % int(round(SNARE_PLACE_CALORIE_COST)))
+            fragments.append("Stock %d" % stock)
+            if deployed > 0:
+                fragments.append("Deployed %d" % deployed)
+            if waiting > 0:
+                fragments.append("Waiting %d" % waiting)
+            text = " | ".join(fragments)
+    snare_place_summary_label.text = text
+    _set_action_default("snare_place", text, true)
+
+func _update_snare_check_summary():
+    if !is_instance_valid(snare_check_summary_label):
+        return
+    var text: String
+    if game_manager == null:
+        text = "Snare checks offline"
+    else:
+        if _snare_state.is_empty():
+            _snare_state = game_manager.get_snare_state()
+        var deployed = int(_snare_state.get("total_deployed", 0))
+        if deployed <= 0:
+            text = "Requires snares placed"
+        else:
+            var waiting = int(_snare_state.get("animals_ready", 0))
+            var fragments: PackedStringArray = []
+            fragments.append("%.1fh" % SNARE_CHECK_HOURS)
+            fragments.append("-%s%% rest" % _format_percent_value(SNARE_CHECK_REST_COST_PERCENT))
+            fragments.append("-%d cal" % int(round(SNARE_CHECK_CALORIE_COST)))
+            if waiting > 0:
+                fragments.append("Animals %d" % waiting)
+            else:
+                fragments.append("No animals waiting")
+            text = " | ".join(fragments)
+    snare_check_summary_label.text = text
+    _set_action_default("snare_check", text, true)
+
 func _update_butcher_summary():
     if !is_instance_valid(butcher_summary_label):
         return
@@ -2442,6 +2714,10 @@ func _get_action_energy_text(action: String) -> String:
             return "-%s%% cost" % _format_percent_value(15.0)
         "trap":
             return "-%s%% cost" % _format_percent_value(TRAP_ENERGY_COST_PERCENT)
+        "snare_place":
+            return "-%s%% cost" % _format_percent_value(SNARE_PLACE_REST_COST_PERCENT)
+        "snare_check":
+            return "-%s%% cost" % _format_percent_value(SNARE_CHECK_REST_COST_PERCENT)
         "meal":
             return "0% (Energy neutral)"
         "butcher":
@@ -2477,6 +2753,10 @@ func _get_action_calorie_text(action: String) -> String:
             return "Awake burn only"
         "trap":
             return "+%d burn" % int(round(TRAP_CALORIE_COST))
+        "snare_place":
+            return "+%d burn" % int(round(SNARE_PLACE_CALORIE_COST))
+        "snare_check":
+            return "+%d burn" % int(round(SNARE_CHECK_CALORIE_COST))
         "meal":
             var option = _resolve_meal_option(selected_meal_key)
             var food_units = float(option.get("food_units", 1.0))
@@ -2653,6 +2933,8 @@ func _on_inventory_food_total_changed(new_total: float):
     _update_camp_search_summary()
     _update_hunt_summary()
     _update_butcher_summary()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
     if _forging_feedback_locked:
         return
     if _forging_feedback_state == "offline":
@@ -2663,6 +2945,8 @@ func _on_inventory_item_changed(_item_id: String, _quantity_delta: int, _food_de
     _update_repair_summary()
     _update_reinforce_summary()
     _update_trap_summary()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
     _update_camp_search_summary()
     _update_hunt_summary()
     _update_butcher_summary()
@@ -2698,6 +2982,13 @@ func _on_trap_state_changed(_active: bool, state: Dictionary):
     if status == "triggered":
         _set_action_result("trap", _format_trap_trigger_result(state), true)
     _refresh_info_stats_if_selected("trap")
+
+func _on_snare_state_changed(state: Dictionary):
+    _snare_state = state.duplicate(true)
+    _update_snare_place_summary()
+    _update_snare_check_summary()
+    _refresh_info_stats_if_selected("snare_place")
+    _refresh_info_stats_if_selected("snare_check")
 
 func _on_hunt_stock_changed(_stock: Dictionary):
     _update_hunt_summary()

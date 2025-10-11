@@ -169,6 +169,11 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
     })
+    register_item_definition("animal_snare", {
+        KEY_DISPLAY_NAME: "Animal Snare",
+        KEY_FOOD_UNITS: 0.0,
+        KEY_STACK_LIMIT: 20
+    })
     register_item_definition("flint_and_steel", {
         KEY_DISPLAY_NAME: "Flint and Steel",
         KEY_FOOD_UNITS: 0.0,

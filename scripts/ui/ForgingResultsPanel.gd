@@ -30,6 +30,7 @@ const ITEM_DETAILS := {
     "rock": "Dense stone chunk for crafting weights or tools.",
     "rope": "Braided line handles hauling duties.",
     "string": "Thin cord for snares and fishing lines.",
+    "animal_snare": "Reusable loop trap for catching small game.",
     "vines": "Tough vines twist into rope or lashings.",
     "walnuts": "Rich nuts feed 0.5 food per shell.",
     "wood": "Cut timber fuels fires and builds defenses."
