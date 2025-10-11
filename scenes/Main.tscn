@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://clrcv081gblwd"]
+[gd_scene load_steps=14 format=3 uid="uid://clrcv081gblwd"]
 
 [ext_resource type="Script" path="res://scripts/GameManager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/Player.gd" id="2"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/ui/ForgingResultsPanel.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/ui/ActionPopupPanel.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/ui/WoodStovePanel.gd" id="12"]
+[ext_resource type="Script" path="res://scripts/ui/MapPanel.gd" id="13"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(32, 32)
@@ -774,6 +775,35 @@ custom_minimum_size = Vector2(148, 44)
 theme_override_font_sizes/font_size = 16
 text = "Assign"
 
+[node name="TravelSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="TravelRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="TravelText" type="VBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TravelRow"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="TravelLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TravelRow/TravelText"]
+theme_override_font_sizes/font_size = 16
+text = "Travel to Next Location"
+
+[node name="TravelSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TravelRow/TravelText"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
+text = "Select route via Map (M)"
+
+[node name="TravelSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/TravelRow"]
+size_flags_horizontal = 0
+custom_minimum_size = Vector2(148, 44)
+theme_override_font_sizes/font_size = 16
+text = "Assign"
+
 [node name="LeadSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)
@@ -1271,6 +1301,154 @@ alignment = 2
 
 [node name="CloseButton" type="Button" parent="UI/InventoryPanel/Panel/Margin/VBox/ButtonRow"]
 text = "Close"
+
+[node name="MapPanel" type="Control" parent="UI"]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("13")
+
+[node name="Backdrop" type="Panel" parent="UI/MapPanel"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -360.0
+offset_top = -260.0
+offset_right = 360.0
+offset_bottom = 260.0
+
+[node name="Margin" type="MarginContainer" parent="UI/MapPanel/Backdrop"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="UI/MapPanel/Backdrop/Margin"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content"]
+theme_override_font_sizes/font_size = 24
+text = "Expedition Map"
+
+[node name="CheckpointLabel" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content"]
+theme_override_font_sizes/font_size = 16
+text = "Checkpoints ready"
+
+[node name="OptionHeader" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content"]
+theme_override_font_sizes/font_size = 14
+text = "Route Options"
+
+[node name="OptionContainer" type="VBoxContainer" parent="UI/MapPanel/Backdrop/Margin/Content"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="OptionA" type="PanelContainer" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer"]
+size_flags_horizontal = 3
+
+[node name="OptionMarginA" type="MarginContainer" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionA"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="OptionVBoxA" type="VBoxContainer" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionA/OptionMarginA"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="OptionATitle" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionA/OptionMarginA/OptionVBoxA"]
+theme_override_font_sizes/font_size = 16
+text = "Option A"
+
+[node name="OptionADetails" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionA/OptionMarginA/OptionVBoxA"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Details pending"
+
+[node name="OptionASummary" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionA/OptionMarginA/OptionVBoxA"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Intel pending"
+
+[node name="OptionAButton" type="Button" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionA/OptionMarginA/OptionVBoxA"]
+custom_minimum_size = Vector2(0, 44)
+theme_override_font_sizes/font_size = 16
+text = "Select Route"
+
+[node name="OptionB" type="PanelContainer" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer"]
+size_flags_horizontal = 3
+
+[node name="OptionMarginB" type="MarginContainer" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionB"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="OptionVBoxB" type="VBoxContainer" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionB/OptionMarginB"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="OptionBTitle" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionB/OptionMarginB/OptionVBoxB"]
+theme_override_font_sizes/font_size = 16
+text = "Option B"
+
+[node name="OptionBDetails" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionB/OptionMarginB/OptionVBoxB"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Details pending"
+
+[node name="OptionBSummary" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionB/OptionMarginB/OptionVBoxB"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Intel pending"
+
+[node name="OptionBButton" type="Button" parent="UI/MapPanel/Backdrop/Margin/Content/OptionContainer/OptionB/OptionMarginB/OptionVBoxB"]
+custom_minimum_size = Vector2(0, 44)
+theme_override_font_sizes/font_size = 16
+text = "Select Route"
+
+[node name="CompletedHeader" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content"]
+theme_override_font_sizes/font_size = 14
+text = "Completed Legs"
+
+[node name="CompletedList" type="VBoxContainer" parent="UI/MapPanel/Backdrop/Margin/Content"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="CompletedPlaceholder" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content/CompletedList"]
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "No checkpoints cleared yet"
+
+[node name="HintLabel" type="Label" parent="UI/MapPanel/Backdrop/Margin/Content"]
+theme_override_font_sizes/font_size = 12
+text = "Press M to toggle map"
+
+[node name="ButtonRow" type="HBoxContainer" parent="UI/MapPanel/Backdrop/Margin/Content"]
+theme_override_constants/separation = 12
+
+[node name="CloseButton" type="Button" parent="UI/MapPanel/Backdrop/Margin/Content/ButtonRow"]
+custom_minimum_size = Vector2(140, 48)
+theme_override_font_sizes/font_size = 16
+text = "Close Map"
 
 [node name="ForgingResultsPanel" type="Control" parent="UI"]
 anchor_left = 0.5
