@@ -5,6 +5,7 @@
 * **Action Flow**: `GameManager` advances the clock, burns calories, and updates rest using sleep/weather multipliers per activity.
 * **Weather Cadence**: Hourly precipitation roll while clear (5% start chance). Successful rolls weight intensity heavy 15%, rain 35%, sprinkling 50% with default durations 5h/2h/1h.
 * **Zombie Pressure**: Spawn checks start on Day 6. Successful day rolls schedule one wave (hour 0-23) and apply `0.5 * zombies` tower damage every 360 minutes while active.
+* **Wildlife Pressure**: Wolves roll a 15% daily arrival at dawn, reveal the scheduled hour during the 6 AM reset, linger 1–5 hours, and threaten outdoor tasks with a 30% 5–15 HP ambush until lured or defeated.
 * **Recon Window**: Available 6:00 AM–12:00 AM. Costs 60 minutes + 150 calories and snapshots six-hour weather/zombie forecasts using the live RNG seed.
 * **Thermal Pressure**: Warmth drifts hourly by daypart (6–10 AM -3/hr, 11 AM–5 PM +5/hr, 6–9 PM -3/hr, 10 PM–5 AM -10/hr); sleep blocks heat loss while allowing daytime gains so bedding keeps nights neutral and daylight rest restorative.
 
@@ -19,6 +20,7 @@
   - `lure_status_changed(status)` – delivers pre-emptive lure readiness data to the HUD/task menu.
   - `trap_state_changed(active, state)` – announces trap deployment, arming, and trigger payloads to HUD/task panels.
   - `recon_alerts_changed(alerts)` – pushes upcoming weather/zombie notices to the HUD countdown banner.
+  - `wolf_state_changed(state)` – publishes wolf schedule/active-state changes for task and recon updates.
 * **Key constants**
   - `CALORIES_PER_FOOD_UNIT = 1000` (1 food unit equals 1,000 calories).
   - `LEAD_AWAY_ZOMBIE_CHANCE = 0.80` (80% success per zombie).
@@ -27,6 +29,8 @@
   - Trap profile: `TRAP_DEPLOY_HOURS = 2.0`, `TRAP_REST_COST_PERCENT = 15.0`, `TRAP_CALORIE_COST = 500`, `TRAP_BREAK_CHANCE = 0.5`, `TRAP_INJURY_CHANCE = 15%` for 10 HP mishaps while arming.
   - Crafting baseline: `CRAFT_ACTION_HOURS = 1.0` per recipe, `CRAFT_CALORIE_COST = 250` burned in addition to recipe-specific rest costs.
   - Recon window bounds: `start_minute = 0` (6:00 AM), `end_minute = 1080` (12:00 AM) relative to daybreak.
+  - Wolf pressure: `WOLF_ATTACK_CHANCE = 30%` per outing while wolves surround the tower (damage roll 5–15 HP), `WOLF_LURE_SUCCESS_CHANCE = 75%` when spending the lure action on the pack.
+  - Fight Back baseline: `FIGHT_BACK_REST_COST_PERCENT = 12.5` (rest drain on charge), `FIGHT_BACK_CALORIE_COST = 500` burned per sortie.
 * **Lifecycle**
   - `_ready()` – seeds RNG, spawns systems, hooks listeners, starts Day 1 spawn planning.
   - `pause_game()` / `resume_game()` – set `game_paused` flag.
@@ -44,14 +48,15 @@
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
-- `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()` (now with 30% Feather chance), and honors a 5-slot carry cap (expanded to 12 with a Backpack) while logging overflow drops.
-- `perform_campground_search()` – spends 4 hours plus 20% energy and 800 calories sweeping campsite loot (10% staples, 40% Ripped Cloth, 25% advanced bundles, 15% Canned Food, 20% Nails Pack, 50% Feather) using the same carry-cap overflow logic.
+- `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()` (wood 45%, ripped cloth 30%, staple forage 20–25% bands), respects the 5-slot carry cap (12 with a Backpack), logs overflow drops, and, when wolves are posted outside, applies the 30% wolf strike (5–15 HP) before finalizing loot.
+- `perform_campground_search()` – spends 4 hours plus 20% energy and 800 calories sweeping campsite loot (ripped cloth 55%, wood 45%, advanced bundles at 25%), honors carry-cap overflow handling, and rolls the same wolf strike chance whenever the pack is circling the tower.
 - `perform_hunt()` – requires no active zombies, a crafted bow, and at least one arrow; consumes 2 hours plus 10% energy, burns 400 calories, fires up to three shots per trip (each with a 50% break chance) against a sequential animal table (Rabbit 30%/2 food, Squirrel 30%/2 food, Boar 20%/6 food, Doe 25%/5 food, Buck 20%/7 food), consumes broken arrows, adds food units, and banks raw game for Butcher/Cook Whole processing.
 - `perform_butcher_and_cook()` – requires a crafted knife, a lit wood stove, and stored hunt/snare game; consumes 1 hour plus 5% energy, burns 150 calories, processes as much stored game food as remains in inventory, and grants a 25% food bonus rounded up to the nearest 0.5 while clearing processed game stock.
 - `perform_cook_animals_whole()` – requires a lit wood stove and stored hunt/snare game; consumes 1 hour plus 5% energy, burns 150 calories, clears pending game stock without knife prep, and yields only the base food already stored.
 - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls (boosted to 45% during 6–9 AM or 5–8 PM prime time), applies grub loss, and grants food per fish size.
-  - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1,000 calories, cancels the pending wave, and rolls injury chances (10% per diverted zombie for 5 HP, 25% per straggler for 10 HP). The result includes tower zombie counts, lure success/failure tallies, and total damage for the action popup.
+  - `perform_lure_incoming_zombies()` – triggers after recon scouts a zombie wave within 120 minutes or wolves occupy the clearing, consumes 4 hours plus 1,000 calories, cancels the pending wave or rolls the 75% wolf lure, and applies injury chances (10% per diverted zombie for 5 HP, 25% per straggler for 10 HP). The result includes tower threat counts, lure success/failure tallies, and total damage for the action popup.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
+- `perform_fight_back()` – requires wolves or zombies outside and either a crafted knife or a bow with at least one arrow; spends 1 hour (scaled) plus 12.5% rest and 500 calories, guarantees kills on all threats, and applies gear-based damage bands (knife 5–15 HP, bow 3–7 HP, both equipped 0–5 HP).
 - `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, flags HUD/task menu state updates, and has a 15% chance to inflict 10 HP self-injury with a dedicated popup.
 - `perform_place_snare()` – requires no nearby zombies and at least one crafted Animal Snare; consumes 1 scaled hour, spends 5% rest, burns 250 calories, removes one snare from inventory, and tracks the deployment for hourly 40% rabbit/squirrel catch rolls (each worth 2 food units) until collected for cooking.
 - `perform_check_snares()` – requires active snares and a clear area; consumes 0.5 scaled hours, spends 2% rest, burns 50 calories, retrieves any animals waiting in deployed snares (banking 2 food units per rabbit/squirrel into the same pending game stock used by Hunt processing), and reports when the lines are still empty.
@@ -196,6 +201,13 @@
   - Player actions: `attempt_lead_away(chance, rng)` – per-zombie roll with 0-1 outcome; `clear_zombies()` wipes active count; `remove_zombies(count)` deducts kills from traps or scripted events and emits `zombies_changed`.
   - Forecast: `preview_day_spawn(day_index, rng)` – mirrors `start_day` without mutating state.
 * **Internals** – `_resolve_spawn_rolls(day)`, `_resolve_spawn_chance(day)`, `_pick_spawn_minute(rng)` (hour * 60), `_did_cross_marker(...)` handles wraparound, `_minutes_until_marker(...)`, `_resolve_pending_spawn(payload)` mutates counts.
+
+### WolfSystem (`scripts/systems/WolfSystem.gd`)
+* **Role**: schedule daily wolf packs, track arrival/departure windows, and broadcast status for recon, lure, and fight workflows.
+* **Core constants**: `DAILY_APPEAR_CHANCE = 0.15`, `MIN_DURATION_MINUTES = 60`, `MAX_DURATION_MINUTES = 300`; combat hooks reuse `WOLF_ATTACK_CHANCE = 0.30` (damage roll 5–15) and `WOLF_LURE_SUCCESS_CHANCE = 0.75`.
+* **Signals** – `wolves_state_changed(state)` fires whenever a pack is scheduled, arrives, leaves, or is cleared.
+* **Public API**: `start_day(day_index, rng)` rolls the day's schedule and emits the forecast, `advance_time(minutes, current_minutes_since_daybreak, rolled_over)` activates/deactivates packs as time advances, `has_active_wolves()` / `get_state()` surface presence details, `clear_wolves(reason)` removes the pack (Fight Back success, lure, etc.), `attempt_lure(chance, rng)` resolves diversion rolls, and `forecast_activity(hours_ahead, minutes_since_daybreak)` clones upcoming arrivals/departures for recon.
+* **Internals** – `_activate_wolves(arrival_minute, current_minutes_since_daybreak)` and `_deactivate_wolves(reason)` mutate state dictionaries, `_did_cross_marker(...)` handles wrap-around detection, and `_emit_state()` deep-copies the payload before signaling.
 ### Weather-Aware Tower Interplay
 * Precipitation ticks call `TowerHealthSystem.register_weather_hour(state)` each hour, applying wear according to intensity tables.
 * Dry days leave `_had_precipitation_today` false; `on_day_completed()` then applies `5 HP` attrition to mimic structural fatigue.
@@ -210,8 +222,8 @@
 * **Task Menu Sleep Planner**: Shows queued versus usable rest when dawn would trim the request, including the exact hours applied, energy restored, calories burned, and the dawn-cut duration preview.
 * **Crafting Panel Layout**: Recipe rows keep left-aligned buttons with padded margins and a dedicated cost column rendered as bullet rows (material stock, build time, rest tax, calorie burn) for quick scanning.
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
-| Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals; advanced tier now covers Batteries (15%), Car Battery (7.5%), Flashlight (5%). Carry limit 5 slots (12 with Backpack); excess drops are logged. |
-| Search Campground (`perform_campground_search`) | 4h | -20% energy | +800 cal burned (plus awake burn) | No active zombies | Sweeps a campsite loot table (10% staples, 40% Ripped Cloth, 25% advanced bundles, 15% Canned Food, 20% Nails Pack, 50% Feather); honors carry limit 5 (12 with Backpack) and reports dropped overflow. |
+| Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table (wood 45%, ripped cloth 30%, staple forage 20–25%, advanced tech 5–15%), respects carry cap 5 (12 with Backpack), logs overflow, and applies a 30% wolf strike (5–15 HP) when a pack is active. |
+| Search Campground (`perform_campground_search`) | 4h | -20% energy | +800 cal burned (plus awake burn) | No active zombies | Sweeps a campsite loot table (ripped cloth 55%, wood 45%, advanced bundles 25%), honors carry cap 5 (12 with Backpack), reports dropped overflow, and shares the same wolf strike risk while wolves surround the tower. |
 | Hunt (`perform_hunt`) | 2h | -10% energy | +400 cal burned (plus awake burn) | No active zombies, Bow equipped, ≥1 Arrow | Up to three shots per trip (50% break chance each); sequential rolls Rabbit 30% (2 food), Squirrel 30% (2 food), Boar 20% (6 food), Doe 25% (5 food), Buck 20% (7 food). Broken arrows consumed, food added, raw game stored for Butcher/Cook Whole processing. |
 | Butcher & Cook (`perform_butcher_and_cook`) | 1h | -5% energy | +150 cal burned | Crafted Knife, lit fire, stored hunt/snare game, sufficient food on hand | Converts available game into a 25% bonus rounded up to the nearest 0.5, deducts processed stock, and updates total food units. |
 | Cook Animals Whole (`perform_cook_animals_whole`) | 1h | -5% energy | +150 cal burned | Lit fire, stored hunt/snare game | Clears pending game stock without a knife bonus, leaving base food totals untouched. |
