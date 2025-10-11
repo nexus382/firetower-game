@@ -5,6 +5,7 @@
 * **Action Flow**: `GameManager` advances the clock, burns calories, and updates rest using sleep/weather multipliers per activity.
 * **Weather Cadence**: Hourly precipitation roll while clear (5% start chance). Successful rolls weight intensity heavy 15%, rain 35%, sprinkling 50% with default durations 5h/2h/1h.
 * **Zombie Pressure**: Spawn checks start on Day 6. Successful day rolls schedule one wave (hour 0-23) and apply `0.5 * zombies` tower damage every 360 minutes while active.
+* **Overland Trek Phase**: Unlocks after crafting the Portable Craft Station, exposing the 8-leg expedition map (`map_toggle` → `M`) with dual-route checkpoints controlled by `ExpeditionSystem`.
 * **Wildlife Pressure**: Wolves roll a 15% daily arrival at dawn, reveal the scheduled hour during the 6 AM reset, linger 1–5 hours, and threaten outdoor tasks with a 30% 5–15 HP ambush until lured or defeated.
 * **Recon Window**: Available 6:00 AM–12:00 AM. Costs 60 minutes + 150 calories and snapshots six-hour weather/zombie forecasts using the live RNG seed.
 * **Thermal Pressure**: Warmth drifts hourly by daypart (6–10 AM -3/hr, 11 AM–5 PM +5/hr, 6–9 PM -3/hr, 10 PM–5 AM -10/hr); sleep blocks heat loss while allowing daytime gains so bedding keeps nights neutral and daylight rest restorative.
@@ -171,6 +172,21 @@
   - Items: `add_item(item_id, quantity)`, `consume_item(item_id, quantity)`, `clear()`.
 * **Carry Limit**: `DEFAULT_CARRY_CAPACITY = 5` slots (12 when `backpack` is held); `_apply_carry_capacity` clips forging/camp loot and reports `dropped_loot` for UI summaries.
 * **Internals**: `_apply_food_delta(delta)` clamps totals and raises change signals.
+* **Portable Craft Station**: Register `portable_craft_station` as a crafted deployable with a stack limit of 1 and the `travel_crafting_enabled` flag so the expedition loop can authorize recipes while hiking.
+
+### ExpeditionSystem (`scripts/systems/ExpeditionSystem.gd`)
+* **Role**: Multi-day wilderness trek coordinator that sequences checkpoints, draws travel routes, and feeds UI summaries.
+* **Checkpoint Schema**: Eight sequential legs (0–7) each store `available_routes` (two entries), `selected_route_index` (`null` until chosen), and `completed` (`false`/`true`).
+* **Route Payload**: Every route defines `location_id`, `display_name`, `travel_hours` (baseline 4.0–12.0 window), and optional modifiers (`rest_delta`, `calorie_delta`, `morale_delta`) so balancing tweaks remain data-driven.
+* **Location Deck**: Seed with the wilderness set (Overgrown Path, Clearing, Small Stream, Thick Forest, Old Campsite, Small Cave, Hunting Stand) and shuffle between checkpoints to keep legs fresh.
+* **Progression Hooks**: `begin_expedition()` seeds RNG and draws first leg, `select_route(checkpoint_index, route_index)` commits a path, `advance_to_next_checkpoint()` flags completion, and `is_expedition_complete()` returns `true` once checkpoint 7 closes.
+* **Task Integration**: Travel actions consume the selected route's payload, drive time advancement, and emit `expedition_progressed(checkpoint_index, route_data)` for HUD/map refreshes.
+
+### MapPanel (`scripts/ui/MapPanel.gd`)
+* **Role**: Toggleable expedition overlay bound to `map_toggle` (keyboard `M`) that reveals checkpoint status and available routes.
+* **Layout**: Header row shows expedition day, carried supplies summary, and the currently highlighted checkpoint. A central grid renders checkpoint nodes with route cards listing location names, travel hours, and modifiers. Footer buttons expose `Select Route` and `Close Map` actions.
+* **Input Flow**: `_process_input(event)` watches the map toggle, `_refresh_routes(checkpoint)` rebuilds route buttons using `ExpeditionSystem` data, and `_emit_route_selected(route_index)` delegates to `GameManager` once a choice is confirmed.
+* **State Sync**: Listens for `expedition_progressed`, inventory change signals (for supply summaries), and task updates so the overlay mirrors live travel eligibility.
 
 ### NewsBroadcastSystem (`scripts/systems/NewsBroadcastSystem.gd`)
 * **Role**: Day-indexed radio feed generator with cached determinism.
@@ -235,6 +251,7 @@
 | Repair (`repair_tower`) | 1h | +10% energy bonus | +350 cal burned | ≥1 wood, tower below 100 HP | Restores 5 HP, records materials used, updates health. |
 | Reinforce (`reinforce_tower`) | 2h | -20% energy | +450 cal burned | ≥3 wood & 5 nails, tower below 150 HP | Adds 25 HP up to 150 cap, logs material spend. |
 | Craft (`craft_item`) | 1h baseline | Recipe energy cost % | +250 cal burned (fixed) | Materials per recipe | Consumes inputs, applies recipe rest cost, outputs item stack, and advances clock 1 scaled hour per craft. |
+| Travel to Next Location (`perform_travel_to_next_location`) | Route-defined (default 4–12h) | -15% base plus route modifiers | Awake burn + route calorie delta | Expedition unlocked, route selected, supplies ≥ travel requirement | Spends the chosen route's travel hours, applies rest/calorie/morale adjustments, advances checkpoint progress, and unlocks the next leg on success. |
 
 ### Hunt & Snare Processing Flow
 * **Catch Storage**: `perform_hunt` and `perform_check_snares` both add base food units immediately and bank totals in `_pending_game_food` for downstream cooking decisions.
@@ -259,6 +276,16 @@
 | Bow | 1 | 1.0 | 10.0 | Rope ×1, Wood ×1 | Flexible ranged base for Hunt (arrows have a 50% break chance per shot); burns 250 calories. |
 | Arrow | 1 | 1.0 | 5.0 | Feather ×2, Rock ×1, Wood ×1 | Ammunition for Hunt; each shot rolls 50% to break (consumed) or returns to inventory. |
 | Animal Snare | 1 | 1.0 | 10.0 | Rope ×2, Wood ×2 | Deployable loop trap for Place/Check Snare tasks; burns 250 calories. |
+| Portable Craft Station | 1 | 1.0 | 12.5 | Metal Scrap ×2, Wood ×4, Cloth Scraps ×1, Plastic Sheet ×2, Nails ×5, Rock ×2, Crafted Knife ×1 | Grants on-the-go crafting access during expedition travel; consumes the listed materials and burns 250 calories. |
+
+## Expedition Route Catalog
+* **Overgrown Path**: Narrow trail with dense brush; moderate travel hours (5.0–8.0) and light morale drain due to constant clearing.
+* **Clearing**: Open meadow segments; shorter travel hours (4.0–6.0) with minimal penalties but higher exposure to weather swings.
+* **Small Stream**: Creekside detour; medium travel hours (6.0–8.0) with hydration bonus but cold checks if warmth is low.
+* **Thick Forest**: Heavy canopy stretch; longer travel hours (7.0–11.0), rest tax, and stealth advantage versus roaming threats.
+* **Old Campsite**: Abandoned rest stop; medium travel hours (5.5–7.5) with a loot roll for spare supplies and a minor infection risk.
+* **Small Cave**: Rocky crawlspace; compact travel hours (4.5–6.5), warmth boost overnight, and chance to lose navigation time if light sources are absent.
+* **Hunting Stand**: Elevated route; longer travel hours (6.5–9.5) but grants scouting intel that can reveal upcoming hazards on the next checkpoint.
 
 ## Foraging Loot Table (`_roll_forging_loot`)
 * Rolls execute independently per entry each trip; success adds the specified quantity.
