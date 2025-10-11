@@ -25,6 +25,11 @@ const RECON_OUTLOOK_HOURS: int = 6
 const LURE_WINDOW_MINUTES: int = GameManager.LURE_WINDOW_MINUTES
 const LURE_CALORIE_COST: float = GameManager.LURE_CALORIE_COST
 const LURE_DURATION_HOURS: float = GameManager.LURE_DURATION_HOURS
+const WOLF_ATTACK_CHANCE_PERCENT: int = int(round(GameManager.WOLF_ATTACK_CHANCE * 100.0))
+const WOLF_LURE_SUCCESS_PERCENT: int = int(round(GameManager.WOLF_LURE_SUCCESS_CHANCE * 100.0))
+const FIGHT_BACK_HOURS: float = GameManager.FIGHT_BACK_HOURS
+const FIGHT_BACK_REST_COST_PERCENT: float = GameManager.FIGHT_BACK_REST_COST_PERCENT
+const FIGHT_BACK_CALORIE_COST: float = GameManager.FIGHT_BACK_CALORIE_COST
 const FISHING_ROLLS_PER_HOUR: int = GameManager.FISHING_ROLLS_PER_HOUR
 const FISHING_SUCCESS_CHANCE: float = GameManager.FISHING_ROLL_SUCCESS_CHANCE
 const FISHING_SUCCESS_PERCENT: int = int(round(FISHING_SUCCESS_CHANCE * 100.0))
@@ -105,6 +110,7 @@ var _forging_feedback_locked: bool = false
 var _lead_feedback_state: String = "status"
 var _lead_feedback_locked: bool = false
 var _lure_status: Dictionary = {}
+var _wolf_state: Dictionary = {}
 
 var _selected_action: String = "sleep"
 var _action_status_text: Dictionary = {}
@@ -146,6 +152,8 @@ var _snare_state: Dictionary = {}
 @onready var recon_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconText/ReconSummary
 @onready var recon_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconSelectButton
 @onready var lead_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton
+@onready var fight_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FightRow/FightText/FightSummary
+@onready var fight_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FightRow/FightSelectButton
 @onready var meal_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealControls/MealSelectButton
 @onready var repair_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairSelectButton
 @onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton
@@ -193,6 +201,10 @@ const TASK_DESCRIPTION_META := {
     "lead": {
         "title": "Lead Away",
         "hint": "Draw undead from the tower."
+    },
+    "fight_back": {
+        "title": "Fight Back",
+        "hint": "Charge outside to drive off wolves or clear nearby undead."
     },
     "trap": {
         "title": "Place Trap",
@@ -255,6 +267,7 @@ func _ready():
     _register_action_selector(fishing_select_button, "fishing")
     _register_action_selector(recon_select_button, "recon")
     _register_action_selector(lead_select_button, "lead")
+    _register_action_selector(fight_select_button, "fight_back")
     _register_action_selector(trap_select_button, "trap")
     _register_action_selector(snare_place_select_button, "snare_place")
     _register_action_selector(snare_check_select_button, "snare_check")
@@ -297,6 +310,11 @@ func _ready():
             _set_lead_feedback(_format_lead_ready(zombie_system.get_active_zombies()), "status")
         else:
             _set_lead_feedback("Lead Away offline", "offline")
+        if game_manager.has_signal("wolf_state_changed"):
+            game_manager.wolf_state_changed.connect(_on_wolf_state_changed)
+            _wolf_state = game_manager.get_wolf_state()
+        else:
+            _wolf_state = {}
         if game_manager.has_signal("lure_status_changed"):
             game_manager.lure_status_changed.connect(_on_lure_status_changed)
             _lure_status = game_manager.get_lure_status()
@@ -308,6 +326,7 @@ func _ready():
     _setup_meal_size_options()
     _setup_description_targets()
     _select_action("sleep", true)
+    _update_fight_summary()
     _refresh_display()
 
     if forging_results_panel == null:
@@ -360,6 +379,7 @@ func _refresh_display():
     _update_meal_summary()
     _update_fishing_summary()
     _update_recon_summary()
+    _update_fight_summary()
     _update_repair_summary()
     _update_reinforce_summary()
     _update_trap_summary()
@@ -419,6 +439,11 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadText/LeadSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadSelectButton"
+        ],
+        "fight_back": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FightRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FightRow/FightText/FightSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FightRow/FightSelectButton"
         ],
         "meal": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow",
@@ -501,6 +526,8 @@ func _get_description_body(key: String) -> String:
             return _build_recon_description()
         "lead":
             return _build_lead_description()
+        "fight_back":
+            return _build_fight_description()
         "trap":
             return _build_trap_description()
         "snare_place":
@@ -606,6 +633,9 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "lead":
                 if is_instance_valid(lead_summary_label):
                     lead_summary_label.text = text
+            "fight_back":
+                if is_instance_valid(fight_summary_label):
+                    fight_summary_label.text = text
             "trap":
                 if is_instance_valid(trap_summary_label):
                     trap_summary_label.text = text
@@ -664,6 +694,8 @@ func _trigger_selected_action():
             _execute_recon_action()
         "lead":
             _execute_lead_action()
+        "fight_back":
+            _execute_fight_action()
         "trap":
             _execute_trap_action()
         "snare_place":
@@ -855,6 +887,28 @@ func _build_lead_description() -> String:
     var lure_minutes = int(ceil(LURE_DURATION_HOURS * 60.0 * multiplier))
     lines.append("Patrol covers %dh; waves must be ≤%dh out to divert." % [int(round(LURE_DURATION_HOURS)), int(round(LURE_WINDOW_MINUTES / 60.0))])
     lines.append("Costs %d cal | Patrol runtime %s when underway" % [int(round(LURE_CALORIE_COST)), _format_duration(lure_minutes)])
+    return "\n".join(lines)
+
+func _build_fight_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var fight_minutes = int(ceil(FIGHT_BACK_HOURS * 60.0 * multiplier))
+    lines.append("Spend %.1f hr (x%.1f) rushing the perimeter." % [FIGHT_BACK_HOURS, multiplier])
+    lines.append("Energy -%d%% | +%d cal burn" % [int(round(FIGHT_BACK_REST_COST_PERCENT)), int(round(FIGHT_BACK_CALORIE_COST))])
+    lines.append("Best gear: Knife (5-15 dmg) | Bow+Arrow (3-7 dmg) | Both (0-5 dmg)")
+    lines.append("Clears wolves %d%% lure, direct assault guaranteed." % WOLF_LURE_SUCCESS_PERCENT)
+    if bool(_wolf_state.get("active", false)) or bool(_wolf_state.get("present", false)):
+        var remaining = int(_wolf_state.get("minutes_remaining", 0))
+        var window = "now" if remaining <= 0 else "%s left" % _format_duration(remaining)
+        lines.append("Wolves outside -> %s" % window)
+    if zombie_system:
+        var count = zombie_system.get_active_zombies()
+        if count > 0:
+            lines.append("Nearby undead: %d" % count)
+    if time_system and fight_minutes > 0 and fight_minutes <= _get_minutes_left_today():
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(fight_minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
     return "\n".join(lines)
 
 func _build_trap_description() -> String:
@@ -1141,6 +1195,18 @@ func _execute_lead_action():
     _set_lead_feedback(_format_lead_result(result), "result")
     if action_popup_panel and String(result.get("action", "")) == "lure" and result.get("success", false):
         _show_lure_popup(result)
+    _refresh_display()
+
+func _execute_fight_action():
+    if game_manager == null:
+        _set_action_result("fight_back", "Fight Back unavailable", true)
+        return
+
+    var result = game_manager.perform_fight_back()
+    _set_action_result("fight_back", _format_fight_result(result), true)
+    _update_fight_summary()
+    if action_popup_panel:
+        _show_fight_popup(result)
     _refresh_display()
 
 func _execute_trap_action():
@@ -2070,10 +2136,44 @@ func _format_recon_result(result: Dictionary) -> String:
     var zombie_text = _summarize_zombie_forecast(result.get("zombie_forecast", {}))
     if zombie_text != "":
         parts.append(zombie_text)
+    var wolf_text = _summarize_wolf_forecast(result.get("wolf_forecast", {}))
+    if wolf_text != "":
+        parts.append(wolf_text)
     return "Recon -> %s" % " | ".join(parts)
 
 func _show_lure_popup(result: Dictionary):
     if action_popup_panel == null:
+        return
+    var threat = String(result.get("threat", "zombies"))
+    if threat == "wolves":
+        var wolves_lines: PackedStringArray = []
+        var success = result.get("success", false)
+        wolves_lines.append("Outcome: %s" % ("Cleared" if success else "Stayed"))
+        var chance_percent = int(round(result.get("chance", GameManager.WOLF_LURE_SUCCESS_CHANCE) * 100.0))
+        wolves_lines.append("Chance: %d%%" % clamp(chance_percent, 0, 100))
+        wolves_lines.append("Roll: %.2f" % float(result.get("roll", 1.0)))
+
+        var cost_lines: PackedStringArray = []
+        var calories = int(round(result.get("calories_spent", LURE_CALORIE_COST)))
+        if calories > 0:
+            cost_lines.append("Calories: -%d" % calories)
+        var minutes = int(result.get("minutes_required", result.get("minutes_spent", 0)))
+        if minutes > 0:
+            cost_lines.append("Duration: %s" % _format_duration(minutes))
+        var ended_at = String(result.get("ended_at_time", ""))
+        if ended_at != "":
+            cost_lines.append("Ended: %s" % ended_at)
+
+        action_popup_panel.show_sections("Lure Report", [
+            {
+                "title": "Wolves",
+                "lines": wolves_lines
+            },
+            {
+                "title": "Costs",
+                "lines": cost_lines
+            }
+        ])
         return
     var total = int(result.get("lure_attempted", result.get("zombies_prevented", 0)))
     var diverted = int(result.get("zombies_prevented", 0))
@@ -2126,6 +2226,60 @@ func _show_lure_popup(result: Dictionary):
         }
     ])
 
+func _show_fight_popup(result: Dictionary):
+    if action_popup_panel == null or !result.get("success", false):
+        return
+
+    var outcome_lines: PackedStringArray = []
+    if result.get("wolves_present", false):
+        outcome_lines.append("Wolves: %s" % ("Driven off" if result.get("wolves_removed", false) else "Still nearby"))
+    else:
+        outcome_lines.append("Wolves: None")
+    if result.get("zombies_present", false):
+        outcome_lines.append("Undead: %s" % ("Cleared" if result.get("zombies_removed", true) else "Remain"))
+    else:
+        outcome_lines.append("Undead: None")
+
+    var gear_lines: PackedStringArray = []
+    gear_lines.append("Knife: %s" % ("Yes" if result.get("has_knife", false) else "No"))
+    var ranged_ready = result.get("has_bow", false) and result.get("has_arrow", false)
+    gear_lines.append("Bow+Arrow: %s" % ("Yes" if ranged_ready else "No"))
+
+    var damage_lines: PackedStringArray = []
+    var damage = int(round(result.get("damage_applied", result.get("damage_roll", 0))))
+    damage_lines.append("Damage taken: %d" % max(damage, 0))
+    damage_lines.append("Health now: %d%%" % int(round(result.get("health_after", _get_player_health()))))
+
+    var stats_lines: PackedStringArray = []
+    var rest_spent = int(round(result.get("rest_spent_percent", 0.0)))
+    if rest_spent > 0:
+        stats_lines.append("Rest: -%d%%" % rest_spent)
+    var calories = int(round(result.get("calories_spent", FIGHT_BACK_CALORIE_COST)))
+    if calories > 0:
+        stats_lines.append("Calories: -%d" % calories)
+    var minutes = int(result.get("minutes_required", result.get("minutes_spent", 0)))
+    if minutes > 0:
+        stats_lines.append("Duration: %s" % _format_duration(minutes))
+
+    action_popup_panel.show_sections("Fight Back Report", [
+        {
+            "title": "Outcome",
+            "lines": outcome_lines
+        },
+        {
+            "title": "Gear",
+            "lines": gear_lines
+        },
+        {
+            "title": "Injury",
+            "lines": damage_lines
+        },
+        {
+            "title": "Costs",
+            "lines": stats_lines
+        }
+    ])
+
 func _show_trap_injury_popup(injury: Dictionary):
     if action_popup_panel == null:
         return
@@ -2165,6 +2319,13 @@ func _show_recon_popup(result: Dictionary):
     sections.append({
         "title": "Zombie Activity",
         "lines": zombie_lines
+    })
+    var wolf_lines = _build_wolf_forecast_lines(result.get("wolf_forecast", {}))
+    if wolf_lines.is_empty():
+        wolf_lines.append("No packs within %dh." % RECON_OUTLOOK_HOURS)
+    sections.append({
+        "title": "Wolf Movements",
+        "lines": wolf_lines
     })
     action_popup_panel.show_sections("Recon Outlook", sections)
 
@@ -2223,6 +2384,44 @@ func _build_zombie_forecast_lines(forecast: Dictionary) -> PackedStringArray:
             var day = int(event.get("day", forecast.get("current_day", 0) + 1))
             text += " (Day %d)" % day
         lines.append(text)
+    return lines
+
+func _build_wolf_forecast_lines(forecast: Dictionary) -> PackedStringArray:
+    var lines: PackedStringArray = []
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return lines
+
+    var events: Array = forecast.get("events", [])
+    var active_entry: Dictionary = {}
+    var next_arrival: Dictionary = {}
+
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        var event_type = String(event.get("type", ""))
+        match event_type:
+            "active":
+                active_entry = event.duplicate(true)
+            "arrival":
+                if next_arrival.is_empty() or int(event.get("minutes_ahead", 0)) < int(next_arrival.get("minutes_ahead", 2147483647)):
+                    next_arrival = event.duplicate(true)
+
+    if !active_entry.is_empty():
+        var remaining = int(active_entry.get("minutes_remaining", 0))
+        if remaining > 0:
+            lines.append("Now: Outside (%s left)" % _format_duration(remaining))
+        else:
+            lines.append("Now: Outside (departing soon)")
+
+    if !next_arrival.is_empty():
+        var minutes = int(next_arrival.get("minutes_ahead", 0))
+        var when = _format_forecast_eta(minutes)
+        var duration = int(next_arrival.get("duration", next_arrival.get("scheduled_duration", next_arrival.get("end_minute", 0) - next_arrival.get("minute", 0))))
+        var label = "%s: Arrive" % when
+        if duration > 0:
+            label += " (stay %s)" % _format_duration(duration)
+        lines.append(label)
+
     return lines
 
 func _format_forecast_eta(minutes: int) -> String:
@@ -2317,6 +2516,42 @@ func _summarize_zombie_forecast(forecast: Dictionary) -> String:
     if fragments.is_empty():
         return "Zombies: Quiet"
     return "Zombies: %s" % " / ".join(fragments)
+
+func _summarize_wolf_forecast(forecast: Dictionary) -> String:
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return ""
+
+    var events: Array = forecast.get("events", [])
+    var active_entry: Dictionary = {}
+    var next_arrival: Dictionary = {}
+
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        var event_type = String(event.get("type", ""))
+        match event_type:
+            "active":
+                active_entry = event.duplicate(true)
+            "arrival":
+                if next_arrival.is_empty() or int(event.get("minutes_ahead", 0)) < int(next_arrival.get("minutes_ahead", 2147483647)):
+                    next_arrival = event.duplicate(true)
+
+    if !active_entry.is_empty():
+        var remaining = int(active_entry.get("minutes_remaining", 0))
+        var window = "Now"
+        if remaining > 0:
+            window = "%s left" % _format_duration(remaining)
+        return "Wolves: Outside (%s)" % window
+
+    if !next_arrival.is_empty():
+        var minutes = int(next_arrival.get("minutes_ahead", 0))
+        var arrival_text = "Now" if minutes <= 0 else _format_duration(minutes)
+        var duration = int(next_arrival.get("duration", next_arrival.get("scheduled_duration", next_arrival.get("end_minute", 0) - next_arrival.get("minute", 0))))
+        if duration > 0:
+            return "Wolves: Arrive %s (stay %s)" % [arrival_text, _format_duration(duration)]
+        return "Wolves: Arrive %s" % arrival_text
+
+    return "Wolves: No activity"
 
 func _format_trap_deploy_result(result: Dictionary) -> String:
     var parts: PackedStringArray = []
@@ -2650,6 +2885,51 @@ func _update_recon_summary():
     if is_instance_valid(recon_select_button):
         recon_select_button.disabled = !recon_available
 
+func _update_fight_summary():
+    if !is_instance_valid(fight_summary_label):
+        return
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(FIGHT_BACK_HOURS * 60.0 * multiplier))
+    var threat_parts: PackedStringArray = []
+    var wolves_active = bool(_wolf_state.get("active", false)) or bool(_wolf_state.get("present", false))
+    if wolves_active:
+        var remaining = int(_wolf_state.get("minutes_remaining", 0))
+        var window = "now"
+        if remaining > 0:
+            window = _format_duration(remaining)
+        threat_parts.append("Wolves %s" % window)
+    if zombie_system and zombie_system.get_active_zombies() > 0:
+        threat_parts.append("Undead %d" % zombie_system.get_active_zombies())
+    if threat_parts.is_empty():
+        threat_parts.append("No outside threats")
+
+    var parts: PackedStringArray = []
+    parts.append(" | ".join(threat_parts))
+    parts.append("%s sprint" % _format_duration(minutes))
+    parts.append("-%d%% rest | -%d cal" % [int(round(FIGHT_BACK_REST_COST_PERCENT)), int(round(FIGHT_BACK_CALORIE_COST))])
+
+    var has_knife = inventory_system and inventory_system.get_item_count(GameManager.CRAFTED_KNIFE_ID) > 0
+    var has_bow = inventory_system and inventory_system.get_item_count("bow") > 0
+    var has_arrow = inventory_system and inventory_system.get_item_count("arrow") > 0
+    var ready = (wolves_active or (zombie_system and zombie_system.get_active_zombies() > 0)) and (has_knife or (has_bow and has_arrow))
+    if ready:
+        var gear: PackedStringArray = []
+        if has_knife:
+            gear.append("Knife")
+        if has_bow and has_arrow:
+            gear.append("Bow+Arrow")
+        if !gear.is_empty():
+            parts.append("Gear: %s" % ", ".join(gear))
+    else:
+        parts.append("Need Knife or Bow+Arrow")
+
+    var summary = "Fight Back -> %s" % " | ".join(parts)
+    fight_summary_label.text = summary
+    _set_action_default("fight_back", summary, true)
+    if is_instance_valid(fight_select_button):
+        fight_select_button.disabled = !ready
+
 func _update_repair_summary():
     if !is_instance_valid(repair_summary_label):
         return
@@ -2844,6 +3124,8 @@ func _get_action_energy_text(action: String) -> String:
             if _lure_status.get("available", false):
                 return "0% (Lure intercept)"
             return "-%s%% cost" % _format_percent_value(15.0)
+        "fight_back":
+            return "-%s%% cost" % _format_percent_value(FIGHT_BACK_REST_COST_PERCENT)
         "trap":
             return "-%s%% cost" % _format_percent_value(TRAP_ENERGY_COST_PERCENT)
         "snare_place":
@@ -2885,6 +3167,8 @@ func _get_action_calorie_text(action: String) -> String:
             if _lure_status.get("available", false):
                 return "+%d burn" % int(round(GameManager.LURE_CALORIE_COST))
             return "Awake burn only"
+        "fight_back":
+            return "+%d burn" % int(round(FIGHT_BACK_CALORIE_COST))
         "trap":
             return "+%d burn" % int(round(TRAP_CALORIE_COST))
         "snare_place":
@@ -2957,6 +3241,24 @@ func _format_lure_result(result: Dictionary) -> String:
     var ended_at = result.get("ended_at_time", "")
     var rest_spent = result.get("rest_spent_percent", 0.0)
     if result.get("success", false):
+        var threat = String(result.get("threat", "zombies"))
+        if threat == "wolves":
+            var parts_wolves: PackedStringArray = []
+            parts_wolves.append("Wolves %s" % ("cleared" if result.get("wolves_removed", false) else "stayed"))
+            var chance_percent = int(round(result.get("chance", GameManager.WOLF_LURE_SUCCESS_CHANCE) * 100.0))
+            parts_wolves.append("%d%% roll %.2f" % [clamp(chance_percent, 0, 100), float(result.get("roll", 1.0))])
+            var calories = int(round(result.get("calories_spent", LURE_CALORIE_COST)))
+            if calories > 0:
+                parts_wolves.append("-%d cal" % calories)
+            var duration = int(result.get("minutes_required", result.get("minutes_spent", 0)))
+            if duration > 0:
+                parts_wolves.append("Took %s" % _format_duration(duration))
+            if rest_spent > 0.0:
+                parts_wolves.append("-%d%% rest" % int(round(rest_spent)))
+            if ended_at != "":
+                parts_wolves.append("End %s" % ended_at)
+            return "Lure -> %s" % " | ".join(parts_wolves)
+
         var diverted = int(result.get("zombies_prevented", 0))
         var clock = String(result.get("spawn_prevented_clock", ended_at))
         var calories = int(round(result.get("calories_spent", LURE_CALORIE_COST)))
@@ -2999,6 +3301,26 @@ func _format_lure_result(result: Dictionary) -> String:
             return "Lure -> No pending wave"
         "cancel_failed":
             return "Lure -> Could not divert"
+        "wolves_stayed":
+            var fragments: PackedStringArray = []
+            var chance_percent = int(round(result.get("chance", GameManager.WOLF_LURE_SUCCESS_CHANCE) * 100.0))
+            fragments.append("Wolves stayed (%d%%)" % clamp(chance_percent, 0, 100))
+            fragments.append("Roll %.2f" % float(result.get("roll", 1.0)))
+            var calories = int(round(result.get("calories_spent", LURE_CALORIE_COST)))
+            if calories > 0:
+                fragments.append("-%d cal" % calories)
+            var duration = int(result.get("minutes_required", result.get("minutes_spent", 0)))
+            if duration > 0:
+                fragments.append("Took %s" % _format_duration(duration))
+            if rest_spent > 0.0:
+                fragments.append("-%d%% rest" % int(round(rest_spent)))
+            if ended_at != "":
+                fragments.append("End %s" % ended_at)
+            return "Lure -> %s" % " | ".join(fragments)
+        "chance_blocked":
+            return "Lure -> Wolves resisted"
+        "no_wolves":
+            return "Lure -> Wolves already gone"
         _:
             return "Lure failed"
 
@@ -3049,6 +3371,40 @@ func _format_lead_result(result: Dictionary) -> String:
                 fallback += " | End %s" % ended_at
             return fallback
 
+func _format_fight_result(result: Dictionary) -> String:
+    if result.get("success", false):
+        var parts: PackedStringArray = []
+        if result.get("wolves_present", false):
+            parts.append("Wolves %s" % ("cleared" if result.get("wolves_removed", false) else "lingered"))
+        if result.get("zombies_present", false):
+            parts.append("Undead %s" % ("cleared" if result.get("zombies_removed", true) else "lingered"))
+        var damage = int(round(result.get("damage_applied", result.get("damage_roll", 0))))
+        parts.append("Damage %d" % max(damage, 0))
+        var rest_spent = result.get("rest_spent_percent", 0.0)
+        if rest_spent > 0.0:
+            parts.append("-%d%% rest" % int(round(rest_spent)))
+        var calories = int(round(result.get("calories_spent", FIGHT_BACK_CALORIE_COST)))
+        if calories > 0:
+            parts.append("-%d cal" % calories)
+        return "Fight Back -> %s" % " | ".join(parts)
+
+    var reason = String(result.get("reason", "failed"))
+    match reason:
+        "systems_unavailable":
+            return "Fight Back offline"
+        "no_threat":
+            return "Fight Back -> No threats outside"
+        "no_weapons":
+            return "Fight Back -> Need Knife or Bow+Arrow"
+        "exceeds_day":
+            var minutes_available = int(result.get("minutes_available", 0))
+            return _format_daybreak_warning(minutes_available)
+        "time_rejected":
+            var minutes_available = int(result.get("minutes_available", 0))
+            return _format_daybreak_warning(minutes_available)
+        _:
+            return "Fight Back failed"
+
 func _format_health_value(value: float) -> String:
     if is_zero_approx(value - round(value)):
         return "%d" % int(round(value))
@@ -3088,6 +3444,7 @@ func _on_inventory_item_changed(_item_id: String, _quantity_delta: int, _food_de
     _update_hunt_summary()
     _update_butcher_summary()
     _update_cook_whole_summary()
+    _update_fight_summary()
     if !_forging_feedback_locked and _forging_feedback_state != "offline" and inventory_system:
         _set_forging_feedback(_format_forging_ready(inventory_system.get_total_food_units()), "ready")
 
@@ -3106,12 +3463,18 @@ func _on_lead_zombie_count_changed(count: int):
     _set_lead_feedback(_format_lead_ready(count), "status")
     _refresh_lead_feedback()
     _update_recon_summary()
+    _update_fight_summary()
     _refresh_info_stats_if_selected("lead")
 
 func _on_lure_status_changed(status: Dictionary):
     _lure_status = status.duplicate(true)
     _refresh_lead_feedback()
     _refresh_info_stats_if_selected("lead")
+
+func _on_wolf_state_changed(state: Dictionary):
+    _wolf_state = state.duplicate(true)
+    _update_fight_summary()
+    _refresh_info_stats_if_selected("fight_back")
 
 func _on_trap_state_changed(_active: bool, state: Dictionary):
     _trap_state = state.duplicate(true)

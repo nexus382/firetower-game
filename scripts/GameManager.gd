@@ -11,6 +11,7 @@ const WeatherSystem = preload("res://scripts/systems/WeatherSystem.gd")
 const TowerHealthSystem = preload("res://scripts/systems/TowerHealthSystem.gd")
 const NewsBroadcastSystem = preload("res://scripts/systems/NewsBroadcastSystem.gd")
 const ZombieSystem = preload("res://scripts/systems/ZombieSystem.gd")
+const WolfSystem = preload("res://scripts/systems/WolfSystem.gd")
 const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd")
 const WarmthSystem = preload("res://scripts/systems/WarmthSystem.gd")
 const WoodStoveSystem = preload("res://scripts/systems/WoodStoveSystem.gd")
@@ -27,6 +28,19 @@ const LURE_SUCCESS_INJURY_CHANCE: float = 0.10
 const LURE_SUCCESS_INJURY_DAMAGE: float = 5.0
 const LURE_FAILURE_INJURY_CHANCE: float = 0.25
 const LURE_FAILURE_INJURY_DAMAGE: float = 10.0
+const WOLF_ATTACK_CHANCE: float = 0.30
+const WOLF_ATTACK_DAMAGE_MIN: int = 5
+const WOLF_ATTACK_DAMAGE_MAX: int = 15
+const WOLF_LURE_SUCCESS_CHANCE: float = 0.75
+const FIGHT_BACK_HOURS: float = 1.0
+const FIGHT_BACK_REST_COST_PERCENT: float = 12.5
+const FIGHT_BACK_CALORIE_COST: float = 500.0
+const FIGHT_BACK_KNIFE_DAMAGE_MIN: int = 5
+const FIGHT_BACK_KNIFE_DAMAGE_MAX: int = 15
+const FIGHT_BACK_BOW_DAMAGE_MIN: int = 3
+const FIGHT_BACK_BOW_DAMAGE_MAX: int = 7
+const FIGHT_BACK_COMBINED_DAMAGE_MIN: int = 0
+const FIGHT_BACK_COMBINED_DAMAGE_MAX: int = 5
 const FISHING_ROLLS_PER_HOUR: int = 5
 const FISHING_ROLL_SUCCESS_CHANCE: float = 0.30
 const FISHING_REST_COST_PERCENT: float = 10.0
@@ -384,6 +398,7 @@ signal recon_alerts_changed(alerts: Dictionary)
 signal wood_stove_state_changed(state: Dictionary)
 signal hunt_stock_changed(stock: Dictionary)
 signal snare_state_changed(state: Dictionary)
+signal wolf_state_changed(state: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -403,6 +418,7 @@ var tower_health_system: TowerHealthSystem = TowerHealthSystem.new()
 var health_system: PlayerHealthSystem = PlayerHealthSystem.new()
 var news_system: NewsBroadcastSystem = NewsBroadcastSystem.new()
 var zombie_system: ZombieSystem = ZombieSystem.new()
+var wolf_system: WolfSystem = WolfSystem.new()
 var warmth_system: WarmthSystem = WarmthSystem.new()
 var wood_stove_system: WoodStoveSystem = WoodStoveSystem.new()
 var _last_awake_minute_stamp: int = 0
@@ -429,6 +445,7 @@ var _snare_state: Dictionary = {
 }
 var _next_snare_id: int = 1
 var _recon_alerts: Dictionary = {}
+var _wolf_state: Dictionary = {}
 var flashlight_battery_percent: float = 0.0
 var flashlight_active: bool = false
 var _pending_game_food: Dictionary = {}
@@ -458,6 +475,8 @@ func _ready():
         news_system = NewsBroadcastSystem.new()
     if zombie_system == null:
         zombie_system = ZombieSystem.new()
+    if wolf_system == null:
+        wolf_system = WolfSystem.new()
     if warmth_system == null:
         warmth_system = WarmthSystem.new()
     if wood_stove_system == null:
@@ -489,6 +508,9 @@ func _ready():
         zombie_system.zombies_damaged_tower.connect(_on_zombie_damage_tower)
         zombie_system.zombies_spawned.connect(_on_zombies_spawned)
         zombie_system.start_day(current_day, _rng)
+    if wolf_system:
+        wolf_system.wolves_state_changed.connect(_on_wolves_state_changed)
+        wolf_system.start_day(current_day, _rng)
     if wood_stove_system:
         wood_stove_system.stove_state_changed.connect(_on_wood_stove_state_changed)
 
@@ -745,6 +767,15 @@ func get_news_system() -> NewsBroadcastSystem:
 
 func get_zombie_system() -> ZombieSystem:
     return zombie_system
+
+func get_wolf_system() -> WolfSystem:
+    return wolf_system
+
+func get_wolf_state() -> Dictionary:
+    return _wolf_state.duplicate(true)
+
+func has_active_wolves() -> bool:
+    return wolf_system != null and wolf_system.has_active_wolves()
 
 func get_lure_status() -> Dictionary:
     return _refresh_lure_status(false).duplicate(true)
@@ -1452,6 +1483,10 @@ func perform_forging() -> Dictionary:
     result["calories_spent"] = FORGING_CALORIE_COST
     result["daily_calories_used"] = calorie_burn
 
+    var wolf_encounter = _apply_wolf_encounter("forging")
+    if !wolf_encounter.is_empty():
+        result["wolf_encounter"] = wolf_encounter
+
     if loot_roll.is_empty():
         result["success"] = false
         result["reason"] = "nothing_found"
@@ -1538,6 +1573,10 @@ func perform_campground_search() -> Dictionary:
     result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
     result["calories_spent"] = CAMP_SEARCH_CALORIE_COST
     result["daily_calories_used"] = calorie_burn
+
+    var wolf_encounter = _apply_wolf_encounter("camp_search")
+    if !wolf_encounter.is_empty():
+        result["wolf_encounter"] = wolf_encounter
 
     if loot_roll.is_empty():
         result["success"] = false
@@ -1851,7 +1890,8 @@ func perform_lead_away_undead() -> Dictionary:
     return result
 
 func perform_lure_incoming_zombies() -> Dictionary:
-    if time_system == null or sleep_system == null or zombie_system == null or _rng == null:
+    var wolves_present = wolf_system != null and wolf_system.has_active_wolves()
+    if time_system == null or sleep_system == null or _rng == null:
         var failure := {
             "success": false,
             "reason": "systems_unavailable",
@@ -1859,6 +1899,59 @@ func perform_lure_incoming_zombies() -> Dictionary:
         }
         _refresh_lure_status(true)
         return failure
+
+    if wolves_present:
+        var preview = _preview_activity_time(LURE_DURATION_HOURS)
+        if !preview.get("success", false):
+            preview["action"] = "lure"
+            preview["success"] = false
+            preview["reason"] = preview.get("reason", "time_rejected")
+            preview["threat"] = "wolves"
+            _refresh_lure_status(true)
+            return preview
+
+        var time_report = _spend_activity_time(LURE_DURATION_HOURS, "lure")
+        if !time_report.get("success", false):
+            var failure := time_report.duplicate(true)
+            failure["action"] = "lure"
+            failure["reason"] = failure.get("reason", "time_rejected")
+            failure["threat"] = "wolves"
+            _refresh_lure_status(true)
+            return failure
+
+        var calorie_total = sleep_system.adjust_daily_calories(LURE_CALORIE_COST)
+        var lure_attempt = wolf_system.attempt_lure(WOLF_LURE_SUCCESS_CHANCE, _rng) if wolf_system else {"success": false}
+        var success = bool(lure_attempt.get("success", false))
+        var result := time_report.duplicate()
+        result["action"] = "lure"
+        result["status"] = result.get("status", "applied")
+        result["threat"] = "wolves"
+        result["calories_spent"] = LURE_CALORIE_COST
+        result["daily_calories_used"] = calorie_total
+        result["minutes_required"] = int(preview.get("requested_minutes", result.get("minutes_spent", 0)))
+        result["chance"] = WOLF_LURE_SUCCESS_CHANCE
+        result["roll"] = float(lure_attempt.get("roll", 1.0))
+        result["success"] = success
+        result["reason"] = String(lure_attempt.get("reason", success ? "wolves_cleared" : "wolves_stayed"))
+        result["wolves_removed"] = success
+        result["wolves_present"] = true
+        result["window_minutes"] = LURE_WINDOW_MINUTES
+        result["calorie_cost"] = LURE_CALORIE_COST
+        _refresh_lure_status(true)
+        if success:
+            print("🪤 Lure success -> wolves scattered")
+        else:
+            print("🪤 Lure failed -> wolves linger")
+        return result
+
+    if zombie_system == null:
+        var offline := {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "lure"
+        }
+        _refresh_lure_status(true)
+        return offline
 
     var status = get_lure_status()
     if !status.get("scouted", false):
@@ -1934,6 +2027,109 @@ func perform_lure_incoming_zombies() -> Dictionary:
 
     _clear_lure_target("completed")
     print("🪤 Lure success -> diverted %d approaching undead" % max(prevented, 0))
+    return result
+
+func perform_fight_back() -> Dictionary:
+    var wolves_present = wolf_system != null and wolf_system.has_active_wolves()
+    var zombies_present = zombie_system != null and zombie_system.has_active_zombies()
+
+    if time_system == null or sleep_system == null or inventory_system == null or _rng == null or health_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "fight_back"
+        }
+
+    if !wolves_present and !zombies_present:
+        return {
+            "success": false,
+            "reason": "no_threat",
+            "action": "fight_back"
+        }
+
+    var has_knife = inventory_system.get_item_count(CRAFTED_KNIFE_ID) > 0
+    var has_bow = inventory_system.get_item_count("bow") > 0
+    var has_arrow = inventory_system.get_item_count("arrow") > 0
+    if !has_knife and !(has_bow and has_arrow):
+        return {
+            "success": false,
+            "reason": "no_weapons",
+            "action": "fight_back",
+            "wolves_present": wolves_present,
+            "zombies_present": zombies_present
+        }
+
+    var preview = _preview_activity_time(FIGHT_BACK_HOURS)
+    if !preview.get("success", false):
+        preview["action"] = "fight_back"
+        preview["success"] = false
+        preview["reason"] = preview.get("reason", "time_rejected")
+        return preview
+
+    var time_report = _spend_activity_time(FIGHT_BACK_HOURS, "fight_back")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate(true)
+        failure["action"] = "fight_back"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(FIGHT_BACK_REST_COST_PERCENT)
+    var calorie_total = sleep_system.adjust_daily_calories(FIGHT_BACK_CALORIE_COST)
+
+    var damage_min = FIGHT_BACK_KNIFE_DAMAGE_MIN
+    var damage_max = FIGHT_BACK_KNIFE_DAMAGE_MAX
+    if has_bow and has_arrow and has_knife:
+        damage_min = FIGHT_BACK_COMBINED_DAMAGE_MIN
+        damage_max = FIGHT_BACK_COMBINED_DAMAGE_MAX
+    elif has_bow and has_arrow:
+        damage_min = FIGHT_BACK_BOW_DAMAGE_MIN
+        damage_max = FIGHT_BACK_BOW_DAMAGE_MAX
+
+    var damage_roll = _rng.randi_range(damage_min, damage_max)
+    var result := time_report.duplicate()
+    result["action"] = "fight_back"
+    result["status"] = result.get("status", "applied")
+    result["success"] = true
+    result["rest_spent_percent"] = rest_spent
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["calories_spent"] = FIGHT_BACK_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["minutes_required"] = int(preview.get("requested_minutes", result.get("minutes_spent", 0)))
+    result["wolves_present"] = wolves_present
+    result["zombies_present"] = zombies_present
+    result["has_knife"] = has_knife
+    result["has_bow"] = has_bow
+    result["has_arrow"] = has_arrow
+    result["damage_roll"] = damage_roll
+    result["damage_min"] = damage_min
+    result["damage_max"] = damage_max
+
+    if damage_roll > 0:
+        var damage_report = health_system.apply_damage(damage_roll, "fight_back")
+        result["damage_report"] = damage_report
+        result["damage_applied"] = float(damage_report.get("applied", damage_roll))
+        result["health_before"] = damage_report.get("previous_health", damage_report.get("health_before", health_system.get_health()))
+        result["health_after"] = damage_report.get("new_health", damage_report.get("health_after", health_system.get_health()))
+    else:
+        result["damage_applied"] = 0.0
+        result["health_before"] = health_system.get_health()
+        result["health_after"] = result["health_before"]
+
+    var zombies_cleared = false
+    var wolves_removed = !wolves_present
+    if wolves_present and wolf_system:
+        var wolf_clear = wolf_system.clear_wolves("fight_back")
+        wolves_removed = bool(wolf_clear.get("success", false))
+        result["wolf_clear_report"] = wolf_clear
+    if zombies_present and zombie_system:
+        zombie_system.clear_zombies()
+        zombies_cleared = true
+
+    result["zombies_removed"] = zombies_cleared or !zombies_present
+    result["wolves_removed"] = wolves_removed
+
+    _refresh_lure_status(true)
+    print("🗡️ Fight Back -> neutralized threats (wolves %s | zombies %s)" % [str(wolves_present), str(zombies_present)])
     return result
 
 func perform_trap_deployment() -> Dictionary:
@@ -2213,6 +2409,10 @@ func perform_recon() -> Dictionary:
 
     var weather_outlook = weather_system.forecast_precipitation(6)
     var zombie_outlook = _forecast_zombie_activity(6 * 60, rng_copy)
+    var wolf_outlook: Dictionary = {}
+    if wolf_system:
+        var minutes_since = time_system.get_minutes_since_daybreak()
+        wolf_outlook = wolf_system.forecast_activity(6, minutes_since)
 
     var result := time_report.duplicate()
     result["action"] = "recon"
@@ -2223,8 +2423,9 @@ func perform_recon() -> Dictionary:
     result["daily_calories_used"] = calorie_total
     result["weather_forecast"] = weather_outlook
     result["zombie_forecast"] = zombie_outlook
+    result["wolf_forecast"] = wolf_outlook
     result["window_status"] = get_recon_window_status()
-    _update_recon_alerts_from_forecast(weather_outlook, zombie_outlook)
+    _update_recon_alerts_from_forecast(weather_outlook, zombie_outlook, wolf_outlook)
     result["alerts"] = _recon_alerts.duplicate(true)
 
     _update_lure_target_from_forecast(result.get("zombie_forecast", {}))
@@ -2483,7 +2684,7 @@ func _roll_forging_loot() -> Array:
         },
         {
             "item_id": "ripped_cloth",
-            "chance": 0.15,
+            "chance": 0.30,
             "quantity": 1,
             "tier": "basic"
         },
@@ -2501,7 +2702,7 @@ func _roll_forging_loot() -> Array:
         },
         {
             "item_id": "wood",
-            "chance": 0.40,
+            "chance": 0.45,
             "quantity": 1,
             "tier": "basic"
         },
@@ -2633,13 +2834,13 @@ func _roll_campground_loot() -> Array:
         },
         {
             "item_id": "ripped_cloth",
-            "chance": 0.40,
+            "chance": 0.55,
             "quantity": 1,
             "tier": "basic"
         },
         {
             "item_id": "wood",
-            "chance": 0.25,
+            "chance": 0.45,
             "quantity": 1,
             "tier": "basic"
         },
@@ -2865,6 +3066,8 @@ func _on_day_rolled_over():
         news_system.reset_day(current_day)
     if zombie_system:
         zombie_system.start_day(current_day, _rng)
+    if wolf_system:
+        wolf_system.start_day(current_day, _rng)
     _clear_lure_target("day_rollover")
     day_changed.emit(current_day)
 
@@ -2882,9 +3085,17 @@ func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
         return
     _advance_wood_stove(minutes)
     _advance_snares(minutes, rolled_over)
+    var current_minutes = time_system.get_minutes_since_daybreak()
+    if wolf_system:
+        var wolf_report = wolf_system.advance_time(minutes, current_minutes, rolled_over)
+        if typeof(wolf_report) == TYPE_DICTIONARY:
+            if wolf_report.has("arrived"):
+                print("🐺 Wolves spotted near the tower")
+            if wolf_report.has("departed"):
+                print("🐺 Wolves left the perimeter")
     if zombie_system == null or tower_health_system == null:
         return
-    var report = zombie_system.advance_time(minutes, time_system.get_minutes_since_daybreak(), rolled_over)
+    var report = zombie_system.advance_time(minutes, current_minutes, rolled_over)
     var spawn_event = report.get("spawn_event")
     if spawn_event is Dictionary:
         var added = int(spawn_event.get("spawns", 0))
@@ -2940,6 +3151,14 @@ func _on_zombies_spawned(added: int, _total: int, day: int):
         print("🪤 Trap snapped after intercept (roll %.2f)" % roll)
     else:
         print("🪤 Trap held, returned to inventory (roll %.2f)" % roll)
+
+func _on_wolves_state_changed(state: Dictionary):
+    if typeof(state) == TYPE_DICTIONARY:
+        _wolf_state = state.duplicate(true)
+    else:
+        _wolf_state = {}
+    wolf_state_changed.emit(_wolf_state.duplicate(true))
+    _refresh_lure_status(true)
 
 func _on_zombie_damage_tower(damage: float, count: int):
     print("🧟 Zombies inflicted %.2f damage (%d active)" % [damage, count])
@@ -3165,7 +3384,42 @@ func _roll_injury(chance: float, damage: float, source: String, tag: String) -> 
     outcome["health_after"] = after
     return outcome
 
-func _update_recon_alerts_from_forecast(weather_forecast: Dictionary, zombie_forecast: Dictionary):
+func _apply_wolf_encounter(action: String) -> Dictionary:
+    if wolf_system == null or _rng == null or health_system == null:
+        return {}
+    if !wolf_system.has_active_wolves():
+        return {}
+
+    var roll = _rng.randf()
+    var encounter := {
+        "action": action,
+        "chance": WOLF_ATTACK_CHANCE,
+        "roll": roll,
+        "wolves_present": true,
+        "wolf_state": wolf_system.get_state(),
+        "triggered": roll < WOLF_ATTACK_CHANCE
+    }
+
+    encounter["damage_applied"] = 0.0
+    encounter["health_before"] = health_system.get_health()
+    encounter["health_after"] = encounter["health_before"]
+
+    if !encounter.get("triggered", false):
+        return encounter
+
+    var damage = _rng.randi_range(WOLF_ATTACK_DAMAGE_MIN, WOLF_ATTACK_DAMAGE_MAX)
+    encounter["damage_roll"] = damage
+    if damage > 0:
+        var report = health_system.apply_damage(damage, "%s_wolves" % action)
+        encounter["damage_report"] = report
+        encounter["damage_applied"] = float(report.get("applied", damage))
+        encounter["health_before"] = report.get("previous_health", report.get("health_before", health_system.get_health()))
+        encounter["health_after"] = report.get("new_health", report.get("health_after", health_system.get_health()))
+    else:
+        encounter["damage_applied"] = 0.0
+    return encounter
+
+func _update_recon_alerts_from_forecast(weather_forecast: Dictionary, zombie_forecast: Dictionary, wolf_forecast: Dictionary = {}):
     var alerts: Dictionary = {}
     var weather_alert = _resolve_weather_alert(weather_forecast)
     if !weather_alert.is_empty():
@@ -3173,6 +3427,9 @@ func _update_recon_alerts_from_forecast(weather_forecast: Dictionary, zombie_for
     var zombie_alert = _resolve_zombie_alert(zombie_forecast)
     if !zombie_alert.is_empty():
         alerts["zombies"] = zombie_alert
+    var wolf_alert = _resolve_wolf_alert(wolf_forecast)
+    if !wolf_alert.is_empty():
+        alerts["wolves"] = wolf_alert
     _set_recon_alerts(alerts)
 
 func _resolve_weather_alert(forecast: Dictionary) -> Dictionary:
@@ -3237,6 +3494,50 @@ func _resolve_zombie_alert(forecast: Dictionary) -> Dictionary:
         "active": true,
         "clock_time": String(best_event.get("clock_time", time_system.get_formatted_time_after(best_minutes) if time_system else "")),
         "label": "Zombies"
+    }
+
+func _resolve_wolf_alert(forecast: Dictionary) -> Dictionary:
+    if typeof(forecast) != TYPE_DICTIONARY or forecast.is_empty():
+        return {}
+    var events: Array = forecast.get("events", [])
+    if events.is_empty():
+        return {}
+
+    var arrival_minutes = -1
+    var active_event: Dictionary = {}
+    for event in events:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        var event_type = String(event.get("type", ""))
+        if event_type == "arrival":
+            var minutes = int(event.get("minutes_ahead", 0))
+            if minutes < 0:
+                continue
+            if arrival_minutes < 0 or minutes < arrival_minutes:
+                arrival_minutes = minutes
+        elif event_type == "active":
+            active_event = event.duplicate(true)
+
+    if !active_event.is_empty():
+        var remaining = int(active_event.get("minutes_remaining", 0))
+        return {
+            "type": "wolves",
+            "minutes_until": 0.0,
+            "minutes_remaining": max(remaining, 0),
+            "active": true,
+            "label": "Wolves",
+            "clock_time": time_system.get_formatted_time() if time_system else ""
+        }
+
+    if arrival_minutes < 0:
+        return {}
+
+    return {
+        "type": "wolves",
+        "minutes_until": float(arrival_minutes),
+        "active": true,
+        "label": "Wolves",
+        "clock_time": time_system.get_formatted_time_after(arrival_minutes) if time_system else ""
     }
 
 func _set_recon_alerts(alerts: Dictionary):
@@ -3633,7 +3934,9 @@ func _refresh_lure_status(emit_signal: bool) -> Dictionary:
         "scouted": !_lure_target.is_empty()
     }
 
-    if time_system == null or zombie_system == null:
+    var wolves_present = wolf_system != null and wolf_system.has_active_wolves()
+
+    if time_system == null or sleep_system == null:
         status["reason"] = "systems_unavailable"
     else:
         var preview = _preview_activity_time(LURE_DURATION_HOURS)
@@ -3641,51 +3944,69 @@ func _refresh_lure_status(emit_signal: bool) -> Dictionary:
         status["time_multiplier"] = float(preview.get("time_multiplier", get_combined_activity_multiplier()))
         status["minutes_available"] = int(preview.get("minutes_available", time_system.get_minutes_until_daybreak()))
 
-        if _lure_target.is_empty():
-            status["reason"] = "no_target"
-        else:
-            var pending = zombie_system.get_pending_spawn()
-            if typeof(pending) != TYPE_DICTIONARY or pending.is_empty():
-                status["reason"] = "pending_cleared"
-                status["scouted"] = false
-                _lure_target = {}
+        if wolves_present:
+            status["threat"] = "wolves"
+            status["wolves_present"] = true
+            status["scouted"] = true
+            var wolf_state = wolf_system.get_state()
+            status["wolf_state"] = wolf_state
+            status["minutes_remaining"] = int(wolf_state.get("minutes_remaining", 0))
+            status["clock_time"] = time_system.get_formatted_time()
+            if preview.get("success", false):
+                status["reason"] = "wolves_active"
+                status["status"] = "wolves_ready"
+                status["available"] = true
             else:
-                var target_day = int(_lure_target.get("day", -1))
-                var target_minute = int(_lure_target.get("minute", -1))
-                if int(pending.get("day", -1)) != target_day or int(pending.get("minute", -1)) != target_minute:
-                    status["reason"] = "spawn_mismatch"
+                status["reason"] = preview.get("reason", "time_rejected")
+                status["status"] = preview.get("status", "blocked")
+        elif zombie_system == null:
+            status["reason"] = "systems_unavailable"
+        else:
+            if _lure_target.is_empty():
+                status["reason"] = "no_target"
+            else:
+                var pending = zombie_system.get_pending_spawn()
+                if typeof(pending) != TYPE_DICTIONARY or pending.is_empty():
+                    status["reason"] = "pending_cleared"
                     status["scouted"] = false
                     _lure_target = {}
                 else:
-                    var quantity = int(pending.get("quantity", _lure_target.get("quantity", 0)))
-                    if quantity <= 0:
-                        status["reason"] = "no_quantity"
+                    var target_day = int(_lure_target.get("day", -1))
+                    var target_minute = int(_lure_target.get("minute", -1))
+                    if int(pending.get("day", -1)) != target_day or int(pending.get("minute", -1)) != target_minute:
+                        status["reason"] = "spawn_mismatch"
                         status["scouted"] = false
                         _lure_target = {}
                     else:
-                        var minutes_remaining = _compute_minutes_until_spawn(target_day, target_minute)
-                        status["minutes_remaining"] = minutes_remaining
-                        status["clock_time"] = time_system.get_formatted_time_after(max(minutes_remaining, 0))
-                        status["quantity"] = quantity
-                        status["spawn_day"] = target_day
-                        status["spawn_minute"] = target_minute
-                        status["scouted_at_day"] = _lure_target.get("scouted_at_day", current_day)
-                        status["scouted_at_minute"] = _lure_target.get("scouted_at_minute", 0)
-                        status["source"] = _lure_target.get("source", "recon")
-                        if minutes_remaining < 0:
-                            status["reason"] = "expired"
+                        var quantity = int(pending.get("quantity", _lure_target.get("quantity", 0)))
+                        if quantity <= 0:
+                            status["reason"] = "no_quantity"
                             status["scouted"] = false
                             _lure_target = {}
-                        elif minutes_remaining > LURE_WINDOW_MINUTES:
-                            status["reason"] = "outside_window"
-                            status["status"] = "scouted"
-                        elif !preview.get("success", false):
-                            status["reason"] = preview.get("reason", "exceeds_day")
-                            status["status"] = preview.get("status", "blocked")
                         else:
-                            status["reason"] = "ready"
-                            status["status"] = "ready"
-                            status["available"] = true
+                            var minutes_remaining = _compute_minutes_until_spawn(target_day, target_minute)
+                            status["minutes_remaining"] = minutes_remaining
+                            status["clock_time"] = time_system.get_formatted_time_after(max(minutes_remaining, 0))
+                            status["quantity"] = quantity
+                            status["spawn_day"] = target_day
+                            status["spawn_minute"] = target_minute
+                            status["scouted_at_day"] = _lure_target.get("scouted_at_day", current_day)
+                            status["scouted_at_minute"] = _lure_target.get("scouted_at_minute", 0)
+                            status["source"] = _lure_target.get("source", "recon")
+                            if minutes_remaining < 0:
+                                status["reason"] = "expired"
+                                status["scouted"] = false
+                                _lure_target = {}
+                            elif minutes_remaining > LURE_WINDOW_MINUTES:
+                                status["reason"] = "outside_window"
+                                status["status"] = "scouted"
+                            elif !preview.get("success", false):
+                                status["reason"] = preview.get("reason", "exceeds_day")
+                                status["status"] = preview.get("status", "blocked")
+                            else:
+                                status["reason"] = "ready"
+                                status["status"] = "ready"
+                                status["available"] = true
 
     if status.get("reason", "") == "no_target" and !_lure_target.is_empty():
         status["scouted"] = true
