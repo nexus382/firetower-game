@@ -37,6 +37,14 @@ const FORGING_CALORIE_COST: float = 300.0
 const CAMP_SEARCH_HOURS: float = 4.0
 const CAMP_SEARCH_REST_COST_PERCENT: float = 20.0
 const CAMP_SEARCH_CALORIE_COST: float = 800.0
+const HUNT_HOURS: float = 2.0
+const HUNT_REST_COST_PERCENT: float = 10.0
+const HUNT_CALORIE_COST: float = 400.0
+const HUNT_ROLLS_PER_TRIP: int = 3
+const HUNT_ARROW_BREAK_CHANCE: float = 0.5
+const BUTCHER_HOURS: float = 1.0
+const BUTCHER_REST_COST_PERCENT: float = 5.0
+const BUTCHER_CALORIE_COST: float = 150.0
 const FLASHLIGHT_BATTERY_MAX: float = 100.0
 const FLASHLIGHT_BATTERY_DRAIN_PER_HOUR: float = 10.0
 const TRAP_DEPLOY_HOURS: float = 2.0
@@ -55,6 +63,52 @@ const CRAFTED_KNIFE_ID := "crafted_knife"
 const FIRE_STARTING_BOW_SUCCESS_CHANCE: float = 0.75
 const FIRE_STARTING_BOW_KINDLING_RETURN_CHANCE: float = 0.5
 const FLINT_AND_STEEL_SUCCESS_CHANCE: float = 0.90
+const HUNT_ANIMAL_TABLE := [
+    {
+        "id": "rabbit",
+        "label": "Rabbit",
+        "chance": 0.30,
+        "food_units": 2.0
+    },
+    {
+        "id": "squirrel",
+        "label": "Squirrel",
+        "chance": 0.30,
+        "food_units": 2.0
+    },
+    {
+        "id": "boar",
+        "label": "Boar",
+        "chance": 0.20,
+        "food_units": 6.0
+    },
+    {
+        "id": "doe",
+        "label": "Doe",
+        "chance": 0.25,
+        "food_units": 5.0
+    },
+    {
+        "id": "buck",
+        "label": "Buck",
+        "chance": 0.20,
+        "food_units": 7.0
+    }
+]
+const HUNT_ANIMAL_BASES := {
+    "rabbit": 2.0,
+    "squirrel": 2.0,
+    "boar": 6.0,
+    "doe": 5.0,
+    "buck": 7.0
+}
+const HUNT_ANIMAL_LABELS := {
+    "rabbit": "Rabbit",
+    "squirrel": "Squirrel",
+    "boar": "Boar",
+    "doe": "Doe",
+    "buck": "Buck"
+}
 const FISHING_SIZE_TABLE := [
     {
         "size": "small",
@@ -304,6 +358,7 @@ signal lure_status_changed(status: Dictionary)
 signal trap_state_changed(active: bool, state: Dictionary)
 signal recon_alerts_changed(alerts: Dictionary)
 signal wood_stove_state_changed(state: Dictionary)
+signal hunt_stock_changed(stock: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -341,6 +396,7 @@ var _trap_state: Dictionary = {
 var _recon_alerts: Dictionary = {}
 var flashlight_battery_percent: float = 0.0
 var flashlight_active: bool = false
+var _pending_game_food: Dictionary = {}
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -403,6 +459,9 @@ func _ready():
 
     _refresh_lure_status(true)
     _broadcast_trap_state()
+    _emit_hunt_stock_changed()
+    if wood_stove_system:
+        _on_wood_stove_state_changed(wood_stove_system.get_state())
 
 func pause_game():
     game_paused = true
@@ -428,6 +487,66 @@ func get_carry_capacity() -> int:
     if inventory_system:
         return inventory_system.get_carry_capacity()
     return InventorySystem.DEFAULT_CARRY_CAPACITY
+
+func get_hunt_animals() -> Array:
+    return HUNT_ANIMAL_TABLE.duplicate(true)
+
+func get_pending_game_stock() -> Dictionary:
+    var animals: Dictionary = {}
+    for key in _pending_game_food.keys():
+        var stored = float(_pending_game_food.get(key, 0.0))
+        var base = float(HUNT_ANIMAL_BASES.get(key, 0.0))
+        var count = 0
+        if base > 0.0:
+            count = int(round(stored / base))
+        animals[key] = {
+            "label": HUNT_ANIMAL_LABELS.get(key, key.capitalize()),
+            "food_units": stored,
+            "count": count
+        }
+    return {
+        "total_food_units": _get_pending_game_food_units(),
+        "animals": animals
+    }
+
+func get_hunt_status() -> Dictionary:
+    var pending_stock = get_pending_game_stock()
+    var status := {
+        "hours": HUNT_HOURS,
+        "rest_cost_percent": HUNT_REST_COST_PERCENT,
+        "calorie_cost": HUNT_CALORIE_COST,
+        "shots_per_trip": HUNT_ROLLS_PER_TRIP,
+        "arrow_break_chance": HUNT_ARROW_BREAK_CHANCE,
+        "pending_stock": pending_stock
+    }
+    if inventory_system:
+        var bow_stock = inventory_system.get_item_count("bow")
+        var arrow_stock = inventory_system.get_item_count("arrow")
+        status["bow_stock"] = bow_stock
+        status["arrow_stock"] = arrow_stock
+        status["shots_planned"] = min(HUNT_ROLLS_PER_TRIP, max(arrow_stock, 0))
+        status["shots_possible"] = status["shots_planned"]
+    if zombie_system:
+        status["zombies_nearby"] = zombie_system.get_active_zombies()
+    return status
+
+func get_butcher_status() -> Dictionary:
+    var pending_stock = get_pending_game_stock()
+    var pending_total = float(pending_stock.get("total_food_units", 0.0))
+    var total_food_units = inventory_system.get_total_food_units() if inventory_system else 0.0
+    var processable = min(pending_total, total_food_units)
+    var status := {
+        "hours": BUTCHER_HOURS,
+        "rest_cost_percent": BUTCHER_REST_COST_PERCENT,
+        "calorie_cost": BUTCHER_CALORIE_COST,
+        "pending_stock": pending_stock,
+        "fire_lit": wood_stove_system.is_lit() if wood_stove_system else false,
+        "processable_food_units": processable
+    }
+    if inventory_system:
+        status["knife_stock"] = inventory_system.get_item_count(CRAFTED_KNIFE_ID)
+        status["total_food_units"] = total_food_units
+    return status
 
 func get_wood_stove_system() -> WoodStoveSystem:
     return wood_stove_system
@@ -1309,6 +1428,223 @@ func perform_campground_search() -> Dictionary:
     print("⛺ Camp search success: %s" % result)
     return result
 
+func perform_hunt() -> Dictionary:
+    if inventory_system == null or _rng == null or time_system == null or sleep_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "hunt"
+        }
+
+    if zombie_system and zombie_system.has_active_zombies():
+        return {
+            "success": false,
+            "reason": "zombies_present",
+            "action": "hunt",
+            "zombie_count": zombie_system.get_active_zombies()
+        }
+
+    var bow_stock = inventory_system.get_item_count("bow") if inventory_system else 0
+    if bow_stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_bow",
+            "action": "hunt",
+            "bow_stock": bow_stock
+        }
+
+    var arrow_stock = inventory_system.get_item_count("arrow") if inventory_system else 0
+    if arrow_stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_arrows",
+            "action": "hunt",
+            "arrow_stock": arrow_stock
+        }
+
+    var time_report = _spend_activity_time(HUNT_HOURS, "hunt")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "hunt"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(HUNT_REST_COST_PERCENT)
+    var calorie_total = sleep_system.adjust_daily_calories(HUNT_CALORIE_COST)
+
+    var planned_shots = min(HUNT_ROLLS_PER_TRIP, max(arrow_stock, 0))
+    var arrow_runtime = arrow_stock
+    var shots: Array = []
+    var animals: Array = []
+    var animal_counts: Dictionary = {}
+    var total_food: float = 0.0
+    var arrow_breaks: int = 0
+    var arrow_returns: int = 0
+
+    for index in range(HUNT_ROLLS_PER_TRIP):
+        if arrow_runtime <= 0:
+            break
+        var shot_index = index + 1
+        var shot_report := {
+            "index": shot_index,
+            "arrows_before": arrow_runtime,
+            "arrow_break_chance": HUNT_ARROW_BREAK_CHANCE
+        }
+        var catch_report = _roll_hunt_animal()
+        if !catch_report.is_empty():
+            animals.append(catch_report)
+            shot_report["animal"] = catch_report
+            var animal_id = String(catch_report.get("id", ""))
+            if !animal_id.is_empty():
+                animal_counts[animal_id] = int(animal_counts.get(animal_id, 0)) + 1
+                _add_pending_game_food(animal_id, float(catch_report.get("food_units", 0.0)))
+            total_food += float(catch_report.get("food_units", 0.0))
+        var break_roll = _rng.randf()
+        var broke = break_roll < HUNT_ARROW_BREAK_CHANCE
+        shot_report["break_roll"] = break_roll
+        shot_report["arrow_broke"] = broke
+        if broke:
+            arrow_runtime -= 1
+            arrow_breaks += 1
+        else:
+            arrow_returns += 1
+            shot_report["arrow_returned"] = true
+        shot_report["arrows_after"] = max(arrow_runtime, 0)
+        shots.append(shot_report)
+
+    var consume_report: Dictionary = {}
+    if arrow_breaks > 0:
+        consume_report = inventory_system.consume_item("arrow", arrow_breaks)
+        if !consume_report.get("success", false):
+            consume_report["requested"] = arrow_breaks
+            consume_report["stock_before"] = arrow_stock
+
+    var food_delta: float = 0.0
+    if total_food > 0.0:
+        inventory_system.add_food_units(total_food)
+        food_delta = total_food
+
+    _emit_hunt_stock_changed()
+
+    var result := time_report.duplicate()
+    result["action"] = "hunt"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["calories_spent"] = HUNT_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["shots_requested"] = HUNT_ROLLS_PER_TRIP
+    result["shots_planned"] = planned_shots
+    result["shots_possible"] = planned_shots
+    result["shots_taken"] = shots.size()
+    result["shots"] = shots
+    result["animals"] = animals
+    result["animal_counts"] = animal_counts
+    result["food_units_gained"] = food_delta
+    result["total_food_units"] = inventory_system.get_total_food_units()
+    result["arrow_stock_before"] = arrow_stock
+    result["arrow_breaks"] = arrow_breaks
+    result["arrow_returns"] = arrow_returns
+    result["arrow_break_chance"] = HUNT_ARROW_BREAK_CHANCE
+    result["arrows_remaining"] = inventory_system.get_item_count("arrow") if inventory_system else 0
+    result["bow_stock"] = bow_stock
+    result["pending_stock"] = get_pending_game_stock()
+    if !consume_report.is_empty():
+        result["arrow_consume_report"] = consume_report
+        result["arrow_consume_failed"] = !consume_report.get("success", false)
+
+    if animals.is_empty():
+        result["success"] = false
+        result["reason"] = "no_game"
+        print("🎯 Hunt returned empty-handed")
+    else:
+        result["success"] = true
+        print("🎯 Hunt success: %s" % result)
+
+    return result
+
+func perform_butcher_and_cook() -> Dictionary:
+    if inventory_system == null or time_system == null or sleep_system == null or wood_stove_system == null:
+        return {
+            "success": false,
+            "reason": "systems_unavailable",
+            "action": "butcher"
+        }
+
+    var knife_stock = inventory_system.get_item_count(CRAFTED_KNIFE_ID)
+    if knife_stock <= 0:
+        return {
+            "success": false,
+            "reason": "no_knife",
+            "action": "butcher",
+            "knife_stock": knife_stock
+        }
+
+    if !wood_stove_system.is_lit():
+        return {
+            "success": false,
+            "reason": "fire_unlit",
+            "action": "butcher",
+            "stove_state": wood_stove_system.get_state()
+        }
+
+    var pending_total = _get_pending_game_food_units()
+    if pending_total <= 0.0:
+        return {
+            "success": false,
+            "reason": "no_game",
+            "action": "butcher",
+            "pending_stock": get_pending_game_stock()
+        }
+
+    var available_food = inventory_system.get_total_food_units()
+    var processable = min(pending_total, available_food)
+    if processable <= 0.0:
+        return {
+            "success": false,
+            "reason": "no_food",
+            "action": "butcher",
+            "pending_stock": get_pending_game_stock(),
+            "total_food_units": available_food
+        }
+
+    var time_report = _spend_activity_time(BUTCHER_HOURS, "butcher")
+    if !time_report.get("success", false):
+        var failure := time_report.duplicate()
+        failure["action"] = "butcher"
+        failure["reason"] = failure.get("reason", "time_rejected")
+        return failure
+
+    var rest_spent = sleep_system.consume_sleep(BUTCHER_REST_COST_PERCENT)
+    var calorie_total = sleep_system.adjust_daily_calories(BUTCHER_CALORIE_COST)
+    var desired_total = processable * 1.25
+    var rounded_total = _round_up_to_half(desired_total)
+    var bonus = max(rounded_total - processable, 0.0)
+
+    if bonus > 0.0:
+        inventory_system.add_food_units(bonus)
+
+    _consume_pending_game_food(processable)
+
+    var result := time_report.duplicate()
+    result["action"] = "butcher"
+    result["status"] = result.get("status", "applied")
+    result["rest_spent_percent"] = rest_spent
+    result["calories_spent"] = BUTCHER_CALORIE_COST
+    result["daily_calories_used"] = calorie_total
+    result["sleep_percent_remaining"] = sleep_system.get_sleep_percent()
+    result["processable_food_units"] = processable
+    result["bonus_food_units"] = bonus
+    result["rounded_total_food_units"] = rounded_total
+    result["knife_stock"] = knife_stock
+    result["fire_lit"] = wood_stove_system.is_lit()
+    result["total_food_units"] = inventory_system.get_total_food_units()
+    result["pending_stock"] = get_pending_game_stock()
+
+    result["success"] = true
+    print("🍖 Butcher & Cook success: %s" % result)
+    return result
+
 func perform_lead_away_undead() -> Dictionary:
     if time_system == null or sleep_system == null or zombie_system == null or _rng == null:
         return {
@@ -2063,6 +2399,67 @@ func _roll_campground_loot() -> Array:
     ]
 
     return _roll_loot_from_table(table)
+
+func _roll_hunt_animal() -> Dictionary:
+    if _rng == null:
+        return {}
+    for entry in HUNT_ANIMAL_TABLE:
+        var chance = float(entry.get("chance", 0.0))
+        if chance <= 0.0:
+            continue
+        var roll = _rng.randf()
+        if roll < chance:
+            return {
+                "id": entry.get("id", ""),
+                "display_name": entry.get("label", entry.get("id", "")),
+                "chance": chance,
+                "roll": roll,
+                "food_units": float(entry.get("food_units", 0.0))
+            }
+    return {}
+
+func _add_pending_game_food(animal_id: String, amount: float):
+    if animal_id.is_empty() or amount <= 0.0:
+        return
+    var current = float(_pending_game_food.get(animal_id, 0.0))
+    _pending_game_food[animal_id] = current + amount
+
+func _consume_pending_game_food(amount: float):
+    amount = max(amount, 0.0)
+    if amount <= 0.0:
+        return
+    var remaining = amount
+    var keys: Array = _pending_game_food.keys()
+    for key in keys:
+        if remaining <= 0.0:
+            break
+        var stored = float(_pending_game_food.get(key, 0.0))
+        if stored <= 0.0:
+            continue
+        var consumed = min(stored, remaining)
+        stored -= consumed
+        remaining -= consumed
+        if stored <= 0.0001:
+            _pending_game_food.erase(key)
+        else:
+            _pending_game_food[key] = stored
+    if remaining > 0.0001:
+        _pending_game_food.clear()
+    _emit_hunt_stock_changed()
+
+func _get_pending_game_food_units() -> float:
+    var total: float = 0.0
+    for value in _pending_game_food.values():
+        total += float(value)
+    return total
+
+func _emit_hunt_stock_changed():
+    hunt_stock_changed.emit(get_pending_game_stock())
+
+func _round_up_to_half(value: float) -> float:
+    if value <= 0.0:
+        return 0.0
+    return ceil(value * 2.0) / 2.0
 
 func _roll_loot_from_table(table: Array) -> Array:
     var rewards: Array = []

@@ -633,6 +633,64 @@ custom_minimum_size = Vector2(148, 44)
 theme_override_font_sizes/font_size = 16
 text = "Assign"
 
+[node name="HuntSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="HuntRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="HuntText" type="VBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="HuntLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow/HuntText"]
+theme_override_font_sizes/font_size = 16
+text = "Hunt"
+
+[node name="HuntSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow/HuntText"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
+text = "Hunt ready"
+
+[node name="HuntSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow"]
+size_flags_horizontal = 0
+custom_minimum_size = Vector2(148, 44)
+theme_override_font_sizes/font_size = 16
+text = "Assign"
+
+[node name="ButcherSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+modulate = Color(0.333333, 0.380392, 0.454902, 1)
+
+[node name="ButcherRow" type="HBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="ButcherText" type="VBoxContainer" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="ButcherLabel" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherText"]
+theme_override_font_sizes/font_size = 16
+text = "Butcher & Cook"
+
+[node name="ButcherSummary" type="Label" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherText"]
+size_flags_horizontal = 3
+autowrap_mode = 2
+horizontal_alignment = 0
+theme_override_font_sizes/font_size = 13
+text = "Butcher ready"
+
+[node name="ButcherSelectButton" type="Button" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow"]
+size_flags_horizontal = 0
+custom_minimum_size = Vector2(148, 44)
+theme_override_font_sizes/font_size = 16
+text = "Assign"
+
 [node name="FishingSeparator" type="HSeparator" parent="UI/TaskMenu/Layout/ActionsPanel/Margin/ActionScroll/ActionList"]
 size_flags_horizontal = 3
 modulate = Color(0.333333, 0.380392, 0.454902, 1)

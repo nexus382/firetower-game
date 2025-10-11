@@ -44,9 +44,11 @@
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
-  - `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()` (now with 30% Feather chance), and honors a 5-slot carry cap (expanded to 12 with a Backpack) while logging overflow drops.
-  - `perform_campground_search()` – spends 4 hours plus 20% energy and 800 calories sweeping campsite loot (10% staples, 40% Ripped Cloth, 25% advanced bundles, 15% Canned Food, 20% Nails Pack, 50% Feather) using the same carry-cap overflow logic.
-  - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls (boosted to 45% during 6–9 AM or 5–8 PM prime time), applies grub loss, and grants food per fish size.
+- `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()` (now with 30% Feather chance), and honors a 5-slot carry cap (expanded to 12 with a Backpack) while logging overflow drops.
+- `perform_campground_search()` – spends 4 hours plus 20% energy and 800 calories sweeping campsite loot (10% staples, 40% Ripped Cloth, 25% advanced bundles, 15% Canned Food, 20% Nails Pack, 50% Feather) using the same carry-cap overflow logic.
+- `perform_hunt()` – requires no active zombies, a crafted bow, and at least one arrow; consumes 2 hours plus 10% energy, burns 400 calories, fires up to three shots per trip (each with a 50% break chance) against a sequential animal table (Rabbit 30%/2 food, Squirrel 30%/2 food, Boar 20%/6 food, Doe 25%/5 food, Buck 20%/7 food), consumes broken arrows, adds food units, and banks raw game for cooking.
+- `perform_butcher_and_cook()` – requires a crafted knife, a lit wood stove, and stored hunt game; consumes 1 hour plus 5% energy, burns 150 calories, processes as much stored hunt food as remains in inventory, and grants a 25% food bonus rounded up to the nearest 0.5 while clearing processed game stock.
+- `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls (boosted to 45% during 6–9 AM or 5–8 PM prime time), applies grub loss, and grants food per fish size.
   - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1,000 calories, cancels the pending wave, and rolls injury chances (10% per diverted zombie for 5 HP, 25% per straggler for 10 HP). The result includes tower zombie counts, lure success/failure tallies, and total damage for the action popup.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
   - `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, flags HUD/task menu state updates, and has a 15% chance to inflict 10 HP self-injury with a dedicated popup.
@@ -207,6 +209,8 @@
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
 | Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals; advanced tier now covers Batteries (15%), Car Battery (7.5%), Flashlight (5%). Carry limit 5 slots (12 with Backpack); excess drops are logged. |
 | Search Campground (`perform_campground_search`) | 4h | -20% energy | +800 cal burned (plus awake burn) | No active zombies | Sweeps a campsite loot table (10% staples, 40% Ripped Cloth, 25% advanced bundles, 15% Canned Food, 20% Nails Pack, 50% Feather); honors carry limit 5 (12 with Backpack) and reports dropped overflow. |
+| Hunt (`perform_hunt`) | 2h | -10% energy | +400 cal burned (plus awake burn) | No active zombies, Bow equipped, ≥1 Arrow | Up to three shots per trip (50% break chance each); sequential rolls Rabbit 30% (2 food), Squirrel 30% (2 food), Boar 20% (6 food), Doe 25% (5 food), Buck 20% (7 food). Broken arrows consumed, food added, raw game stored for cooking. |
+| Butcher & Cook (`perform_butcher_and_cook`) | 1h | -5% energy | +150 cal burned | Crafted Knife, lit fire, stored hunt game, sufficient food on hand | Converts available hunt food into a 25% bonus rounded up to the nearest 0.5, deducts processed stock, and updates total food units. |
 | Fish (`perform_fishing`) | 1h | -10% energy | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each (45% during 6–9 AM or 5–8 PM); Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
 | Lure (`perform_lure_incoming_zombies`) | 4h patrol | None | +1000 cal burned | Recon-scouted wave ≤120 min away, 4h window free | Cancels pending spawn, rolls 10%/zombie for 5 HP scrapes on each success, 25%/zombie for 10 HP hits on each failure, and reports totals through an action popup. |
 | Lead Away (`perform_lead_away_undead`) | 1h | -15% energy | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
@@ -230,8 +234,8 @@
 | Herbal First Aid Kit | 1 | 1.0 | 12.5 | Mushrooms ×3, Ripped Cloth ×1, String ×1, Wood ×1, Medicinal Herbs ×2 | Heals 50 HP when used; burns 250 calories. |
 | Medicated Bandage | 1 | 1.0 | 7.5 | Bandage ×1, Medicinal Herbs ×1 | Restores 25 HP on use; burns 250 calories. |
 | Backpack | 1 | 1.0 | 15.0 | Wood ×4, String ×1, Rope ×1, Cloth Scraps ×3 | Expands carry limit to 12 slots for forging/camp loot; burns 250 calories. |
-| Bow | 1 | 1.0 | 10.0 | Rope ×1, Wood ×1 | Flexible ranged base; burns 250 calories. |
-| Arrow | 1 | 1.0 | 5.0 | Feather ×2, Rock ×1, Wood ×1 | Ammunition for the crafted bow; burns 250 calories. |
+| Bow | 1 | 1.0 | 10.0 | Rope ×1, Wood ×1 | Flexible ranged base for Hunt (arrows have a 50% break chance per shot); burns 250 calories. |
+| Arrow | 1 | 1.0 | 5.0 | Feather ×2, Rock ×1, Wood ×1 | Ammunition for Hunt; each shot rolls 50% to break (consumed) or returns to inventory. |
 
 ## Foraging Loot Table (`_roll_forging_loot`)
 * Rolls execute independently per entry each trip; success adds the specified quantity.
