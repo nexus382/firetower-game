@@ -15,16 +15,22 @@ const ITEM_DETAILS := {
     "metal_scrap": "Bent plating suited for armor or tools.",
     "mushrooms": "Earthy caps restore 1.0 food unit.",
     "nails": "Loose nails arrive in packs for rapid construction.",
+    "nails_pack": "Five-count bundle for reinforcement and repairs.",
     "plastic_sheet": "Weathered tarp keeps rain off stored goods.",
     "batteries": "Fresh cells recharge portable gear instantly.",
     "car_battery": "Heavy-duty power core for large builds.",
     "flashlight": "Hand torch ready once batteries hold charge.",
     "bandage": "Sterile wrap heals 10% health when applied.",
     "medicated_bandage": "Herbal wrap restores 25 health on use.",
+    "canned_food": "Shelf-stable meal worth 1.5 food units.",
+    "feather": "Light fletching for arrows and padded gear.",
+    "cloth_scraps": "Cut fabric pieces for packs and padding.",
+    "backpack": "Expands carry capacity to 12 forging slots.",
     "ripped_cloth": "Torn fabric ideal for bandages or cords.",
     "rock": "Dense stone chunk for crafting weights or tools.",
     "rope": "Braided line handles hauling duties.",
     "string": "Thin cord for snares and fishing lines.",
+    "animal_snare": "Reusable loop trap for catching small game.",
     "vines": "Tough vines twist into rope or lashings.",
     "walnuts": "Rich nuts feed 0.5 food per shell.",
     "wood": "Cut timber fuels fires and builds defenses."
@@ -63,8 +69,12 @@ func show_result(result: Dictionary):
         hide_panel()
         return
     visible = true
-    _update_title(loot)
-    _populate_items(loot)
+    var action = String(result.get("action", "forging"))
+    var carried = int(result.get("items_carried", loot.size()))
+    var capacity = int(result.get("carry_capacity", 0))
+    var dropped: Array = result.get("dropped_loot", [])
+    _update_title(loot, action, carried, capacity)
+    _populate_items(loot, dropped)
     if close_button:
         close_button.focus_mode = Control.FOCUS_ALL
         close_button.grab_focus()
@@ -72,7 +82,7 @@ func show_result(result: Dictionary):
 func hide_panel():
     visible = false
 
-func _update_title(loot: Array):
+func _update_title(loot: Array, action: String, carried: int, capacity: int):
     if !is_instance_valid(title_label):
         return
     var total_items := 0
@@ -80,12 +90,19 @@ func _update_title(loot: Array):
         var qty = int(entry.get("quantity_added", entry.get("quantity", 1)))
         if qty > 0:
             total_items += qty
+    var prefix = "Forge Finds"
+    if action == "camp_search":
+        prefix = "Camp Finds"
     if total_items <= 0:
-        title_label.text = "Forge Finds"
-    else:
-        title_label.text = "Forge Finds (%d)" % total_items
+        title_label.text = prefix
+        return
+    var carry_fragment = ""
+    if capacity > 0:
+        var carry_used = max(min(carried, capacity), 0)
+        carry_fragment = " | %d/%d slots" % [carry_used, capacity]
+    title_label.text = "%s (%d%s)" % [prefix, total_items, carry_fragment]
 
-func _populate_items(loot: Array):
+func _populate_items(loot: Array, dropped: Array):
     if !is_instance_valid(items_container):
         return
     for child in items_container.get_children():
@@ -122,6 +139,17 @@ func _populate_items(loot: Array):
         detail_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
         row.add_child(detail_label)
         items_container.add_child(row)
+    if !dropped.is_empty():
+        var drop_label = Label.new()
+        var dropped_fragments: PackedStringArray = []
+        for item in dropped:
+            var label = item.get("display_name", item.get("item_id", "Drop"))
+            var qty = int(item.get("quantity", 1))
+            dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+        drop_label.text = "Dropped (carry limit): %s" % ", ".join(dropped_fragments)
+        drop_label.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
+        drop_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+        items_container.add_child(drop_label)
 
 func _describe_item(item_id: String, quantity: int) -> String:
     # Provide quick usage hints, scaling notes where quantity matters.

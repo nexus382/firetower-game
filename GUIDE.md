@@ -44,12 +44,17 @@
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
-  - `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()`, and awards inventory loot including advanced electrical drops (Batteries 15%, Car Battery 7.5%, Flashlight 5%).
-  - `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls (boosted to 45% during 6–9 AM or 5–8 PM prime time), applies grub loss, and grants food per fish size.
+- `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()` (now with 30% Feather chance), and honors a 5-slot carry cap (expanded to 12 with a Backpack) while logging overflow drops.
+- `perform_campground_search()` – spends 4 hours plus 20% energy and 800 calories sweeping campsite loot (10% staples, 40% Ripped Cloth, 25% advanced bundles, 15% Canned Food, 20% Nails Pack, 50% Feather) using the same carry-cap overflow logic.
+- `perform_hunt()` – requires no active zombies, a crafted bow, and at least one arrow; consumes 2 hours plus 10% energy, burns 400 calories, fires up to three shots per trip (each with a 50% break chance) against a sequential animal table (Rabbit 30%/2 food, Squirrel 30%/2 food, Boar 20%/6 food, Doe 25%/5 food, Buck 20%/7 food), consumes broken arrows, adds food units, and banks raw game for cooking.
+- `perform_butcher_and_cook()` – requires a crafted knife, a lit wood stove, and stored hunt game; consumes 1 hour plus 5% energy, burns 150 calories, processes as much stored hunt food as remains in inventory, and grants a 25% food bonus rounded up to the nearest 0.5 while clearing processed game stock.
+- `perform_fishing()` – spends 1 hour, removes 10% energy, burns 650 calories, runs five 30% catch rolls (boosted to 45% during 6–9 AM or 5–8 PM prime time), applies grub loss, and grants food per fish size.
   - `perform_lure_incoming_zombies()` – triggers only after recon scouts a spawn within 120 minutes, consumes 4 hours plus 1,000 calories, cancels the pending wave, and rolls injury chances (10% per diverted zombie for 5 HP, 25% per straggler for 10 HP). The result includes tower zombie counts, lure success/failure tallies, and total damage for the action popup.
   - `perform_lead_away_undead()` – spends 1 hour plus 15% energy, rolls each zombie at 80% success, and updates counts.
-  - `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, flags HUD/task menu state updates, and has a 15% chance to inflict 10 HP self-injury with a dedicated popup.
-  - `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, returns six-hour weather and zombie forecasts, triggers the recon outlook popup, and seeds HUD countdown alerts for incoming rain or waves.
+- `perform_trap_deployment()` – consumes 2 scaled hours, burns 500 calories, spends 15% rest, converts one crafted spike trap into a deployed defense, flags HUD/task menu state updates, and has a 15% chance to inflict 10 HP self-injury with a dedicated popup.
+- `perform_place_snare()` – requires no nearby zombies and at least one crafted Animal Snare; consumes 1 scaled hour, spends 5% rest, burns 250 calories, removes one snare from inventory, and tracks the deployment for hourly 40% rabbit/squirrel catch rolls (each worth 2 food units) until collected.
+- `perform_check_snares()` – requires active snares and a clear area; consumes 0.5 scaled hours, spends 2% rest, burns 50 calories, retrieves any animals waiting in deployed snares (banking 2 food units per rabbit/squirrel into pending game stock), and reports when the lines are still empty.
+- `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, returns six-hour weather and zombie forecasts, triggers the recon outlook popup, and seeds HUD countdown alerts for incoming rain or waves.
   - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% energy bonus, restores 5 tower health (capped at 100).
   - `reinforce_tower(materials)` – costs 2 hours, 3 wood, 5 nails, burns 450 calories, spends 20% energy, adds 25 health up to 150 cap.
   - `craft_item(recipe_id)` – validates materials, spends a fixed 1 hour (scaled by multipliers), burns 250 calories, consumes recipe-specific rest, and adds crafted goods.
@@ -57,7 +62,7 @@
   - `_roll_forging_loot()` – iterates forging loot table (see Resource Catalog) using stored RNG.
   - `_on_day_rolled_over()` – increments `current_day`, resets calories, applies dry-day damage, refreshes news, and schedules the next zombie wave.
   - `_on_weather_system_changed()` / `_on_weather_hour_elapsed()` – rebroadcast weather and apply hourly precipitation wear.
-  - `_on_time_advanced_by_minutes(minutes, rolled_over)` – feeds elapsed minutes into `ZombieSystem` and applies resulting tower damage.
+  - `_on_time_advanced_by_minutes(minutes, rolled_over)` – feeds elapsed minutes into `ZombieSystem`, advances active snares, and applies resulting tower damage.
   - `_on_zombie_damage_tower(damage, count)` – logs wave damage.
   - `_apply_awake_time_up_to(current_minutes)` – burns baseline calories between actions.
   - `_resolve_meal_portion(portion_key)` – normalizes meal presets and computes calorie totals.
@@ -158,6 +163,7 @@
 * **Mutation Surface**:
   - Food: `set_total_food_units(amount)`, `add_food_units(delta)`, `has_food_units(amount)`, `consume_food_units(amount)`.
   - Items: `add_item(item_id, quantity)`, `consume_item(item_id, quantity)`, `clear()`.
+* **Carry Limit**: `DEFAULT_CARRY_CAPACITY = 5` slots (12 when `backpack` is held); `_apply_carry_capacity` clips forging/camp loot and reports `dropped_loot` for UI summaries.
 * **Internals**: `_apply_food_delta(delta)` clamps totals and raises change signals.
 
 ### NewsBroadcastSystem (`scripts/systems/NewsBroadcastSystem.gd`)
@@ -203,7 +209,10 @@
 * **Task Menu Sleep Planner**: Shows queued versus usable rest when dawn would trim the request, including the exact hours applied, energy restored, calories burned, and the dawn-cut duration preview.
 * **Crafting Panel Layout**: Recipe rows keep left-aligned buttons with padded margins and a dedicated cost column rendered as bullet rows (material stock, build time, rest tax, calorie burn) for quick scanning.
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
-| Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals; advanced tier now covers Batteries (15%), Car Battery (7.5%), Flashlight (5%). |
+| Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table, adds items, updates food totals; advanced tier now covers Batteries (15%), Car Battery (7.5%), Flashlight (5%). Carry limit 5 slots (12 with Backpack); excess drops are logged. |
+| Search Campground (`perform_campground_search`) | 4h | -20% energy | +800 cal burned (plus awake burn) | No active zombies | Sweeps a campsite loot table (10% staples, 40% Ripped Cloth, 25% advanced bundles, 15% Canned Food, 20% Nails Pack, 50% Feather); honors carry limit 5 (12 with Backpack) and reports dropped overflow. |
+| Hunt (`perform_hunt`) | 2h | -10% energy | +400 cal burned (plus awake burn) | No active zombies, Bow equipped, ≥1 Arrow | Up to three shots per trip (50% break chance each); sequential rolls Rabbit 30% (2 food), Squirrel 30% (2 food), Boar 20% (6 food), Doe 25% (5 food), Buck 20% (7 food). Broken arrows consumed, food added, raw game stored for cooking. |
+| Butcher & Cook (`perform_butcher_and_cook`) | 1h | -5% energy | +150 cal burned | Crafted Knife, lit fire, stored hunt game, sufficient food on hand | Converts available hunt food into a 25% bonus rounded up to the nearest 0.5, deducts processed stock, and updates total food units. |
 | Fish (`perform_fishing`) | 1h | -10% energy | +650 cal burned | Fishing Rod & ≥1 Grub (50% loss chance) | 5 rolls @30% each (45% during 6–9 AM or 5–8 PM); Small 50% (0.5), Medium 35% (1.0), Large 15% (1.5); adds food on hits. |
 | Lure (`perform_lure_incoming_zombies`) | 4h patrol | None | +1000 cal burned | Recon-scouted wave ≤120 min away, 4h window free | Cancels pending spawn, rolls 10%/zombie for 5 HP scrapes on each success, 25%/zombie for 10 HP hits on each failure, and reports totals through an action popup. |
 | Lead Away (`perform_lead_away_undead`) | 1h | -15% energy | Awake burn only | Active zombies present | Rolls 80% per zombie to remove, updates counts. |
@@ -222,9 +231,14 @@
 | Spike Trap | 1 | 1.0 | 12.5 | Wood ×6 | Defensive deployable; burns 250 calories. |
 | The Spear | 1 | 1.0 | 5.0 | Wood ×1 | Close-defense tool; burns 250 calories. |
 | String | 1 | 1.0 | 2.5 | Ripped Cloth ×1 | Intermediate crafting good; burns 250 calories. |
+| Cloth Scraps | 2 | 1.0 | 2.5 | Ripped Cloth ×1 | Cuts fabric into pack-ready scraps; burns 250 calories. |
 | Bandage | 1 | 1.0 | 5.0 | Ripped Cloth ×1 | Restores 10% health on use; burns 250 calories. |
 | Herbal First Aid Kit | 1 | 1.0 | 12.5 | Mushrooms ×3, Ripped Cloth ×1, String ×1, Wood ×1, Medicinal Herbs ×2 | Heals 50 HP when used; burns 250 calories. |
 | Medicated Bandage | 1 | 1.0 | 7.5 | Bandage ×1, Medicinal Herbs ×1 | Restores 25 HP on use; burns 250 calories. |
+| Backpack | 1 | 1.0 | 15.0 | Wood ×4, String ×1, Rope ×1, Cloth Scraps ×3 | Expands carry limit to 12 slots for forging/camp loot; burns 250 calories. |
+| Bow | 1 | 1.0 | 10.0 | Rope ×1, Wood ×1 | Flexible ranged base for Hunt (arrows have a 50% break chance per shot); burns 250 calories. |
+| Arrow | 1 | 1.0 | 5.0 | Feather ×2, Rock ×1, Wood ×1 | Ammunition for Hunt; each shot rolls 50% to break (consumed) or returns to inventory. |
+| Animal Snare | 1 | 1.0 | 10.0 | Rope ×2, Wood ×2 | Deployable loop trap for Place/Check Snare tasks; burns 250 calories. |
 
 ## Foraging Loot Table (`_roll_forging_loot`)
 * Rolls execute independently per entry each trip; success adds the specified quantity.
@@ -244,6 +258,7 @@
 | Rock | 30% | 1 | Basic | Tool material. |
 | Vines | 17.5% | 1 | Basic | Rope input. |
 | Wood | 40% | 1 | Basic | Repair & crafting staple. |
+| Feather | 30% | 1 | Basic | Arrow fletching and bedding material. |
 | Plastic Sheet | 10% | 1 | Advanced | Shelter upgrade material. |
 | Metal Scrap | 10% | 1 | Advanced | Trap/armor material. |
 | Nails | 10% | 3 | Advanced | Reinforcement resource. |
@@ -256,6 +271,33 @@
 | Car Battery | 7.5% | 1 | Advanced | Heavy power core for large builds. |
 | Flashlight | 5% | 1 | Advanced | Hand torch with battery upkeep. |
 
+## Campground Loot Table (`_roll_campground_loot`)
+* Independent rolls per entry with the same RNG as forging; successes respect the carry-cap limit (5 base, 12 with Backpack).
+
+| Item | Chance | Quantity | Tier | Notes |
+| --- | --- | --- | --- | --- |
+| Mushrooms | 10% | 1 | Basic | +1.0 food unit. |
+| Berries | 10% | 1 | Basic | +1.0 food unit. |
+| Apples | 10% | 1 | Basic | +0.5 food unit. |
+| Oranges | 10% | 1 | Basic | +0.5 food unit. |
+| Raspberries | 10% | 1 | Basic | +0.5 food unit. |
+| Blueberries | 10% | 1 | Basic | +0.5 food unit. |
+| Walnuts | 10% | 1 | Basic | +0.5 food unit. |
+| Grubs | 10% | 1 | Basic | +0.5 food unit. |
+| Ripped Cloth | 40% | 1 | Basic | Raw textile for bandages or scraps. |
+| Wood | 25% | 1 | Basic | Repair & crafting staple. |
+| Plastic Sheet | 25% | 2 | Advanced | Shelter upgrade material. |
+| Metal Scrap | 25% | 2 | Advanced | Trap/armor material. |
+| Nails | 25% | 3 | Advanced | Reinforcement resource. |
+| Duct Tape | 25% | 1 | Advanced | Repair adhesive. |
+| Medicinal Herbs | 25% | 1 | Advanced | Healing supplies. |
+| Fuel | 25% | 3–5 | Advanced | Generator/heater fuel. |
+| Mechanical Parts | 25% | 2 | Advanced | Trap maintenance. |
+| Electrical Parts | 25% | 2 | Advanced | Powered projects. |
+| Canned Food | 15% | 1 | Provision | Counts as 1.5 food units. |
+| Nails (5 Pack) | 20% | 5 | Advanced | Bulk reinforcement bundle. |
+| Feather | 50% | 1 | Basic | Arrow fletching and bedding material. |
+
 ## Inventory Catalog (`InventorySystem.bootstrap_defaults`)
 | Item ID | Display Name | Food Units | Stack Limit |
 | --- | --- | --- | --- |
@@ -267,21 +309,29 @@
 | blueberries | Blueberries | 0.5 | 99 |
 | walnuts | Walnuts | 0.5 | 99 |
 | grubs | Grubs | 0.5 | 99 |
+| feather | Feather | 0.0 | 99 |
 | fishing_bait | Fishing Bait | 0.0 | 99 |
 | fishing_rod | Fishing Rod | 0.0 | 1 |
 | wood | Wood | 0.0 | 999 |
+| bow | Bow | 0.0 | 1 |
+| arrow | Arrow | 0.0 | 99 |
+| animal_snare | Animal Snare | 0.0 | 20 |
 | spear | The Spear | 0.0 | 1 |
 | spike_trap | Spike Trap | 0.0 | 10 |
 | ripped_cloth | Ripped Cloth | 0.0 | 99 |
+| cloth_scraps | Cloth Scraps | 0.0 | 99 |
 | string | String | 0.0 | 99 |
 | rock | Rock | 0.0 | 99 |
 | vines | Vines | 0.0 | 99 |
 | rope | Rope | 0.0 | 99 |
+| backpack | Backpack | 0.0 | 1 |
 | plastic_sheet | Plastic Sheet | 0.0 | 99 |
 | metal_scrap | Metal Scrap | 0.0 | 99 |
 | nails | Nails | 0.0 | 999 |
+| nails_pack | Nails (5 Pack) | 0.0 | 99 |
 | duct_tape | Duct Tape | 0.0 | 99 |
 | medicinal_herbs | Medicinal Herbs | 0.0 | 99 |
+| canned_food | Canned Food | 1.5 | 99 |
 | herbal_first_aid_kit | Herbal First Aid Kit | 0.0 | 10 |
 | fuel | Fuel | 0.0 | 99 |
 | mechanical_parts | Mechanical Parts | 0.0 | 99 |
@@ -353,8 +403,9 @@
   - Recon row indicates availability window, disables outside 6 AM–12 AM, and fires the recon outlook popup when complete.
   - Lead/Lure row swaps between lure readiness summaries (when scouted) and lead-away details, keeping zombie count feedback, success/failure states, and injury odds visible.
   - Trap row activates when at least one spike trap exists, summarizes rest/calorie cost, break chance, injury odds, and shows armed/triggered states via `trap_state_changed`.
-  - Forging row shows food totals and opens `ForgingResultsPanel` for loot summaries.
-* **ForgingResultsPanel** – rotates flavor text pools for basic/advanced finds, lists each item with quantity and contextual description (e.g., nails show bundle size, fuel notes total units).
+  - Forging row shows food totals, carry slot usage, and opens `ForgingResultsPanel` for loot summaries.
+  - Camp Search row mirrors forging, surfacing carry cap status, campsite loot odds, and pushing results through the same panel.
+* **ForgingResultsPanel** – rotates flavor text pools for basic/advanced finds, lists each item with quantity and contextual description (e.g., nails show bundle size, fuel notes total units), and now highlights dropped overflow when the carry cap trims a haul.
 * **Wood Stove** – sits along the living/kitchen seam with a raised hearth, door, ember window, and pipe cap so it reads clearly against the floor; interacting while inside its collision ring opens `WoodStovePanel` for fuel loads or fire-start attempts and the prompt auto-hides when you step away.
 
 ## Debug & Testing Utilities

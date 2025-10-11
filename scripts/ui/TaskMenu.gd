@@ -35,11 +35,30 @@ const FISHING_GRUB_LOSS_PERCENT: int = int(round(FISHING_GRUB_LOSS_CHANCE * 100.
 const FISHING_SIZE_TABLE := GameManager.FISHING_SIZE_TABLE
 const FORGING_REST_COST_PERCENT: float = GameManager.FORGING_REST_COST_PERCENT
 const FORGING_CALORIE_COST: float = GameManager.FORGING_CALORIE_COST
+const CAMP_SEARCH_HOURS: float = GameManager.CAMP_SEARCH_HOURS
+const CAMP_SEARCH_REST_COST_PERCENT: float = GameManager.CAMP_SEARCH_REST_COST_PERCENT
+const CAMP_SEARCH_CALORIE_COST: float = GameManager.CAMP_SEARCH_CALORIE_COST
+const HUNT_HOURS: float = GameManager.HUNT_HOURS
+const HUNT_REST_COST_PERCENT: float = GameManager.HUNT_REST_COST_PERCENT
+const HUNT_CALORIE_COST: float = GameManager.HUNT_CALORIE_COST
+const HUNT_ROLLS_PER_TRIP: int = GameManager.HUNT_ROLLS_PER_TRIP
+const HUNT_ARROW_BREAK_PERCENT: int = int(round(GameManager.HUNT_ARROW_BREAK_CHANCE * 100.0))
+const BUTCHER_HOURS: float = GameManager.BUTCHER_HOURS
+const BUTCHER_REST_COST_PERCENT: float = GameManager.BUTCHER_REST_COST_PERCENT
+const BUTCHER_CALORIE_COST: float = GameManager.BUTCHER_CALORIE_COST
 const TRAP_CALORIE_COST: float = GameManager.TRAP_CALORIE_COST
 const TRAP_ENERGY_COST_PERCENT: float = GameManager.TRAP_REST_COST_PERCENT
 const TRAP_BREAK_PERCENT: int = int(round(GameManager.TRAP_BREAK_CHANCE * 100.0))
 const TRAP_DEPLOY_HOURS: float = GameManager.TRAP_DEPLOY_HOURS
 const TRAP_ITEM_ID := GameManager.TRAP_ITEM_ID
+const SNARE_ITEM_ID := GameManager.SNARE_ITEM_ID
+const SNARE_PLACE_HOURS: float = GameManager.SNARE_PLACE_HOURS
+const SNARE_PLACE_REST_COST_PERCENT: float = GameManager.SNARE_PLACE_REST_COST_PERCENT
+const SNARE_PLACE_CALORIE_COST: float = GameManager.SNARE_PLACE_CALORIE_COST
+const SNARE_CHECK_HOURS: float = GameManager.SNARE_CHECK_HOURS
+const SNARE_CHECK_REST_COST_PERCENT: float = GameManager.SNARE_CHECK_REST_COST_PERCENT
+const SNARE_CHECK_CALORIE_COST: float = GameManager.SNARE_CHECK_CALORIE_COST
+const SNARE_CATCH_PERCENT: int = int(round(GameManager.SNARE_CATCH_CHANCE * 100.0))
 const FISHING_SIZE_LABELS := {
     "small": "Small",
     "medium": "Medium",
@@ -90,6 +109,7 @@ var _action_defaults: Dictionary = {}
 var _action_results_active: Dictionary = {}
 var _action_buttons: Dictionary = {}
 var _trap_state: Dictionary = {}
+var _snare_state: Dictionary = {}
 
 # Grab nodes and buttons once so focus behavior remains consistent.
 @onready var game_manager: GameManager = _resolve_game_manager()
@@ -110,10 +130,14 @@ var _trap_state: Dictionary = {}
 @onready var meal_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/MealRow/MealText/MealSummary
 @onready var repair_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow/RepairText/RepairSummary
 @onready var forging_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingText/ForgingSummary
+@onready var camp_search_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchText/CampSearchSummary
+@onready var hunt_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow/HuntText/HuntSummary
 @onready var lead_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/LeadRow/LeadText/LeadSummary
 @onready var reinforce_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceText/ReinforceSummary
 @onready var sleep_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SleepRow/SleepControls/SleepSelectButton
 @onready var forging_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton
+@onready var camp_search_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchSelectButton
+@onready var hunt_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow/HuntSelectButton
 @onready var fishing_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingText/FishingSummary
 @onready var fishing_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingSelectButton
 @onready var recon_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReconRow/ReconText/ReconSummary
@@ -124,6 +148,12 @@ var _trap_state: Dictionary = {}
 @onready var reinforce_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ReinforceRow/ReinforceSelectButton
 @onready var trap_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapText/TrapSummary
 @onready var trap_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton
+@onready var snare_place_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceText/SnarePlaceSummary
+@onready var snare_place_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceSelectButton
+@onready var snare_check_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckText/SnareCheckSummary
+@onready var snare_check_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckSelectButton
+@onready var butcher_summary_label: Label = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherText/ButcherSummary
+@onready var butcher_select_button: Button = $Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherSelectButton
 
 const DESCRIPTION_DEFAULT := {
     "title": "Task Details",
@@ -138,6 +168,14 @@ const TASK_DESCRIPTION_META := {
     "forging": {
         "title": "Forge",
         "hint": "Search the forest for supplies."
+    },
+    "camp_search": {
+        "title": "Search Campground",
+        "hint": "Sweep abandoned campsites for bulk supplies."
+    },
+    "hunt": {
+        "title": "Hunt",
+        "hint": "Spend arrows to chase game for food."
     },
     "fishing": {
         "title": "Fish",
@@ -155,6 +193,14 @@ const TASK_DESCRIPTION_META := {
         "title": "Place Trap",
         "hint": "Arm a trap to intercept the next zombie."
     },
+    "snare_place": {
+        "title": "Place Animal Snare",
+        "hint": "Deploy a crafted snare to hunt small game."
+    },
+    "snare_check": {
+        "title": "Check Snare",
+        "hint": "Inspect deployed snares for trapped animals."
+    },
     "meal": {
         "title": "Eat",
         "hint": "Convert stored food into calories."
@@ -166,6 +212,10 @@ const TASK_DESCRIPTION_META := {
     "reinforce": {
         "title": "Reinforce",
         "hint": "Fortify the tower past its base strength."
+    },
+    "butcher": {
+        "title": "Butcher & Cook",
+        "hint": "Process fresh game over a lit fire for bonus food."
     }
 }
 
@@ -191,13 +241,18 @@ func _ready():
 
     _register_action_selector(sleep_select_button, "sleep")
     _register_action_selector(forging_select_button, "forging")
+    _register_action_selector(camp_search_select_button, "camp_search")
+    _register_action_selector(hunt_select_button, "hunt")
     _register_action_selector(fishing_select_button, "fishing")
     _register_action_selector(recon_select_button, "recon")
     _register_action_selector(lead_select_button, "lead")
     _register_action_selector(trap_select_button, "trap")
+    _register_action_selector(snare_place_select_button, "snare_place")
+    _register_action_selector(snare_check_select_button, "snare_check")
     _register_action_selector(meal_select_button, "meal")
     _register_action_selector(repair_select_button, "repair")
     _register_action_selector(reinforce_select_button, "reinforce")
+    _register_action_selector(butcher_select_button, "butcher")
 
     if game_manager:
         time_system = game_manager.get_time_system()
@@ -207,6 +262,13 @@ func _ready():
         if game_manager.has_signal("trap_state_changed"):
             game_manager.trap_state_changed.connect(_on_trap_state_changed)
         _trap_state = game_manager.get_trap_state()
+        if game_manager.has_signal("snare_state_changed"):
+            game_manager.snare_state_changed.connect(_on_snare_state_changed)
+        _snare_state = game_manager.get_snare_state()
+        if game_manager.has_signal("hunt_stock_changed"):
+            game_manager.hunt_stock_changed.connect(_on_hunt_stock_changed)
+        if game_manager.has_signal("wood_stove_state_changed"):
+            game_manager.wood_stove_state_changed.connect(_on_wood_stove_state_changed)
         if time_system:
             time_system.time_advanced.connect(_on_time_system_changed)
             time_system.day_rolled_over.connect(_on_time_system_changed)
@@ -283,12 +345,17 @@ func _refresh_display():
         hours_value_label.text = str(selected_hours)
 
     _update_sleep_summary()
+    _update_camp_search_summary()
+    _update_hunt_summary()
     _update_meal_summary()
     _update_fishing_summary()
     _update_recon_summary()
     _update_repair_summary()
     _update_reinforce_summary()
     _update_trap_summary()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
+    _update_butcher_summary()
     _update_description_body()
     _update_info_status()
     _update_info_stats()
@@ -317,6 +384,16 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingText/ForgingSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ForgingRow/ForgingSelectButton"
         ],
+        "camp_search": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchText/CampSearchSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/CampSearchRow/CampSearchSelectButton"
+        ],
+        "hunt": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow/HuntText/HuntSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/HuntRow/HuntSelectButton"
+        ],
         "fishing": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/FishingRow/FishingText/FishingSummary",
@@ -342,6 +419,21 @@ func _setup_description_targets():
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapText/TrapSummary",
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/TrapRow/TrapSelectButton"
+        ],
+        "snare_place": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceText/SnarePlaceSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnarePlaceRow/SnarePlaceSelectButton"
+        ],
+        "snare_check": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckText/SnareCheckSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/SnareCheckRow/SnareCheckSelectButton"
+        ],
+        "butcher": [
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherText/ButcherSummary",
+            "Layout/ActionsPanel/Margin/ActionScroll/ActionList/ButcherRow/ButcherSelectButton"
         ],
         "repair": [
             "Layout/ActionsPanel/Margin/ActionScroll/ActionList/RepairRow",
@@ -383,6 +475,10 @@ func _get_description_body(key: String) -> String:
             return _build_sleep_description()
         "forging":
             return _build_forging_description()
+        "camp_search":
+            return _build_camp_search_description()
+        "hunt":
+            return _build_hunt_description()
         "fishing":
             return _build_fishing_description()
         "recon":
@@ -391,12 +487,18 @@ func _get_description_body(key: String) -> String:
             return _build_lead_description()
         "trap":
             return _build_trap_description()
+        "snare_place":
+            return _build_snare_place_description()
+        "snare_check":
+            return _build_snare_check_description()
         "meal":
             return _build_meal_description()
         "repair":
             return _build_repair_description()
         "reinforce":
             return _build_reinforce_description()
+        "butcher":
+            return _build_butcher_description()
         _:
             return "Select an action to learn more."
 func _select_action(key: String, force: bool = false):
@@ -471,6 +573,12 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "forging":
                 if is_instance_valid(forging_summary_label):
                     forging_summary_label.text = text
+            "camp_search":
+                if is_instance_valid(camp_search_summary_label):
+                    camp_search_summary_label.text = text
+            "hunt":
+                if is_instance_valid(hunt_summary_label):
+                    hunt_summary_label.text = text
             "fishing":
                 if is_instance_valid(fishing_summary_label):
                     fishing_summary_label.text = text
@@ -483,6 +591,12 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "trap":
                 if is_instance_valid(trap_summary_label):
                     trap_summary_label.text = text
+            "snare_place":
+                if is_instance_valid(snare_place_summary_label):
+                    snare_place_summary_label.text = text
+            "snare_check":
+                if is_instance_valid(snare_check_summary_label):
+                    snare_check_summary_label.text = text
             "meal":
                 if is_instance_valid(meal_summary_label):
                     meal_summary_label.text = text
@@ -492,6 +606,9 @@ func _set_action_status(action: String, text: String, update_row: bool = false):
             "reinforce":
                 if is_instance_valid(reinforce_summary_label):
                     reinforce_summary_label.text = text
+            "butcher":
+                if is_instance_valid(butcher_summary_label):
+                    butcher_summary_label.text = text
     if action == _selected_action:
         _update_info_status()
     _refresh_info_stats_if_selected(action)
@@ -516,6 +633,10 @@ func _trigger_selected_action():
             _execute_sleep_action()
         "forging":
             _execute_forging_action()
+        "camp_search":
+            _execute_camp_search_action()
+        "hunt":
+            _execute_hunt_action()
         "fishing":
             _execute_fishing_action()
         "recon":
@@ -524,12 +645,18 @@ func _trigger_selected_action():
             _execute_lead_action()
         "trap":
             _execute_trap_action()
+        "snare_place":
+            _execute_snare_place_action()
+        "snare_check":
+            _execute_snare_check_action()
         "meal":
             _execute_meal_action()
         "repair":
             _execute_repair_action()
         "reinforce":
             _execute_reinforce_action()
+        "butcher":
+            _execute_butcher_action()
 
 func _on_go_button_pressed():
     _trigger_selected_action()
@@ -593,6 +720,62 @@ func _build_forging_description() -> String:
         lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
     else:
         lines.append("Ready while the area is clear")
+    return "\n".join(lines)
+
+func _build_camp_search_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(CAMP_SEARCH_HOURS * 60.0 * multiplier))
+    lines.append("Spend %dh (x%.1f) sweeping old camps." % [int(round(CAMP_SEARCH_HOURS)), multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(CAMP_SEARCH_REST_COST_PERCENT), int(round(CAMP_SEARCH_CALORIE_COST))])
+    lines.append("Basics 10%% each: Mushrooms, Berries, Apples, Oranges, Raspberries, Blueberries, Walnuts, Grubs")
+    lines.append("Textiles 40%% Ripped Cloth | Wood 25%% | Feathers 50%% | Canned Food 15%% | Nails Pack 20%%")
+    lines.append("Advanced 25%% (2x): Plastic Sheet, Metal Scrap, Nails x3, Duct Tape, Medicinal Herbs, Mechanical Parts, Electrical Parts | Fuel 3-5")
+    var capacity = game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY
+    lines.append("Carry %d slots (Backpack raises to 12)" % max(capacity, 0))
+    lines.append("Takes %s" % _format_duration(minutes))
+    if zombie_system and zombie_system.has_active_zombies():
+        lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
+    else:
+        lines.append("Ready while the area is clear")
+    return "\n".join(lines)
+
+func _build_hunt_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(HUNT_HOURS * 60.0 * multiplier))
+    lines.append("Spend %dh (x%.1f) stalking nearby trails." % [int(round(HUNT_HOURS)), multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(HUNT_REST_COST_PERCENT), int(round(HUNT_CALORIE_COST))])
+    lines.append("Up to %d shots | %d%% chance arrow breaks each shot" % [HUNT_ROLLS_PER_TRIP, HUNT_ARROW_BREAK_PERCENT])
+    lines.append("Requires Bow + ≥1 Arrow (recovered unless the shaft breaks)")
+    if game_manager:
+        var animals: Array = game_manager.get_hunt_animals()
+        if !animals.is_empty():
+            var entries: PackedStringArray = []
+            for entry in animals:
+                if typeof(entry) != TYPE_DICTIONARY:
+                    continue
+                var label = String(entry.get("label", entry.get("id", "Game")))
+                var chance = float(entry.get("chance", 0.0))
+                var food_units = float(entry.get("food_units", 0.0))
+                entries.append("%d%% %s (%.1f food)" % [int(round(chance * 100.0)), label, food_units])
+            if !entries.is_empty():
+                lines.append("Game table: %s" % ", ".join(entries))
+        var status = game_manager.get_hunt_status()
+        var bow_stock = int(status.get("bow_stock", 0))
+        var arrow_stock = int(status.get("arrow_stock", 0))
+        lines.append("Bow stock: %d | Arrows: %d" % [bow_stock, arrow_stock])
+        var pending_stock: Dictionary = status.get("pending_stock", {})
+        if typeof(pending_stock) == TYPE_DICTIONARY:
+            var pending_total = float(pending_stock.get("total_food_units", 0.0))
+            lines.append("Stored game: %.1f food (cook for +25%%)" % pending_total)
+    if zombie_system and zombie_system.has_active_zombies():
+        lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
+    else:
+        lines.append("Ready while the area is clear")
+    lines.append("Takes %s" % _format_duration(minutes))
     return "\n".join(lines)
 
 func _build_fishing_description() -> String:
@@ -668,6 +851,75 @@ func _build_trap_description() -> String:
         if armed_time != "":
             lines.append("Currently armed since %s" % armed_time)
     lines.append("Takes %s" % _format_duration(minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
+    return "\n".join(lines)
+
+func _build_snare_place_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(SNARE_PLACE_HOURS * 60.0 * multiplier))
+    lines.append("Spend %.1f hr (x%.1f) to set a ground snare." % [SNARE_PLACE_HOURS, multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(SNARE_PLACE_REST_COST_PERCENT), int(round(SNARE_PLACE_CALORIE_COST))])
+    lines.append("Each hour: %d%% catch chance (Rabbit/Squirrel worth 2.0 food)." % SNARE_CATCH_PERCENT)
+    if inventory_system:
+        lines.append("Requires Animal Snare (Stock %d)" % inventory_system.get_item_count(SNARE_ITEM_ID))
+    else:
+        lines.append("Requires Animal Snare crafted")
+    if !_snare_state.is_empty():
+        var deployed = int(_snare_state.get("total_deployed", 0))
+        var waiting = int(_snare_state.get("animals_ready", 0))
+        if deployed > 0:
+            lines.append("Deployed snares: %d active | %d waiting" % [max(deployed - waiting, 0), waiting])
+    if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
+    return "\n".join(lines)
+
+func _build_snare_check_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(SNARE_CHECK_HOURS * 60.0 * multiplier))
+    lines.append("Spend %.1f hr (x%.1f) to inspect all snares." % [SNARE_CHECK_HOURS, multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(SNARE_CHECK_REST_COST_PERCENT), int(round(SNARE_CHECK_CALORIE_COST))])
+    if !_snare_state.is_empty():
+        var waiting = int(_snare_state.get("animals_ready", 0))
+        if waiting > 0:
+            lines.append("Animals waiting: %d" % waiting)
+        else:
+            lines.append("No animals waiting right now")
+        var total = int(_snare_state.get("total_deployed", 0))
+        if total > 0:
+            lines.append("Snares placed: %d" % total)
+    else:
+        lines.append("Requires snares placed in the field")
+    if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
+    lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
+    return "\n".join(lines)
+
+func _build_butcher_description() -> String:
+    var lines: PackedStringArray = []
+    var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
+    multiplier = max(multiplier, 0.01)
+    var minutes = int(ceil(BUTCHER_HOURS * 60.0 * multiplier))
+    lines.append("Spend %dh (x%.1f) cleaning and cooking fresh game." % [int(round(BUTCHER_HOURS)), multiplier])
+    lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(BUTCHER_REST_COST_PERCENT), int(round(BUTCHER_CALORIE_COST))])
+    lines.append("Requires crafted knife, lit fire, and stored game from hunting")
+    lines.append("Adds 25%% food (rounded up to the nearest 0.5 unit) to processed meat")
+    if game_manager:
+        var status = game_manager.get_butcher_status()
+        var knife_stock = int(status.get("knife_stock", 0))
+        var fire_lit = status.get("fire_lit", false)
+        var pending_stock: Dictionary = status.get("pending_stock", {})
+        var pending_total = 0.0
+        if typeof(pending_stock) == TYPE_DICTIONARY:
+            pending_total = float(pending_stock.get("total_food_units", 0.0))
+        lines.append("Knife stock: %d | Fire: %s" % [knife_stock, fire_lit ? "Lit" : "Out"])
+        lines.append("Stored game: %.1f food" % pending_total)
+    if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
+        lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
     lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
     return "\n".join(lines)
 
@@ -799,6 +1051,26 @@ func _execute_forging_action():
         forging_results_panel.show_result(result)
     _refresh_display()
 
+func _execute_camp_search_action():
+    if game_manager == null:
+        _set_action_result("camp_search", "Camp search unavailable", true)
+        return
+
+    var result = game_manager.perform_campground_search()
+    _set_action_result("camp_search", _format_camp_search_result(result), true)
+    if forging_results_panel:
+        forging_results_panel.show_result(result)
+    _refresh_display()
+
+func _execute_hunt_action():
+    if game_manager == null:
+        _set_action_result("hunt", "Hunt unavailable", true)
+        return
+
+    var result = game_manager.perform_hunt()
+    _set_action_result("hunt", _format_hunt_result(result), true)
+    _refresh_display()
+
 func _execute_fishing_action():
     if game_manager == null:
         _set_action_result("fishing", "Fishing unavailable", true)
@@ -859,6 +1131,86 @@ func _execute_trap_action():
     _update_trap_summary()
     if action_popup_panel and result.has("injury_report"):
         _show_trap_injury_popup(result.get("injury_report", {}))
+
+func _execute_snare_place_action():
+    if game_manager == null:
+        _set_action_result("snare_place", "Snare placement offline", true)
+        return
+
+    var result = game_manager.perform_place_snare()
+    if !result.get("success", false):
+        var reason = String(result.get("reason", "failed"))
+        var message: String
+        match reason:
+            "systems_unavailable":
+                message = "Snare placement offline"
+            "no_snares":
+                var stock = int(result.get("snare_stock", 0))
+                message = "Need Animal Snare (Stock %d)" % max(stock, 0)
+            "zombies_present":
+                var count = int(result.get("zombie_count", 0))
+                message = "Zombies nearby (%d) - clear area first" % max(count, 0)
+            "exceeds_day":
+                var minutes_available = int(result.get("minutes_available", 0))
+                message = _format_daybreak_warning(minutes_available)
+            _:
+                message = "Snare placement failed"
+        _set_action_result("snare_place", message, true)
+        _snare_state = game_manager.get_snare_state()
+        _update_snare_place_summary()
+        _update_snare_check_summary()
+        return
+
+    var message = _format_snare_place_result(result)
+    _set_action_result("snare_place", message, true)
+    _snare_state = game_manager.get_snare_state()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
+
+func _execute_snare_check_action():
+    if game_manager == null:
+        _set_action_result("snare_check", "Snare checks offline", true)
+        return
+
+    var result = game_manager.perform_check_snares()
+    if !result.get("success", false):
+        var reason = String(result.get("reason", "failed"))
+        var message: String
+        match reason:
+            "systems_unavailable":
+                message = "Snare checks offline"
+            "no_snares":
+                message = "No snares placed yet"
+            "zombies_present":
+                var count = int(result.get("zombie_count", 0))
+                message = "Zombies nearby (%d) - clear area first" % max(count, 0)
+            "empty":
+                message = String(result.get("message", "The snare is empty still, try again later."))
+            "exceeds_day":
+                var minutes_available = int(result.get("minutes_available", 0))
+                message = _format_daybreak_warning(minutes_available)
+            _:
+                message = "Snare check failed"
+        _set_action_result("snare_check", message, true)
+        _snare_state = game_manager.get_snare_state()
+        _update_snare_place_summary()
+        _update_snare_check_summary()
+        return
+
+    var message = _format_snare_check_result(result)
+    _set_action_result("snare_check", message, true)
+    _snare_state = game_manager.get_snare_state()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
+
+func _execute_butcher_action():
+    if game_manager == null:
+        _set_action_result("butcher", "Butcher unavailable", true)
+        return
+
+    var result = game_manager.perform_butcher_and_cook()
+    _set_action_result("butcher", _format_butcher_result(result), true)
+    _refresh_display()
 
 func _execute_recon_action():
     if game_manager == null:
@@ -1063,11 +1415,97 @@ func _execute_reinforce_action():
 
 
 func _format_forging_ready(total_food: float) -> String:
-    return "Forging ready (-%s%% energy | +%d cal burn | Food %.1f)" % [
+    var capacity = game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY
+    var base_capacity = InventorySystem.DEFAULT_CARRY_CAPACITY
+    var capacity_fragment = "Carry %d slots" % max(capacity, 0)
+    if capacity <= base_capacity:
+        capacity_fragment += " (12 w/Backpack)"
+    else:
+        capacity_fragment += " (Base %d)" % base_capacity
+    return "Forging ready (-%s%% energy | +%d cal burn | %s | Food %.1f)" % [
         _format_percent_value(FORGING_REST_COST_PERCENT),
         int(round(FORGING_CALORIE_COST)),
+        capacity_fragment,
         total_food
     ]
+
+func _format_camp_search_ready() -> String:
+    var capacity = game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY
+    var base_capacity = InventorySystem.DEFAULT_CARRY_CAPACITY
+    var capacity_fragment = "Carry %d slots" % max(capacity, 0)
+    if capacity <= base_capacity:
+        capacity_fragment += " (12 w/Backpack)"
+    else:
+        capacity_fragment += " (Base %d)" % base_capacity
+    return "Camp Search ready (-%s%% energy | +%d cal burn | %s | %dh sweep)" % [
+        _format_percent_value(CAMP_SEARCH_REST_COST_PERCENT),
+        int(round(CAMP_SEARCH_CALORIE_COST)),
+        capacity_fragment,
+        int(round(CAMP_SEARCH_HOURS))
+    ]
+
+func _format_hunt_ready() -> String:
+    if game_manager == null:
+        return "Hunt offline"
+    var status = game_manager.get_hunt_status()
+    var bow_stock = int(status.get("bow_stock", 0))
+    var arrow_stock = int(status.get("arrow_stock", 0))
+    var shots = int(status.get("shots_per_trip", HUNT_ROLLS_PER_TRIP))
+    var planned_shots = int(status.get("shots_planned", shots))
+    var pending_stock: Dictionary = status.get("pending_stock", {})
+    var pending_total = 0.0
+    if typeof(pending_stock) == TYPE_DICTIONARY:
+        pending_total = float(pending_stock.get("total_food_units", 0.0))
+    var fragments: PackedStringArray = []
+    fragments.append("-%s%% energy" % _format_percent_value(HUNT_REST_COST_PERCENT))
+    fragments.append("+%d cal burn" % int(round(HUNT_CALORIE_COST)))
+    var shot_fragment = "Shots %d" % max(shots, 0)
+    if planned_shots > 0 and planned_shots != shots:
+        shot_fragment += " (Plan %d)" % max(planned_shots, 0)
+    shot_fragment += " (%d%% break)" % HUNT_ARROW_BREAK_PERCENT
+    fragments.append(shot_fragment)
+    var bow_fragment = "Bow %d" % max(bow_stock, 0)
+    if bow_stock <= 0:
+        bow_fragment += " (Need 1)"
+    fragments.append(bow_fragment)
+    var arrow_fragment = "Arrows %d" % max(arrow_stock, 0)
+    if arrow_stock <= 0:
+        arrow_fragment += " (Need 1)"
+    fragments.append(arrow_fragment)
+    fragments.append("Game %.1f food" % pending_total)
+    var zombies = int(status.get("zombies_nearby", 0))
+    if zombies > 0:
+        fragments.append("Blocked %d undead" % zombies)
+    return "Hunt ready (%s)" % " | ".join(fragments)
+
+func _format_butcher_ready() -> String:
+    if game_manager == null:
+        return "Butcher offline"
+    var status = game_manager.get_butcher_status()
+    var knife_stock = int(status.get("knife_stock", 0))
+    var fire_lit = status.get("fire_lit", false)
+    var pending_stock: Dictionary = status.get("pending_stock", {})
+    var pending_total = 0.0
+    if typeof(pending_stock) == TYPE_DICTIONARY:
+        pending_total = float(pending_stock.get("total_food_units", 0.0))
+    var processable = float(status.get("processable_food_units", 0.0))
+    var fragments: PackedStringArray = []
+    fragments.append("-%s%% energy" % _format_percent_value(BUTCHER_REST_COST_PERCENT))
+    fragments.append("+%d cal burn" % int(round(BUTCHER_CALORIE_COST)))
+    var knife_fragment = "Knife %d" % max(knife_stock, 0)
+    if knife_stock <= 0:
+        knife_fragment += " (Need 1)"
+    fragments.append(knife_fragment)
+    fragments.append("Fire %s" % ("Lit" if fire_lit else "Out"))
+    if pending_total > 0.0:
+        fragments.append("Game %.1f food" % pending_total)
+    else:
+        fragments.append("No game stored")
+    if processable > 0.0:
+        fragments.append("Cookable %s" % _format_food(processable))
+    else:
+        fragments.append("Cookable 0 (Need stored food)")
+    return "Butcher ready (%s)" % " | ".join(fragments)
 
 func _format_forging_result(result: Dictionary) -> String:
     var end_at = result.get("ended_at_time", "")
@@ -1085,16 +1523,29 @@ func _format_forging_result(result: Dictionary) -> String:
                 if !is_zero_approx(food_gain):
                     entry += " (+%s food)" % _format_food(food_gain)
                 parts.append(entry)
+        var carried = int(result.get("items_carried", loot.size()))
+        var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+        if capacity > 0:
+            parts.append("Carry %d/%d" % [max(min(carried, capacity), 0), capacity])
+        var dropped: Array = result.get("dropped_loot", [])
+        if !dropped.is_empty():
+            var dropped_fragments: PackedStringArray = []
+            for item in dropped:
+                var label = item.get("display_name", item.get("item_id", "Drop"))
+                var qty = int(item.get("quantity", 1))
+                dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+            if !dropped_fragments.is_empty():
+                parts.append("Dropped: %s" % ", ".join(dropped_fragments))
         parts.append("Total %s" % _format_food(result.get("total_food_units", 0.0)))
         var rest_spent = result.get("rest_spent_percent", 0.0)
         if rest_spent > 0.0:
             parts.append("-%s%% energy" % _format_percent_value(rest_spent))
-        var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
-        if calories_spent > 0:
-            parts.append("+%d cal burn" % calories_spent)
-        if end_at != "":
-            parts.append("End %s" % end_at)
-        return " | ".join(parts)
+            var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+            if calories_spent > 0:
+                parts.append("+%d cal burn" % calories_spent)
+            if end_at != "":
+                parts.append("End %s" % end_at)
+            return " | ".join(parts)
 
     var reason = result.get("reason", "")
     match reason:
@@ -1103,6 +1554,28 @@ func _format_forging_result(result: Dictionary) -> String:
         "zombies_present":
             var count = int(result.get("zombie_count", 0))
             return "Zombies nearby! Forging blocked (%d)" % max(count, 1)
+        "carry_limit_reached":
+            var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+            var fragments: PackedStringArray = []
+            fragments.append("Carry full (%d slots)" % max(capacity, 0))
+            var dropped: Array = result.get("dropped_loot", [])
+            if !dropped.is_empty():
+                var dropped_fragments: PackedStringArray = []
+                for item in dropped:
+                    var label = item.get("display_name", item.get("item_id", "Drop"))
+                    var qty = int(item.get("quantity", 1))
+                    dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+                if !dropped_fragments.is_empty():
+                    fragments.append("Dropped: %s" % ", ".join(dropped_fragments))
+            if end_at != "":
+                fragments.append("End %s" % end_at)
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fragments.append("-%s%% energy" % _format_percent_value(rest_spent))
+            var calories_spent = int(round(result.get("calories_spent", FORGING_CALORIE_COST)))
+            if calories_spent > 0:
+                fragments.append("+%d cal burn" % calories_spent)
+            return "Forging blocked -> %s" % " | ".join(fragments)
         "nothing_found":
             var message = "Found nothing"
             var rest_spent = result.get("rest_spent_percent", 0.0)
@@ -1126,6 +1599,228 @@ func _format_forging_result(result: Dictionary) -> String:
             if calories_spent > 0:
                 fallback += " | +%d cal burn" % calories_spent
             return fallback
+
+func _format_camp_search_result(result: Dictionary) -> String:
+    var end_at = result.get("ended_at_time", "")
+    if result.get("success", false):
+        var parts: PackedStringArray = []
+        var loot: Array = result.get("loot", [])
+        if loot.is_empty():
+            parts.append("Supplies secured")
+        else:
+            for item in loot:
+                var label = item.get("display_name", item.get("item_id", "Find"))
+                var qty = int(item.get("quantity_added", item.get("quantity", 1)))
+                parts.append("%s x%d" % [label, max(qty, 1)])
+        var carried = int(result.get("items_carried", loot.size()))
+        var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+        if capacity > 0:
+            parts.append("Carry %d/%d" % [max(min(carried, capacity), 0), capacity])
+        var dropped: Array = result.get("dropped_loot", [])
+        if !dropped.is_empty():
+            var dropped_fragments: PackedStringArray = []
+            for item in dropped:
+                var label = item.get("display_name", item.get("item_id", "Drop"))
+                var qty = int(item.get("quantity", 1))
+                dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+            if !dropped_fragments.is_empty():
+                parts.append("Dropped: %s" % ", ".join(dropped_fragments))
+        var rest_spent = result.get("rest_spent_percent", 0.0)
+        if rest_spent > 0.0:
+            parts.append("-%s%% energy" % _format_percent_value(rest_spent))
+        var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
+        if calories_spent > 0:
+            parts.append("+%d cal burn" % calories_spent)
+        if end_at != "":
+            parts.append("End %s" % end_at)
+        return " | ".join(parts)
+
+    var reason = result.get("reason", "")
+    match reason:
+        "systems_unavailable":
+            return "Camp search offline"
+        "zombies_present":
+            var count = int(result.get("zombie_count", 0))
+            return "Zombies nearby! Camp search blocked (%d)" % max(count, 1)
+        "carry_limit_reached":
+            var capacity = int(result.get("carry_capacity", game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY))
+            var fragments: PackedStringArray = []
+            fragments.append("Carry full (%d slots)" % max(capacity, 0))
+            var dropped: Array = result.get("dropped_loot", [])
+            if !dropped.is_empty():
+                var dropped_fragments: PackedStringArray = []
+                for item in dropped:
+                    var label = item.get("display_name", item.get("item_id", "Drop"))
+                    var qty = int(item.get("quantity", 1))
+                    dropped_fragments.append("%s x%d" % [label, max(qty, 1)])
+                if !dropped_fragments.is_empty():
+                    fragments.append("Dropped: %s" % ", ".join(dropped_fragments))
+            if end_at != "":
+                fragments.append("End %s" % end_at)
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fragments.append("-%s%% energy" % _format_percent_value(rest_spent))
+            var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
+            if calories_spent > 0:
+                fragments.append("+%d cal burn" % calories_spent)
+            return "Camp search blocked -> %s" % " | ".join(fragments)
+        "nothing_found":
+            var message = "Camps were empty"
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                message += " | -%s%% energy" % _format_percent_value(rest_spent)
+            var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
+            if calories_spent > 0:
+                message += " | +%d cal burn" % calories_spent
+            if end_at != "":
+                message += " | End %s" % end_at
+            return message
+        "exceeds_day":
+            var minutes_available = result.get("minutes_available", 0)
+            return _format_daybreak_warning(minutes_available)
+        _:
+            var fallback = "Camp search failed"
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fallback += " | -%s%% energy" % _format_percent_value(rest_spent)
+            var calories_spent = int(round(result.get("calories_spent", CAMP_SEARCH_CALORIE_COST)))
+            if calories_spent > 0:
+                fallback += " | +%d cal burn" % calories_spent
+            return fallback
+
+func _format_hunt_result(result: Dictionary) -> String:
+    var end_at = result.get("ended_at_time", "")
+    if result.get("success", false):
+        var parts: PackedStringArray = []
+        var animals: Array = result.get("animals", [])
+        if animals.is_empty():
+            parts.append("No game recovered")
+        else:
+            var tallies: Dictionary = {}
+            for entry in animals:
+                var label = String(entry.get("display_name", entry.get("id", "Game")))
+                tallies[label] = int(tallies.get(label, 0)) + 1
+            var tally_fragments: PackedStringArray = []
+            for label in tallies.keys():
+                tally_fragments.append("%s x%d" % [label, int(tallies[label])])
+            if !tally_fragments.is_empty():
+                parts.append(", ".join(tally_fragments))
+        var food_gained = float(result.get("food_units_gained", 0.0))
+        if food_gained > 0.0:
+            parts.append("+%s food" % _format_food(food_gained))
+        var shots_taken = int(result.get("shots_taken", 0))
+        var shots_requested = int(result.get("shots_requested", HUNT_ROLLS_PER_TRIP))
+        var shots_planned = int(result.get("shots_planned", shots_requested))
+        var shot_fragment = "Shots %d/%d" % [max(shots_taken, 0), max(shots_requested, 0)]
+        if shots_planned > 0 and shots_planned != shots_requested:
+            shot_fragment += " (Plan %d)" % max(shots_planned, 0)
+        parts.append(shot_fragment)
+        var arrow_breaks = int(result.get("arrow_breaks", 0))
+        var arrow_before = int(result.get("arrow_stock_before", 0))
+        var arrow_after = int(result.get("arrows_remaining", 0))
+        parts.append("Arrows %d→%d (-%d)" % [arrow_before, arrow_after, max(arrow_breaks, 0)])
+        if result.get("arrow_consume_failed", false):
+            parts.append("Arrow spend failed")
+        var pending_stock: Dictionary = result.get("pending_stock", {})
+        if typeof(pending_stock) == TYPE_DICTIONARY:
+            var pending_total = float(pending_stock.get("total_food_units", 0.0))
+            if pending_total > 0.0:
+                parts.append("Game bank %.1f" % pending_total)
+        var rest_spent = result.get("rest_spent_percent", 0.0)
+        if rest_spent > 0.0:
+            parts.append("-%s%% energy" % _format_percent_value(rest_spent))
+        var calories_spent = int(round(result.get("calories_spent", HUNT_CALORIE_COST)))
+        if calories_spent > 0:
+            parts.append("+%d cal burn" % calories_spent)
+        if end_at != "":
+            parts.append("End %s" % end_at)
+        return " | ".join(parts)
+
+    var reason = String(result.get("reason", "failed"))
+    match reason:
+        "systems_unavailable":
+            return "Hunt offline"
+        "zombies_present":
+            var count = int(result.get("zombie_count", 0))
+            return "Zombies nearby (%d)" % max(count, 1)
+        "no_bow":
+            return "Need crafted bow"
+        "no_arrows":
+            var stock = int(result.get("arrow_stock", 0))
+            return "Need arrows (Stock %d)" % max(stock, 0)
+        "no_game":
+            var fragments: PackedStringArray = []
+            fragments.append("Tracked game but empty-handed")
+            var shots_taken = int(result.get("shots_taken", 0))
+            if shots_taken > 0:
+                var requested = int(result.get("shots_requested", HUNT_ROLLS_PER_TRIP))
+                var planned = int(result.get("shots_planned", requested))
+                var miss_fragment = "Shots %d" % shots_taken
+                if planned > 0 and planned != requested:
+                    miss_fragment += " (Plan %d)" % max(planned, 0)
+                fragments.append(miss_fragment)
+            var arrow_breaks = int(result.get("arrow_breaks", 0))
+            if arrow_breaks > 0:
+                fragments.append("Arrows lost %d" % arrow_breaks)
+            if result.get("arrow_consume_failed", false):
+                fragments.append("Arrow spend failed")
+            var rest_spent = result.get("rest_spent_percent", 0.0)
+            if rest_spent > 0.0:
+                fragments.append("-%s%% energy" % _format_percent_value(rest_spent))
+            var calories_spent = int(round(result.get("calories_spent", HUNT_CALORIE_COST)))
+            if calories_spent > 0:
+                fragments.append("+%d cal burn" % calories_spent)
+            if end_at != "":
+                fragments.append("End %s" % end_at)
+            return " | ".join(fragments)
+        "time_rejected", "exceeds_day":
+            var minutes_available = int(result.get("minutes_available", 0))
+            return _format_daybreak_warning(minutes_available)
+        _:
+            return "Hunt failed"
+
+func _format_butcher_result(result: Dictionary) -> String:
+    var end_at = result.get("ended_at_time", "")
+    if result.get("success", false):
+        var parts: PackedStringArray = []
+        var processable = float(result.get("processable_food_units", 0.0))
+        if processable > 0.0:
+            parts.append("Cooked %s food" % _format_food(processable))
+        var bonus = float(result.get("bonus_food_units", 0.0))
+        if bonus > 0.0:
+            parts.append("Bonus +%s food" % _format_food(bonus))
+        var pending_stock: Dictionary = result.get("pending_stock", {})
+        if typeof(pending_stock) == TYPE_DICTIONARY:
+            var pending_total = float(pending_stock.get("total_food_units", 0.0))
+            parts.append("Game bank %.1f" % pending_total)
+        var rest_spent = result.get("rest_spent_percent", 0.0)
+        if rest_spent > 0.0:
+            parts.append("-%s%% energy" % _format_percent_value(rest_spent))
+        var calories_spent = int(round(result.get("calories_spent", BUTCHER_CALORIE_COST)))
+        if calories_spent > 0:
+            parts.append("+%d cal burn" % calories_spent)
+        if end_at != "":
+            parts.append("End %s" % end_at)
+        return " | ".join(parts)
+
+    var reason = String(result.get("reason", "failed"))
+    match reason:
+        "systems_unavailable":
+            return "Butcher offline"
+        "no_knife":
+            var stock = int(result.get("knife_stock", 0))
+            return "Need crafted knife (Stock %d)" % max(stock, 0)
+        "fire_unlit":
+            return "Need lit fire"
+        "no_game":
+            return "No game stored"
+        "no_food":
+            return "Food already eaten"
+        "time_rejected", "exceeds_day":
+            var minutes_available = int(result.get("minutes_available", 0))
+            return _format_daybreak_warning(minutes_available)
+        _:
+            return "Butcher failed"
 
 func _format_fishing_result(result: Dictionary) -> String:
     if typeof(result) != TYPE_DICTIONARY or result.is_empty():
@@ -1540,6 +2235,56 @@ func _format_trap_trigger_result(state: Dictionary) -> String:
         parts.append(time_text)
     return "Trap triggered -> %s" % " | ".join(parts)
 
+func _format_snare_place_result(result: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    var rest_spent = float(result.get("rest_spent_percent", SNARE_PLACE_REST_COST_PERCENT))
+    if rest_spent > 0.0:
+        parts.append("-%s%% rest" % _format_percent_value(rest_spent))
+    var calories = int(round(result.get("calories_spent", SNARE_PLACE_CALORIE_COST)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    var stock_after = int(result.get("snare_stock_after", 0))
+    parts.append("Stock %d" % max(stock_after, 0))
+    var deployed = int(result.get("total_deployed", 0))
+    if deployed > 0:
+        parts.append("Deployed %d" % deployed)
+    var ended_at = String(result.get("ended_at_time", ""))
+    if ended_at != "":
+        parts.append("End %s" % ended_at)
+    return "Snare placed -> %s" % " | ".join(parts)
+
+func _format_snare_check_result(result: Dictionary) -> String:
+    var parts: PackedStringArray = []
+    var animals: Array = result.get("animals_collected", [])
+    var count = int(result.get("animals_found", animals.size()))
+    parts.append("Collected %d" % max(count, 0))
+    if !animals.is_empty():
+        var tally: Dictionary = {}
+        for entry in animals:
+            if typeof(entry) != TYPE_DICTIONARY:
+                continue
+            var label = String(entry.get("label", entry.get("id", "Game")))
+            tally[label] = int(tally.get(label, 0)) + 1
+        var loot: PackedStringArray = []
+        for label in tally.keys():
+            loot.append("%s x%d" % [label, int(tally[label])])
+        if !loot.is_empty():
+            parts.append("Loot %s" % ", ".join(loot))
+    var food_units = float(result.get("food_units_gained", 0.0))
+    if food_units > 0.0:
+        parts.append("+%s food" % _format_food(food_units))
+    var rest_spent = float(result.get("rest_spent_percent", SNARE_CHECK_REST_COST_PERCENT))
+    if rest_spent > 0.0:
+        parts.append("-%s%% rest" % _format_percent_value(rest_spent))
+    var calories = int(round(result.get("calories_spent", SNARE_CHECK_CALORIE_COST)))
+    if calories > 0:
+        parts.append("-%d cal" % calories)
+    var snare_state: Dictionary = result.get("snare_state", {})
+    if typeof(snare_state) == TYPE_DICTIONARY and !snare_state.is_empty():
+        var waiting = int(snare_state.get("animals_ready", 0))
+        parts.append("Waiting %d" % max(waiting, 0))
+    return "Snare check -> %s" % " | ".join(parts)
+
 func _get_minutes_left_today() -> int:
     if time_system:
         return time_system.get_minutes_until_daybreak()
@@ -1670,6 +2415,31 @@ func _update_sleep_summary():
     var summary = " | ".join(lines)
     sleep_summary_label.text = summary
     _set_action_default("sleep", summary, true)
+
+func _update_camp_search_summary():
+    if !is_instance_valid(camp_search_summary_label):
+        return
+
+    var summary = _format_camp_search_ready()
+    camp_search_summary_label.text = summary
+    _set_action_default("camp_search", summary, true)
+
+func _update_hunt_summary():
+    if !is_instance_valid(hunt_summary_label):
+        return
+
+    var ready = false
+    if game_manager:
+        var status = game_manager.get_hunt_status()
+        var bow_stock = int(status.get("bow_stock", 0))
+        var arrow_stock = int(status.get("arrow_stock", 0))
+        var zombies = int(status.get("zombies_nearby", 0))
+        ready = bow_stock > 0 and arrow_stock > 0 and zombies <= 0
+    var summary = _format_hunt_ready()
+    hunt_summary_label.text = summary
+    _set_action_default("hunt", summary, true)
+    if is_instance_valid(hunt_select_button):
+        hunt_select_button.disabled = !ready
 
 func _update_meal_summary():
     if !is_instance_valid(meal_summary_label):
@@ -1836,6 +2606,77 @@ func _update_trap_summary():
     trap_summary_label.text = text
     _set_action_default("trap", text, true)
 
+func _update_snare_place_summary():
+    if !is_instance_valid(snare_place_summary_label):
+        return
+    var text: String
+    if game_manager == null:
+        text = "Snare placement offline"
+    else:
+        if _snare_state.is_empty():
+            _snare_state = game_manager.get_snare_state()
+        var stock = inventory_system.get_item_count(SNARE_ITEM_ID) if inventory_system else 0
+        if stock <= 0:
+            text = "Need Animal Snare (Stock 0)"
+        else:
+            var deployed = int(_snare_state.get("total_deployed", 0))
+            var waiting = int(_snare_state.get("animals_ready", 0))
+            var fragments: PackedStringArray = []
+            fragments.append("%.1fh" % SNARE_PLACE_HOURS)
+            fragments.append("-%s%% rest" % _format_percent_value(SNARE_PLACE_REST_COST_PERCENT))
+            fragments.append("-%d cal" % int(round(SNARE_PLACE_CALORIE_COST)))
+            fragments.append("Stock %d" % stock)
+            if deployed > 0:
+                fragments.append("Deployed %d" % deployed)
+            if waiting > 0:
+                fragments.append("Waiting %d" % waiting)
+            text = " | ".join(fragments)
+    snare_place_summary_label.text = text
+    _set_action_default("snare_place", text, true)
+
+func _update_snare_check_summary():
+    if !is_instance_valid(snare_check_summary_label):
+        return
+    var text: String
+    if game_manager == null:
+        text = "Snare checks offline"
+    else:
+        if _snare_state.is_empty():
+            _snare_state = game_manager.get_snare_state()
+        var deployed = int(_snare_state.get("total_deployed", 0))
+        if deployed <= 0:
+            text = "Requires snares placed"
+        else:
+            var waiting = int(_snare_state.get("animals_ready", 0))
+            var fragments: PackedStringArray = []
+            fragments.append("%.1fh" % SNARE_CHECK_HOURS)
+            fragments.append("-%s%% rest" % _format_percent_value(SNARE_CHECK_REST_COST_PERCENT))
+            fragments.append("-%d cal" % int(round(SNARE_CHECK_CALORIE_COST)))
+            if waiting > 0:
+                fragments.append("Animals %d" % waiting)
+            else:
+                fragments.append("No animals waiting")
+            text = " | ".join(fragments)
+    snare_check_summary_label.text = text
+    _set_action_default("snare_check", text, true)
+
+func _update_butcher_summary():
+    if !is_instance_valid(butcher_summary_label):
+        return
+
+    var ready = false
+    if game_manager:
+        var status = game_manager.get_butcher_status()
+        var knife_stock = int(status.get("knife_stock", 0))
+        var fire_lit = status.get("fire_lit", false)
+        var processable = float(status.get("processable_food_units", 0.0))
+        ready = knife_stock > 0 and fire_lit and processable > 0.0
+    var summary = _format_butcher_ready()
+    butcher_summary_label.text = summary
+    _set_action_default("butcher", summary, true)
+    if is_instance_valid(butcher_select_button):
+        butcher_select_button.disabled = !ready
+
 
 func _resolve_meal_option(key: String) -> Dictionary:
     var normalized = key.to_lower()
@@ -1859,6 +2700,10 @@ func _get_action_energy_text(action: String) -> String:
             return "+%d%% per hr" % per_hour
         "forging":
             return "-%s%% cost" % _format_percent_value(FORGING_REST_COST_PERCENT)
+        "camp_search":
+            return "-%s%% cost" % _format_percent_value(CAMP_SEARCH_REST_COST_PERCENT)
+        "hunt":
+            return "-%s%% cost" % _format_percent_value(HUNT_REST_COST_PERCENT)
         "fishing":
             return "-%s%% cost" % _format_percent_value(FISHING_REST_COST_PERCENT)
         "recon":
@@ -1869,8 +2714,14 @@ func _get_action_energy_text(action: String) -> String:
             return "-%s%% cost" % _format_percent_value(15.0)
         "trap":
             return "-%s%% cost" % _format_percent_value(TRAP_ENERGY_COST_PERCENT)
+        "snare_place":
+            return "-%s%% cost" % _format_percent_value(SNARE_PLACE_REST_COST_PERCENT)
+        "snare_check":
+            return "-%s%% cost" % _format_percent_value(SNARE_CHECK_REST_COST_PERCENT)
         "meal":
             return "0% (Energy neutral)"
+        "butcher":
+            return "-%s%% cost" % _format_percent_value(BUTCHER_REST_COST_PERCENT)
         "repair":
             return "+%s%% bonus" % _format_percent_value(10.0)
         "reinforce":
@@ -1888,6 +2739,10 @@ func _get_action_calorie_text(action: String) -> String:
             return "+%d burn/hr" % per_hour
         "forging":
             return "+%d burn" % int(round(FORGING_CALORIE_COST))
+        "camp_search":
+            return "+%d burn" % int(round(CAMP_SEARCH_CALORIE_COST))
+        "hunt":
+            return "+%d burn" % int(round(HUNT_CALORIE_COST))
         "fishing":
             return "+%d burn" % int(round(FISHING_CALORIE_COST))
         "recon":
@@ -1898,11 +2753,17 @@ func _get_action_calorie_text(action: String) -> String:
             return "Awake burn only"
         "trap":
             return "+%d burn" % int(round(TRAP_CALORIE_COST))
+        "snare_place":
+            return "+%d burn" % int(round(SNARE_PLACE_CALORIE_COST))
+        "snare_check":
+            return "+%d burn" % int(round(SNARE_CHECK_CALORIE_COST))
         "meal":
             var option = _resolve_meal_option(selected_meal_key)
             var food_units = float(option.get("food_units", 1.0))
             var calories = int(round(food_units * CALORIES_PER_FOOD_UNIT))
             return "-%d gain" % calories
+        "butcher":
+            return "+%d burn" % int(round(BUTCHER_CALORIE_COST))
         "repair":
             return "+350 burn"
         "reinforce":
@@ -2069,6 +2930,11 @@ func _format_weather_state_label(state: String) -> String:
 
 func _on_inventory_food_total_changed(new_total: float):
     _update_meal_summary()
+    _update_camp_search_summary()
+    _update_hunt_summary()
+    _update_butcher_summary()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
     if _forging_feedback_locked:
         return
     if _forging_feedback_state == "offline":
@@ -2079,6 +2945,13 @@ func _on_inventory_item_changed(_item_id: String, _quantity_delta: int, _food_de
     _update_repair_summary()
     _update_reinforce_summary()
     _update_trap_summary()
+    _update_snare_place_summary()
+    _update_snare_check_summary()
+    _update_camp_search_summary()
+    _update_hunt_summary()
+    _update_butcher_summary()
+    if !_forging_feedback_locked and _forging_feedback_state != "offline" and inventory_system:
+        _set_forging_feedback(_format_forging_ready(inventory_system.get_total_food_units()), "ready")
 
 
 func _on_tower_health_changed(_new: float, _old: float):
@@ -2086,6 +2959,8 @@ func _on_tower_health_changed(_new: float, _old: float):
     _update_reinforce_summary()
 
 func _on_lead_zombie_count_changed(count: int):
+    _update_hunt_summary()
+    _refresh_info_stats_if_selected("hunt")
     if _lead_feedback_locked:
         return
     if _lead_feedback_state == "offline" or _lead_feedback_state == "result":
@@ -2107,6 +2982,23 @@ func _on_trap_state_changed(_active: bool, state: Dictionary):
     if status == "triggered":
         _set_action_result("trap", _format_trap_trigger_result(state), true)
     _refresh_info_stats_if_selected("trap")
+
+func _on_snare_state_changed(state: Dictionary):
+    _snare_state = state.duplicate(true)
+    _update_snare_place_summary()
+    _update_snare_check_summary()
+    _refresh_info_stats_if_selected("snare_place")
+    _refresh_info_stats_if_selected("snare_check")
+
+func _on_hunt_stock_changed(_stock: Dictionary):
+    _update_hunt_summary()
+    _update_butcher_summary()
+    _refresh_info_stats_if_selected("hunt")
+    _refresh_info_stats_if_selected("butcher")
+
+func _on_wood_stove_state_changed(_state: Dictionary):
+    _update_butcher_summary()
+    _refresh_info_stats_if_selected("butcher")
 
 func _refresh_lead_feedback():
     if _lead_feedback_locked:
