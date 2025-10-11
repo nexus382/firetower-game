@@ -1991,7 +1991,8 @@ func perform_lure_incoming_zombies() -> Dictionary:
         result["chance"] = WOLF_LURE_SUCCESS_CHANCE
         result["roll"] = float(lure_attempt.get("roll", 1.0))
         result["success"] = success
-        result["reason"] = String(lure_attempt.get("reason", success ? "wolves_cleared" : "wolves_stayed"))
+        var lure_reason = "wolves_cleared" if success else "wolves_stayed"
+        result["reason"] = String(lure_attempt.get("reason", lure_reason))
         result["wolves_removed"] = success
         result["wolves_present"] = true
         result["window_minutes"] = LURE_WINDOW_MINUTES

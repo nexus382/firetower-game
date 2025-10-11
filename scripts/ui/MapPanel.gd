@@ -211,7 +211,8 @@ func _refresh_option_slots(state: Dictionary):
             ]
         if summary_label:
             var summary = String(option.get("summary", "Route intel pending."))
-            summary_label.text = summary.is_empty() ? "Route intel pending." : summary
+            var summary_fallback = "Route intel pending."
+            summary_label.text = summary_fallback if summary.is_empty() else summary
         if button:
             if journey_complete:
                 button.text = OPTION_BUTTON_LABEL_COMPLETE
