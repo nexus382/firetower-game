@@ -939,7 +939,8 @@ func _build_butcher_description() -> String:
         var pending_total = 0.0
         if typeof(pending_stock) == TYPE_DICTIONARY:
             pending_total = float(pending_stock.get("total_food_units", 0.0))
-        lines.append("Knife stock: %d | Fire: %s" % [knife_stock, fire_lit ? "Lit" : "Out"])
+        var fire_status = "Lit" if fire_lit else "Out"
+        lines.append("Knife stock: %d | Fire: %s" % [knife_stock, fire_status])
         lines.append("Stored game: %.1f food" % pending_total)
     if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
         lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
@@ -961,7 +962,8 @@ func _build_cook_whole_description() -> String:
         var pending_total = 0.0
         if typeof(pending_stock) == TYPE_DICTIONARY:
             pending_total = float(pending_stock.get("total_food_units", 0.0))
-        lines.append("Fire: %s | Stored game: %.1f food" % [fire_lit ? "Lit" : "Out", pending_total])
+        var fire_status = "Lit" if fire_lit else "Out"
+        lines.append("Fire: %s | Stored game: %.1f food" % [fire_status, pending_total])
     if time_system and minutes > 0 and minutes <= _get_minutes_left_today():
         lines.append("Ends at %s" % time_system.get_formatted_time_after(minutes))
     lines.append("Day left: %s" % _format_duration(_get_minutes_left_today()))
