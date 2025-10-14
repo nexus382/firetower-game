@@ -4,16 +4,24 @@
 extends Area2D
 class_name Radio
 
+const ATTENTION_ON_SECONDS := 1.5
+const ATTENTION_OFF_SECONDS := 0.2
+
 @export var prompt_text: String = "Press [%s] to tune"
 @export var static_text: String = "Only static crackles tonight."
 
 @onready var prompt_label: Label = $PromptLabel
+@onready var attention_label: Label = $AttentionLabel
 
 # Tracks when the player can trigger the interaction prompt.
 var _player_in_range: bool = false
 var _game_manager: GameManager = null
 var _radio_panel: Control
+var _tutorial_popup: ActionPopupPanel
 var _prompt_template: String = ""
+var _attention_timer: Timer
+var _attention_showing: bool = false
+var _attention_active: bool = false
 
 func _ready():
     monitoring = true
@@ -27,6 +35,14 @@ func _ready():
         prompt_label.visible = false
     _update_prompt_text()
 
+    if attention_label:
+        attention_label.visible = false
+
+    _attention_timer = Timer.new()
+    _attention_timer.one_shot = true
+    add_child(_attention_timer)
+    _attention_timer.timeout.connect(_on_attention_timer_timeout)
+
     _resolve_dependencies()
 
 func _resolve_dependencies():
@@ -37,9 +53,15 @@ func _resolve_dependencies():
 
     var manager_node = root.get_node_or_null("Main/GameManager")
     _game_manager = manager_node as GameManager if manager_node is GameManager else null
+    if _game_manager and !_game_manager.is_connected("radio_attention_changed", Callable(self, "_on_radio_attention_changed")):
+        _game_manager.radio_attention_changed.connect(_on_radio_attention_changed)
+        _on_radio_attention_changed(_game_manager.has_unheard_radio_message())
 
     var panel_node = root.get_node_or_null("Main/UI/RadioPanel")
     _radio_panel = panel_node if panel_node is Control else null
+
+    var popup_node = root.get_node_or_null("Main/UI/ActionPopupPanel")
+    _tutorial_popup = popup_node as ActionPopupPanel if popup_node is ActionPopupPanel else null
 
 func _unhandled_input(event):
     if !_player_in_range:
@@ -60,6 +82,10 @@ func _handle_interaction():
         })
         return
 
+    if _game_manager.should_show_radio_tip():
+        _show_radio_tip()
+        _game_manager.mark_radio_tip_shown()
+
     var report = _game_manager.request_radio_broadcast()
     if !report.get("success", false):
         _show_panel_with_message({
@@ -77,11 +103,13 @@ func _handle_interaction():
             "title": "{0} - Day {1}".format([title, day_value]),
             "text": text
         })
+        _game_manager.mark_radio_message_heard()
     else:
         _show_panel_with_message({
             "title": "Radio Static",
             "text": static_text
         })
+        _on_radio_attention_changed(false)
 
 func _show_panel_with_message(payload: Dictionary):
     if _radio_panel and _radio_panel.has_method("display_broadcast"):
@@ -116,6 +144,48 @@ func _format_prompt_text(key_label: String) -> String:
     if template.find("%s") != -1:
         return template % key_label
     return template
+
+func _show_radio_tip():
+    if _tutorial_popup == null:
+        return
+    var lines: PackedStringArray = [
+        "Welcome to the tower, lookout—check the radio each morning for valley updates.",
+        "Some broadcasts bring windfalls, others warn of danger—missing one can cost you dearly.",
+        "Stay tuned and stay safe out there."
+    ]
+    _tutorial_popup.show_message("Daily Radio Brief", lines)
+
+func _on_radio_attention_changed(active: bool):
+    _set_attention_active(active)
+
+func _set_attention_active(active: bool):
+    if _attention_active == active:
+        return
+    _attention_active = active
+    if !_attention_active:
+        if _attention_timer:
+            _attention_timer.stop()
+        if attention_label:
+            attention_label.visible = false
+        return
+    _attention_showing = false
+    _queue_attention_pulse(true)
+
+func _queue_attention_pulse(show_now: bool):
+    if !_attention_active or attention_label == null or _attention_timer == null:
+        return
+    _attention_showing = show_now
+    attention_label.visible = show_now
+    var wait_time = ATTENTION_ON_SECONDS if show_now else ATTENTION_OFF_SECONDS
+    _attention_timer.start(wait_time)
+
+func _on_attention_timer_timeout():
+    if !_attention_active or attention_label == null or _attention_timer == null:
+        return
+    _attention_showing = !_attention_showing
+    attention_label.visible = _attention_showing
+    var wait_time = ATTENTION_ON_SECONDS if _attention_showing else ATTENTION_OFF_SECONDS
+    _attention_timer.start(wait_time)
 
 func _on_body_entered(body):
     if body is Player:

@@ -268,15 +268,14 @@
 | Spike Trap | 1 | 1.0 | 12.5 | Wood ×6 | Defensive deployable; burns 250 calories. |
 | The Spear | 1 | 1.0 | 5.0 | Wood ×1 | Close-defense tool; burns 250 calories. |
 | String | 1 | 1.0 | 2.5 | Ripped Cloth ×1 | Intermediate crafting good; burns 250 calories. |
-| Cloth Scraps | 2 | 1.0 | 2.5 | Ripped Cloth ×1 | Cuts fabric into pack-ready scraps; burns 250 calories. |
 | Bandage | 1 | 1.0 | 5.0 | Ripped Cloth ×1 | Restores 10% health on use; burns 250 calories. |
 | Herbal First Aid Kit | 1 | 1.0 | 12.5 | Mushrooms ×3, Ripped Cloth ×1, String ×1, Wood ×1, Medicinal Herbs ×2 | Heals 50 HP when used; burns 250 calories. |
 | Medicated Bandage | 1 | 1.0 | 7.5 | Bandage ×1, Medicinal Herbs ×1 | Restores 25 HP on use; burns 250 calories. |
-| Backpack | 1 | 1.0 | 15.0 | Wood ×4, String ×1, Rope ×1, Cloth Scraps ×3 | Expands carry limit to 12 slots for forging/camp loot; burns 250 calories. |
+| Backpack | 1 | 1.0 | 15.0 | Wood ×4, String ×1, Rope ×1, Ripped Cloth ×3 | Expands carry limit to 12 slots for forging/camp loot; burns 250 calories. |
 | Bow | 1 | 1.0 | 10.0 | Rope ×1, Wood ×1 | Flexible ranged base for Hunt (arrows have a 50% break chance per shot); burns 250 calories. |
 | Arrow | 1 | 1.0 | 5.0 | Feather ×2, Rock ×1, Wood ×1 | Ammunition for Hunt; each shot rolls 50% to break (consumed) or returns to inventory. |
 | Animal Snare | 1 | 1.0 | 10.0 | Rope ×2, Wood ×2 | Deployable loop trap for Place/Check Snare tasks; burns 250 calories. |
-| Portable Craft Station | 1 | 1.0 | 12.5 | Metal Scrap ×2, Wood ×4, Cloth Scraps ×1, Plastic Sheet ×2, Nails ×5, Rock ×2, Crafted Knife ×1 | Grants on-the-go crafting access during expedition travel; consumes the listed materials and burns 250 calories. |
+| Portable Craft Station | 1 | 1.0 | 12.5 | Metal Scrap ×2, Wood ×4, Ripped Cloth ×1, Plastic Sheet ×2, Nails ×5, Rock ×2, Crafted Knife ×1 | Grants on-the-go crafting access during expedition travel; consumes the listed materials and burns 250 calories. |
 
 ## Expedition Route Catalog
 * **Overgrown Path**: Narrow trail with dense brush; moderate travel hours (5.0–8.0) and light morale drain due to constant clearing.
@@ -366,7 +365,6 @@
 | spear | The Spear | 0.0 | 1 |
 | spike_trap | Spike Trap | 0.0 | 10 |
 | ripped_cloth | Ripped Cloth | 0.0 | 99 |
-| cloth_scraps | Cloth Scraps | 0.0 | 99 |
 | string | String | 0.0 | 99 |
 | rock | Rock | 0.0 | 99 |
 | vines | Vines | 0.0 | 99 |

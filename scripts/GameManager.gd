@@ -261,7 +261,7 @@ const CRAFTING_RECIPES := {
         "cost": {
             "metal_scrap": 2,
             "wood": 4,
-            "cloth_scraps": 1,
+            "ripped_cloth": 1,
             "plastic_sheet": 2,
             "nails": 5,
             "rock": 2,
@@ -292,17 +292,6 @@ const CRAFTING_RECIPES := {
         "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 2.5,
         "quantity": 1
-    },
-    "cloth_scraps": {
-        "item_id": "cloth_scraps",
-        "display_name": "Cloth Scraps",
-        "description": "Cut fabric strips for pack projects.",
-        "cost": {
-            "ripped_cloth": 1
-        },
-        "hours": CRAFT_ACTION_HOURS,
-        "rest_cost_percent": 2.5,
-        "quantity": 2
     },
     "bandage": {
         "item_id": "bandage",
@@ -350,7 +339,7 @@ const CRAFTING_RECIPES := {
             "wood": 4,
             "string": 1,
             "rope": 1,
-            "cloth_scraps": 3
+            "ripped_cloth": 3
         },
         "hours": CRAFT_ACTION_HOURS,
         "rest_cost_percent": 15.0,
@@ -423,6 +412,7 @@ signal hunt_stock_changed(stock: Dictionary)
 signal snare_state_changed(state: Dictionary)
 signal wolf_state_changed(state: Dictionary)
 signal expedition_state_changed(state: Dictionary)
+signal radio_attention_changed(active: bool)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
@@ -474,6 +464,8 @@ var _wolf_state: Dictionary = {}
 var flashlight_battery_percent: float = 0.0
 var flashlight_active: bool = false
 var _pending_game_food: Dictionary = {}
+var _radio_last_ack_day: int = 0
+var _radio_tip_shown: bool = false
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -531,6 +523,7 @@ func _ready():
         tower_health_system.set_initial_weather_state(weather_system.get_state())
     if news_system:
         news_system.reset_day(current_day)
+        _refresh_radio_attention("startup")
     if zombie_system:
         zombie_system.zombies_damaged_tower.connect(_on_zombie_damage_tower)
         zombie_system.zombies_spawned.connect(_on_zombies_spawned)
@@ -1111,6 +1104,32 @@ func request_radio_broadcast() -> Dictionary:
     if !has_message:
         result["reason"] = "no_broadcast"
     return result
+
+func has_unheard_radio_message() -> bool:
+    if news_system == null:
+        return false
+    var broadcast = news_system.get_broadcast_for_day(current_day)
+    var text = String(broadcast.get("text", ""))
+    if text.is_empty():
+        return false
+    return current_day > _radio_last_ack_day
+
+func mark_radio_message_heard():
+    if current_day <= _radio_last_ack_day:
+        return
+    _radio_last_ack_day = current_day
+    _refresh_radio_attention("acknowledged")
+
+func should_show_radio_tip() -> bool:
+    return !_radio_tip_shown
+
+func mark_radio_tip_shown():
+    if _radio_tip_shown:
+        return
+    _radio_tip_shown = true
+
+func _refresh_radio_attention(_source: String = ""):
+    radio_attention_changed.emit(has_unheard_radio_message())
 
 func perform_eating(portion_key: String) -> Dictionary:
     if not sleep_system or not time_system or not inventory_system:
@@ -3191,6 +3210,7 @@ func _on_day_rolled_over():
         tower_health_system.on_day_completed(current_state)
     if news_system:
         news_system.reset_day(current_day)
+        _refresh_radio_attention("day_rollover")
     if zombie_system:
         zombie_system.start_day(current_day, _rng)
     if wolf_system:
