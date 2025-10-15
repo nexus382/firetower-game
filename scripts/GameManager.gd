@@ -165,6 +165,10 @@ const CRAFTING_RECIPES := {
         "item_id": "fishing_bait",
         "display_name": "Fishing Bait",
         "description": "Fresh bait to tempt nearby fish.",
+        "tips": [
+            "Pair with a fishing rod at the small stream to hook fish worth 0.5-1.5 food units.",
+            "Bait can wash away on a rough cast, so craft a few spares before dawn."
+        ],
         "cost": {
             "grubs": 1
         },
@@ -176,6 +180,10 @@ const CRAFTING_RECIPES := {
         "item_id": "fishing_rod",
         "display_name": "Fishing Rod",
         "description": "Simple pole ready for shoreline casting.",
+        "tips": [
+            "Needs bait each attempt and only the small stream currently supports fishing.",
+            "Check your tackle every morning so you are ready when the radio hints at calm water."
+        ],
         "cost": {
             "rock": 1,
             "string": 2,
@@ -189,6 +197,10 @@ const CRAFTING_RECIPES := {
         "item_id": "rope",
         "display_name": "Rope",
         "description": "Braided vines for tying or climbing.",
+        "tips": [
+            "Feeds bows, snares, and backpacks, so keep a small reserve for emergencies.",
+            "Vines dry quickly indoors, making refills easy during stormy days."
+        ],
         "cost": {
             "vines": 3
         },
@@ -200,6 +212,10 @@ const CRAFTING_RECIPES := {
         "item_id": "spike_trap",
         "display_name": "Spike Trap",
         "description": "Sturdy spikes to slow unwanted guests.",
+        "tips": [
+            "Stage near tower choke points so raiders bleed momentum before reaching you.",
+            "Inspect after each skirmish; a quick reset keeps the trap lethal."
+        ],
         "cost": {
             "wood": 6
         },
@@ -211,6 +227,10 @@ const CRAFTING_RECIPES := {
         "item_id": KINDLING_ID,
         "display_name": "Kindling",
         "description": "Dry shavings that boost fire starting odds.",
+        "tips": [
+            "Store beside the stove so every fire attempt begins with warm, dry tinder.",
+            "Rainy streaks chew through bundles quickly; budget extras when storms roll in."
+        ],
         "cost": {
             "wood": 1
         },
@@ -222,6 +242,10 @@ const CRAFTING_RECIPES := {
         "item_id": CRAFTED_KNIFE_ID,
         "display_name": "Crafted Knife",
         "description": "Sharp edge for prepping fuel and projects.",
+        "tips": [
+            "Unlocks cleaner butchering and helps slice meat before cooking.",
+            "Keep it honed so crafting benches and forage tasks finish faster."
+        ],
         "cost": {
             "wood": 1,
             "metal_scrap": 2
@@ -234,6 +258,10 @@ const CRAFTING_RECIPES := {
         "item_id": FIRE_STARTING_BOW_ID,
         "display_name": "Fire Starting Bow",
         "description": "Bow drill offering 75% spark chance.",
+        "tips": [
+            "Performs best with fresh kindling; craft extra bundles before a cold night.",
+            "Great fallback once flint is gone, but expect tired arms after long sessions."
+        ],
         "cost": {
             "string": 2,
             "wood": 2
@@ -246,6 +274,10 @@ const CRAFTING_RECIPES := {
         "item_id": FLINT_AND_STEEL_ID,
         "display_name": "Flint and Steel",
         "description": "Reliable sparks (5 uses, 90% success).",
+        "tips": [
+            "Carries five strong strikes; swap sets once the sparks grow weak.",
+            "Shave tinder with a knife first so embers have something to bite."
+        ],
         "cost": {
             CRAFTED_KNIFE_ID: 1,
             "rock": 2
@@ -258,6 +290,10 @@ const CRAFTING_RECIPES := {
         "item_id": PORTABLE_CRAFT_STATION_ID,
         "display_name": "Portable Craft Station",
         "description": "Fold-out bench for on-foot crafting stops.",
+        "tips": [
+            "Pack it for expeditions so you can craft repairs away from the tower.",
+            "Adds weight, so pair it with an upgraded backpack before long trips."
+        ],
         "cost": {
             "metal_scrap": 2,
             "wood": 4,
@@ -275,6 +311,10 @@ const CRAFTING_RECIPES := {
         "item_id": "spear",
         "display_name": "The Spear",
         "description": "A sharpened pole for close defense.",
+        "tips": [
+            "Reliable backup when wolves close the distance at water sources.",
+            "Combine with traps to finish wounded foes without wasting arrows."
+        ],
         "cost": {
             "wood": 1
         },
@@ -286,6 +326,10 @@ const CRAFTING_RECIPES := {
         "item_id": "string",
         "display_name": "String",
         "description": "Twisted cloth cord for light bindings.",
+        "tips": [
+            "Critical for bows, snares, and med kits, so keep a few spares on hand.",
+            "Spins from ripped cloth, letting you convert wardrobe scraps into utility."
+        ],
         "cost": {
             "ripped_cloth": 1
         },
@@ -297,6 +341,10 @@ const CRAFTING_RECIPES := {
         "item_id": "bandage",
         "display_name": "Bandage",
         "description": "Clean wrap that restores 10% health.",
+        "tips": [
+            "Stops bleeding fast, making it perfect for post-fight triage.",
+            "Combine with herbs later to brew stronger medical kits."
+        ],
         "cost": {
             "ripped_cloth": 1
         },
@@ -308,6 +356,10 @@ const CRAFTING_RECIPES := {
         "item_id": "herbal_first_aid_kit",
         "display_name": "Herbal First Aid Kit",
         "description": "Bundle of salves and wraps to restore health.",
+        "tips": [
+            "Treats tougher wounds than a lone bandage—save one for rough expeditions.",
+            "Forage herbs whenever the travel board opens to restock ingredients."
+        ],
         "cost": {
             "mushrooms": 3,
             "ripped_cloth": 1,
@@ -323,6 +375,10 @@ const CRAFTING_RECIPES := {
         "item_id": "medicated_bandage",
         "display_name": "Medicated Bandage",
         "description": "Infused wrap that restores 25 health.",
+        "tips": [
+            "Layers a bandage with herbs for heavy recovery—ideal before boss fights.",
+            "Keep one in reserve so you can bounce back after a bad ambush."
+        ],
         "cost": {
             "bandage": 1,
             "medicinal_herbs": 1
@@ -335,6 +391,10 @@ const CRAFTING_RECIPES := {
         "item_id": "backpack",
         "display_name": "Backpack",
         "description": "Rugged pack expanding carry slots to 12.",
+        "tips": [
+            "Extra slots let you haul more rations and ammo on long trips.",
+            "Pairs nicely with the portable craft station and spare arrows."
+        ],
         "cost": {
             "wood": 4,
             "string": 1,
@@ -349,6 +409,10 @@ const CRAFTING_RECIPES := {
         "item_id": "bow",
         "display_name": "Bow",
         "description": "Flexible bow for silent ranged attacks.",
+        "tips": [
+            "Requires arrows in your pack; silent shots keep you hidden while hunting.",
+            "Bring a knife or spear to finish anything that closes the gap."
+        ],
         "cost": {
             "rope": 1,
             "wood": 1
@@ -361,6 +425,10 @@ const CRAFTING_RECIPES := {
         "item_id": "arrow",
         "display_name": "Arrow",
         "description": "Straight shaft for the crafted bow.",
+        "tips": [
+            "Shots can snap arrows, so craft backups before each hunt or raid.",
+            "Track your targets—recovered arrows save cloth, wood, and feathers."
+        ],
         "cost": {
             "feather": 2,
             "rock": 1,
@@ -374,6 +442,10 @@ const CRAFTING_RECIPES := {
         "item_id": SNARE_ITEM_ID,
         "display_name": "Animal Snare",
         "description": "Loop trap fit for rabbits or squirrels.",
+        "tips": [
+            "Works best along quiet trails—ideal for overgrown paths and forest edges.",
+            "Check snares daily so predators do not steal the catch."
+        ],
         "cost": {
             "rope": 2,
             "wood": 2

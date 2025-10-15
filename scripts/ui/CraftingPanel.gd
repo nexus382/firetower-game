@@ -248,6 +248,15 @@ func _refresh_detail_text():
     var description = String(recipe.get("description", ""))
     if !description.is_empty():
         lines.append(description)
+    var tips: Array = recipe.get("tips", [])
+    if !tips.is_empty():
+        if !lines.is_empty():
+            lines.append("")
+        for tip in tips:
+            var hint = String(tip)
+            if hint.is_empty():
+                continue
+            lines.append("• %s" % hint)
     var duration = float(recipe.get("hours", 1.0))
     if duration > 0.0:
         var minutes = int(ceil(duration * 60.0 * max(_resolve_multiplier(), 0.01)))
