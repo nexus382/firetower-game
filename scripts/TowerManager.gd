@@ -336,6 +336,16 @@ func create_radio_station():
     prompt.add_theme_font_size_override("font_size", 12)
     radio.add_child(prompt)
 
+    var attention = Label.new()
+    attention.name = "AttentionLabel"
+    attention.text = "Psst... bshhh... psht"
+    attention.position = Vector2(-80, -92)
+    attention.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
+    attention.add_theme_font_size_override("font_size", 12)
+    attention.visible = false
+    attention.z_index = 4
+    radio.add_child(attention)
+
     var name_label = Label.new()
     name_label.name = "NameLabel"
     name_label.text = "Radio"

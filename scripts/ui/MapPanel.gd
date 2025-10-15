@@ -201,18 +201,33 @@ func _refresh_option_slots(state: Dictionary):
         var max_hours = float(option.get("hours_max", GameManager.TRAVEL_HOURS_MAX))
         var rest_cost = float(option.get("rest_cost_percent", GameManager.TRAVEL_REST_COST_PERCENT))
         var calories = int(round(option.get("calorie_cost", GameManager.TRAVEL_CALORIE_COST)))
+        var hazard = String(option.get("hazard_tier", "watchful")).capitalize()
+        var climate = String(option.get("temperature_band", "temperate")).capitalize()
         if details_label:
-            details_label.text = "Travel %.1fh | Range %.1f-%.1fh | -%s%% energy | -%d cal" % [
-                hours,
-                min_hours,
-                max_hours,
+            var travel_line = "Travel %.1fh | Range %.1f-%.1fh" % [hours, min_hours, max_hours]
+            var cost_line = "-%s%% energy | -%d cal | Hazard %s | Climate %s" % [
                 _format_percent(rest_cost),
-                calories
+                calories,
+                hazard,
+                climate
             ]
+            details_label.text = "%s\n%s" % [travel_line, cost_line]
         if summary_label:
             var summary = String(option.get("summary", "Route intel pending."))
-            var summary_fallback = "Route intel pending."
-            summary_label.text = summary_fallback if summary.is_empty() else summary
+            var fragments: PackedStringArray = []
+            if summary.is_empty():
+                fragments.append("Route intel pending.")
+            else:
+                fragments.append(summary)
+            var stats: PackedStringArray = []
+            stats.append("Hazard: %s" % hazard)
+            stats.append("Climate: %s" % climate)
+            if option.get("fishing_allowed", false):
+                stats.append("Fishing access")
+            if option.get("shelter_from_rain", false):
+                stats.append("Sheltered")
+            fragments.append(" | ".join(stats))
+            summary_label.text = "\n".join(fragments)
         if button:
             if journey_complete:
                 button.text = OPTION_BUTTON_LABEL_COMPLETE

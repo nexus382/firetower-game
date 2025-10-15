@@ -24,7 +24,6 @@ const ITEM_DETAILS := {
     "medicated_bandage": "Herbal wrap restores 25 health on use.",
     "canned_food": "Shelf-stable meal worth 1.5 food units.",
     "feather": "Light fletching for arrows and padded gear.",
-    "cloth_scraps": "Cut fabric pieces for packs and padding.",
     "backpack": "Expands carry capacity to 12 forging slots.",
     "ripped_cloth": "Torn fabric ideal for bandages or cords.",
     "rock": "Dense stone chunk for crafting weights or tools.",

@@ -44,6 +44,8 @@ func _open_panel():
     if !visible:
         visible = true
         _refresh_items()
+        if game_manager:
+            game_manager.request_tutorial("inventory_intro")
     if items_scroll:
         items_scroll.scroll_vertical = 0
     if close_button:
