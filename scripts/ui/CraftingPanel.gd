@@ -46,6 +46,8 @@ func open_panel():
         _build_recipe_list()
         _refresh_detail_text()
         _update_recipe_states()
+        if game_manager:
+            game_manager.request_tutorial("crafting_intro")
     if close_button:
         close_button.focus_mode = Control.FOCUS_ALL
     var first_button: Button = _buttons.get(_active_recipe, {}).get("button") if _buttons.has(_active_recipe) else null

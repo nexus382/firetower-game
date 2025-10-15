@@ -20,7 +20,17 @@ const LOCATION_DECK := [
         "hours_max": 5.5,
         "summary": "Slow march through tangled brush.",
         "rest_cost_percent": 15.0,
-        "calorie_cost": 620.0
+        "calorie_cost": 620.0,
+        "hazard_tier": "calm",
+        "temperature_band": "temperate",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.18,
+            "zombies": 0.32,
+            "survivors": 0.25
+        },
+        "shelter_from_rain": false
     },
     {
         "id": "clearing",
@@ -29,7 +39,17 @@ const LOCATION_DECK := [
         "hours_max": 4.5,
         "summary": "Sunlit gap great for pacing and morale.",
         "rest_cost_percent": 13.5,
-        "calorie_cost": 560.0
+        "calorie_cost": 560.0,
+        "hazard_tier": "hostile",
+        "temperature_band": "warm",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.33,
+            "zombies": 0.35,
+            "survivors": 0.32
+        },
+        "shelter_from_rain": false
     },
     {
         "id": "small_stream",
@@ -38,7 +58,17 @@ const LOCATION_DECK := [
         "hours_max": 5.5,
         "summary": "Wade beside cold water, watch footing.",
         "rest_cost_percent": 15.0,
-        "calorie_cost": 600.0
+        "calorie_cost": 600.0,
+        "hazard_tier": "hostile",
+        "temperature_band": "temperate",
+        "forage_profile": "stream_banks",
+        "fishing_allowed": true,
+        "encounter_focus": {
+            "wolves": 0.55,
+            "zombies": 0.25,
+            "survivors": 0.20
+        },
+        "shelter_from_rain": false
     },
     {
         "id": "thick_forest",
@@ -47,7 +77,17 @@ const LOCATION_DECK := [
         "hours_max": 6.5,
         "summary": "Dense pines force short, careful steps.",
         "rest_cost_percent": 16.5,
-        "calorie_cost": 640.0
+        "calorie_cost": 640.0,
+        "hazard_tier": "calm",
+        "temperature_band": "cool",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.12,
+            "zombies": 0.20,
+            "survivors": 0.18
+        },
+        "shelter_from_rain": false
     },
     {
         "id": "old_campsite",
@@ -56,16 +96,36 @@ const LOCATION_DECK := [
         "hours_max": 6.0,
         "summary": "Rummage ruins while passing through.",
         "rest_cost_percent": 15.0,
-        "calorie_cost": 590.0
+        "calorie_cost": 590.0,
+        "hazard_tier": "watchful",
+        "temperature_band": "cool",
+        "forage_profile": "camp_cache",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.10,
+            "zombies": 0.45,
+            "survivors": 0.45
+        },
+        "shelter_from_rain": true
     },
     {
         "id": "small_cave",
-        "label": "Small Cave",
+        "label": "Old Cave",
         "hours_min": 4.5,
         "hours_max": 6.0,
         "summary": "Shaded crawl with slippery rock shelves.",
         "rest_cost_percent": 17.0,
-        "calorie_cost": 610.0
+        "calorie_cost": 610.0,
+        "hazard_tier": "calm",
+        "temperature_band": "cold",
+        "forage_profile": "cave_sparse",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.05,
+            "zombies": 0.12,
+            "survivors": 0.08
+        },
+        "shelter_from_rain": true
     },
     {
         "id": "hunting_stand",
@@ -74,7 +134,17 @@ const LOCATION_DECK := [
         "hours_max": 4.5,
         "summary": "Clear sightlines, great for short breaks.",
         "rest_cost_percent": 14.0,
-        "calorie_cost": 570.0
+        "calorie_cost": 570.0,
+        "hazard_tier": "watchful",
+        "temperature_band": "cool",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.28,
+            "zombies": 0.36,
+            "survivors": 0.36
+        },
+        "shelter_from_rain": false
     }
 ]
 
@@ -217,6 +287,16 @@ func _build_option(template: Dictionary) -> Dictionary:
         "summary": String(template.get("summary", "")),
         "checkpoint_index": _current_checkpoint
     }
+    for extra_key in [
+        "hazard_tier",
+        "temperature_band",
+        "forage_profile",
+        "fishing_allowed",
+        "encounter_focus",
+        "shelter_from_rain"
+    ]:
+        if template.has(extra_key):
+            option[extra_key] = template[extra_key]
     return option
 
 func _round_to_half_hour(value: float) -> float:

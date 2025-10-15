@@ -856,6 +856,13 @@ func _build_fishing_description() -> String:
     var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
     multiplier = max(multiplier, 0.01)
     var minutes = int(ceil(60.0 * multiplier))
+    if game_manager:
+        var location = game_manager.get_active_location()
+        var location_label = String(location.get("label", "Tower"))
+        if location.get("fishing_allowed", false):
+            lines.append("Current post: %s — shoreline within reach." % location_label)
+        else:
+            lines.append("Current post: %s — no water here; only the Small Stream allows casting." % location_label)
     lines.append("Spend 1 hr (x%.1f) casting from shore." % multiplier)
     lines.append("Energy -%d%% | +%d cal burn" % [int(round(FISHING_REST_COST_PERCENT)), int(round(FISHING_CALORIE_COST))])
     lines.append("%d rolls @ %d%% each | Sizes: Small 50%% (0.5), Medium 35%% (1.0), Large 15%% (1.5)" % [FISHING_ROLLS_PER_HOUR, FISHING_SUCCESS_PERCENT])
@@ -931,6 +938,17 @@ func _build_travel_description() -> String:
             ]
             if !summary.is_empty():
                 line += " | %s" % summary
+            var hazard = String(option.get("hazard_tier", "watchful")).capitalize()
+            var climate = String(option.get("temperature_band", "temperate")).capitalize()
+            var traits: PackedStringArray = []
+            traits.append("Hazard %s" % hazard)
+            traits.append("Climate %s" % climate)
+            if option.get("fishing_allowed", false):
+                traits.append("Fishing spot")
+            if option.get("shelter_from_rain", false):
+                traits.append("Sheltered")
+            if !traits.is_empty():
+                line += " | %s" % " | ".join(traits)
             lines.append(line)
 
     var selected = _resolve_selected_travel_option()
@@ -2127,6 +2145,10 @@ func _format_fishing_result(result: Dictionary) -> String:
             return "Need Fishing Rod"
         "no_grubs":
             return "Need Grub"
+        "location_blocked":
+            var location: Dictionary = result.get("location", {})
+            var name = String(location.get("label", "Tower"))
+            return "%s has no water access" % name
         "exceeds_day":
             var minutes_available = result.get("minutes_available", 0)
             return _format_daybreak_warning(minutes_available)
@@ -2685,6 +2707,25 @@ func _format_travel_result(result: Dictionary) -> String:
     if journey.get("journey_complete", false):
         progress_text = "Journey complete"
     parts.append(progress_text)
+    var location: Dictionary = result.get("location", option)
+    var hazard = String(location.get("hazard_tier", option.get("hazard_tier", "watchful"))).capitalize()
+    var climate = String(location.get("temperature_band", option.get("temperature_band", "temperate"))).capitalize()
+    parts.append("Hazard %s" % hazard)
+    parts.append("Climate %s" % climate)
+    if location.get("fishing_allowed", false):
+        parts.append("Fishing spot")
+    if location.get("shelter_from_rain", false):
+        parts.append("Sheltered")
+    var encounter: Dictionary = result.get("encounter", {})
+    if encounter.get("triggered", false):
+        var threat = String(encounter.get("type", "threat")).capitalize()
+        var damage = float(encounter.get("damage_applied", 0.0))
+        var fragment = "%s encounter" % threat
+        if damage > 0.0:
+            fragment += " (-%d HP)" % int(round(damage))
+        elif encounter.get("mitigated", false):
+            fragment += " (deflected)"
+        parts.append(fragment)
     return "%s -> %s" % [label, " | ".join(parts)]
 
 func _format_trap_deploy_result(result: Dictionary) -> String:
@@ -3265,14 +3306,20 @@ func _format_travel_option_summary(option: Dictionary, state: Dictionary = {}) -
     var calorie_cost = int(round(option.get("calorie_cost", TRAVEL_CALORIE_COST)))
     var checkpoint = int(option.get("checkpoint_index", state.get("current_checkpoint", 1)))
     var total_points = int(state.get("total_checkpoints", 8))
-    return "%s (CP %d/%d | %.1fh | -%s%% energy | -%d cal)" % [
-        label,
-        clamp(checkpoint, 1, max(total_points, 1)),
-        max(total_points, 1),
-        hours,
-        _format_percent_value(rest_cost),
-        calorie_cost
-    ]
+    var fragments: PackedStringArray = []
+    fragments.append("CP %d/%d" % [clamp(checkpoint, 1, max(total_points, 1)), max(total_points, 1)])
+    fragments.append("%.1fh" % hours)
+    fragments.append("-%s%% energy" % _format_percent_value(rest_cost))
+    fragments.append("-%d cal" % calorie_cost)
+    var hazard = String(option.get("hazard_tier", "watchful")).capitalize()
+    var climate = String(option.get("temperature_band", "temperate")).capitalize()
+    fragments.append("Hazard %s" % hazard)
+    fragments.append("Climate %s" % climate)
+    if option.get("fishing_allowed", false):
+        fragments.append("Fishing spot")
+    if option.get("shelter_from_rain", false):
+        fragments.append("Sheltered")
+    return "%s (%s)" % [label, " | ".join(fragments)]
 
 func _resolve_selected_travel_option() -> Dictionary:
     var state: Dictionary = _expedition_state

@@ -16,6 +16,7 @@ const PlayerHealthSystem = preload("res://scripts/systems/PlayerHealthSystem.gd"
 const WarmthSystem = preload("res://scripts/systems/WarmthSystem.gd")
 const WoodStoveSystem = preload("res://scripts/systems/WoodStoveSystem.gd")
 const ExpeditionSystem = preload("res://scripts/systems/ExpeditionSystem.gd")
+const ActionPopupPanel = preload("res://scripts/ui/ActionPopupPanel.gd")
 
 const CALORIES_PER_FOOD_UNIT: float = 1000.0
 const LEAD_AWAY_ZOMBIE_CHANCE: float = ZombieSystem.DEFAULT_LEAD_AWAY_CHANCE
@@ -158,6 +159,589 @@ const FISHING_SIZE_TABLE := [
         "food_units": 1.5
     }
 ]
+
+# Travel hazard tiers define encounter chance ranges (0.0-1.0) for route rolls.
+const TRAVEL_HAZARD_TIERS := {
+    "calm": {
+        "label": "Calm",
+        "chance_min": 0.08,
+        "chance_max": 0.15
+    },
+    "watchful": {
+        "label": "Watchful",
+        "chance_min": 0.18,
+        "chance_max": 0.32
+    },
+    "hostile": {
+        "label": "Hostile",
+        "chance_min": 0.35,
+        "chance_max": 0.55
+    }
+}
+
+# Temperature bands shape warmth flavor for downstream systems.
+const TEMPERATURE_BANDS := {
+    "cold": {
+        "label": "Cold",
+        "modifier": -12.0
+    },
+    "cool": {
+        "label": "Cool",
+        "modifier": -6.0
+    },
+    "temperate": {
+        "label": "Temperate",
+        "modifier": 0.0
+    },
+    "warm": {
+        "label": "Warm",
+        "modifier": 4.0
+    }
+}
+
+const DEFAULT_LOCATION_ID := "tower_base"
+
+# Location profiles describe loot pools, climate, and access per route id.
+const LOCATION_PROFILES := {
+    "tower_base": {
+        "label": "Fire Tower",
+        "summary": "Home base overlooking the valley.",
+        "hazard_tier": "calm",
+        "temperature_band": "temperate",
+        "forage_profile": "tower_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.20,
+            "zombies": 0.30,
+            "survivors": 0.20
+        },
+        "shelter_from_rain": true
+    },
+    "overgrown_path": {
+        "label": "Overgrown Path",
+        "summary": "Tangled brush hides you while you creep along.",
+        "hazard_tier": "calm",
+        "temperature_band": "temperate",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.18,
+            "zombies": 0.32,
+            "survivors": 0.25
+        },
+        "shelter_from_rain": false
+    },
+    "clearing": {
+        "label": "Clearing",
+        "summary": "Open ground quickens the pace but exposes you.",
+        "hazard_tier": "hostile",
+        "temperature_band": "warm",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.33,
+            "zombies": 0.35,
+            "survivors": 0.32
+        },
+        "shelter_from_rain": false
+    },
+    "small_stream": {
+        "label": "Small Stream",
+        "summary": "Wolf-haunted banks with cold, steady water.",
+        "hazard_tier": "hostile",
+        "temperature_band": "temperate",
+        "forage_profile": "stream_banks",
+        "fishing_allowed": true,
+        "encounter_focus": {
+            "wolves": 0.55,
+            "zombies": 0.25,
+            "survivors": 0.20
+        },
+        "shelter_from_rain": false
+    },
+    "thick_forest": {
+        "label": "Thick Forest",
+        "summary": "Dense pines give cover but slow every step.",
+        "hazard_tier": "calm",
+        "temperature_band": "cool",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.12,
+            "zombies": 0.20,
+            "survivors": 0.18
+        },
+        "shelter_from_rain": false
+    },
+    "old_campsite": {
+        "label": "Old Campsite",
+        "summary": "Sheltered ruins stuffed with salvage and stories.",
+        "hazard_tier": "watchful",
+        "temperature_band": "cool",
+        "forage_profile": "camp_cache",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.10,
+            "zombies": 0.45,
+            "survivors": 0.45
+        },
+        "shelter_from_rain": true
+    },
+    "small_cave": {
+        "label": "Old Cave",
+        "summary": "Cold, quiet shelter carved out of the ridge.",
+        "hazard_tier": "calm",
+        "temperature_band": "cold",
+        "forage_profile": "cave_sparse",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.05,
+            "zombies": 0.12,
+            "survivors": 0.08
+        },
+        "shelter_from_rain": true
+    },
+    "hunting_stand": {
+        "label": "Hunting Stand",
+        "summary": "Raised blind with sweeping sightlines and drafts.",
+        "hazard_tier": "watchful",
+        "temperature_band": "cool",
+        "forage_profile": "wild_standard",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.28,
+            "zombies": 0.36,
+            "survivors": 0.36
+        },
+        "shelter_from_rain": false
+    }
+}
+
+# Forage profile tables define environment-specific loot rolls.
+const FORAGE_PROFILE_TABLES := {
+    "tower_standard": [
+        {
+            "item_id": "mushrooms",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "berries",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "walnuts",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "grubs",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "apples",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "oranges",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "raspberries",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "blueberries",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "ripped_cloth",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "rock",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "vines",
+            "chance": 0.175,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "wood",
+            "chance": 0.45,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "feather",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "plastic_sheet",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "metal_scrap",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "nails",
+            "chance": 0.10,
+            "quantity": 3,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "duct_tape",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "medicinal_herbs",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "fuel",
+            "chance": 0.10,
+            "quantity_range": [3, 5],
+            "tier": "advanced"
+        },
+        {
+            "item_id": "mechanical_parts",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "electrical_parts",
+            "chance": 0.10,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "batteries",
+            "chance": 0.15,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "car_battery",
+            "chance": 0.075,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "flashlight",
+            "chance": 0.05,
+            "quantity": 1,
+            "tier": "advanced"
+        }
+    ],
+    "stream_banks": [
+        {
+            "item_id": "mushrooms",
+            "chance": 0.40,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "berries",
+            "chance": 0.40,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "apples",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "oranges",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "raspberries",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "blueberries",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "walnuts",
+            "chance": 0.30,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "grubs",
+            "chance": 0.35,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "wood",
+            "chance": 0.45,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "ripped_cloth",
+            "chance": 0.28,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "rock",
+            "chance": 0.40,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "feather",
+            "chance": 0.32,
+            "quantity": 1,
+            "tier": "basic"
+        }
+    ],
+    "camp_cache": [
+        {
+            "item_id": "ripped_cloth",
+            "chance": 0.62,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "wood",
+            "chance": 0.55,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "mushrooms",
+            "chance": 0.24,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "berries",
+            "chance": 0.24,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "apples",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "oranges",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "raspberries",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "blueberries",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "walnuts",
+            "chance": 0.20,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "grubs",
+            "chance": 0.26,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "rock",
+            "chance": 0.24,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "feather",
+            "chance": 0.22,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "metal_scrap",
+            "chance": 0.36,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "mechanical_parts",
+            "chance": 0.34,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "electrical_parts",
+            "chance": 0.32,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "batteries",
+            "chance": 0.26,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "flashlight",
+            "chance": 0.18,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": InventorySystem.BACKPACK_ITEM_ID,
+            "chance": 0.14,
+            "quantity": 1,
+            "tier": "advanced"
+        }
+    ],
+    "cave_sparse": [
+        {
+            "item_id": "mushrooms",
+            "chance": 0.22,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "berries",
+            "chance": 0.22,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "ripped_cloth",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "wood",
+            "chance": 0.32,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "rock",
+            "chance": 0.45,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "grubs",
+            "chance": 0.25,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "feather",
+            "chance": 0.18,
+            "quantity": 1,
+            "tier": "basic"
+        },
+        {
+            "item_id": "plastic_sheet",
+            "chance": 0.06,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "metal_scrap",
+            "chance": 0.08,
+            "quantity": 1,
+            "tier": "advanced"
+        },
+        {
+            "item_id": "mechanical_parts",
+            "chance": 0.08,
+            "quantity": 1,
+            "tier": "advanced"
+        }
+    ]
+}
+
+# Travel encounter damage ranges (min-max HP) per hostile type.
+const TRAVEL_ENCOUNTER_DAMAGE := {
+    "wolves": {
+        "min": 5,
+        "max": 15
+    },
+    "zombies": {
+        "min": 8,
+        "max": 18
+    },
+    "survivors": {
+        "min": 10,
+        "max": 22
+    }
+}
+
+const TRAVEL_ENCOUNTER_TYPES := ["wolves", "zombies", "survivors"]
+
+# Travel prep modifiers applied to encounter chance and damage resolution.
+const TRAVEL_WEAPON_CHANCE_REDUCTION := {
+    "knife": 0.12,
+    "ranged": 0.15
+}
+
+const TRAVEL_ENCOUNTER_MITIGATION := {
+    "none": 1.0,
+    "single": 0.60,
+    "dual": 0.25
+}
 
 # Crafting recipes advertised to the UI with pre-baked cost and time data.
 const CRAFTING_RECIPES := {
@@ -538,6 +1122,9 @@ var flashlight_active: bool = false
 var _pending_game_food: Dictionary = {}
 var _radio_last_ack_day: int = 0
 var _radio_tip_shown: bool = false
+var _active_location: Dictionary = {}
+var _tutorial_popup: ActionPopupPanel
+var _tutorial_flags: Dictionary = {}
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -547,6 +1134,9 @@ func _ready():
         print("✅ Player found and connected")
     else:
         print("❌ Player not found!")
+
+    _active_location = _resolve_location_profile(DEFAULT_LOCATION_ID)
+    _tutorial_flags.clear()
 
     if sleep_system == null:
         sleep_system = SleepSystem.new()
@@ -618,6 +1208,9 @@ func _ready():
     if wood_stove_system:
         _on_wood_stove_state_changed(wood_stove_system.get_state())
 
+    _resolve_tutorial_popup()
+    call_deferred("_trigger_spawn_tutorial")
+
 func pause_game():
     game_paused = true
     print("⏸️ Game paused")
@@ -663,6 +1256,43 @@ func get_pending_game_stock() -> Dictionary:
         "total_food_units": _get_pending_game_food_units(),
         "animals": animals
     }
+
+func get_active_location() -> Dictionary:
+    """Expose the current travel location context."""
+    if _active_location.is_empty():
+        return _resolve_location_profile(DEFAULT_LOCATION_ID)
+    return _active_location.duplicate(true)
+
+func _resolve_location_profile(location_id: String) -> Dictionary:
+    var key = location_id.to_lower()
+    var profile = LOCATION_PROFILES.get(key, LOCATION_PROFILES.get(DEFAULT_LOCATION_ID, {}))
+    if typeof(profile) == TYPE_DICTIONARY:
+        return profile.duplicate(true)
+    return {}
+
+func _apply_active_location(option: Dictionary) -> Dictionary:
+    var location_id = String(option.get("id", DEFAULT_LOCATION_ID))
+    var profile = _resolve_location_profile(location_id)
+    profile["id"] = location_id
+    profile["label"] = option.get("label", profile.get("label", location_id.capitalize()))
+    profile["summary"] = option.get("summary", profile.get("summary", ""))
+    profile["hazard_tier"] = String(option.get("hazard_tier", profile.get("hazard_tier", "watchful"))).to_lower()
+    profile["temperature_band"] = String(option.get("temperature_band", profile.get("temperature_band", "temperate"))).to_lower()
+    profile["forage_profile"] = String(option.get("forage_profile", profile.get("forage_profile", "tower_standard"))).to_lower()
+    profile["fishing_allowed"] = bool(option.get("fishing_allowed", profile.get("fishing_allowed", false)))
+    profile["shelter_from_rain"] = bool(option.get("shelter_from_rain", profile.get("shelter_from_rain", false)))
+    var base_focus: Dictionary = profile.get("encounter_focus", {}) if typeof(profile.get("encounter_focus", {})) == TYPE_DICTIONARY else {}
+    var option_focus: Dictionary = option.get("encounter_focus", base_focus)
+    if typeof(option_focus) == TYPE_DICTIONARY:
+        profile["encounter_focus"] = option_focus.duplicate(true)
+    else:
+        profile["encounter_focus"] = base_focus.duplicate(true) if typeof(base_focus) == TYPE_DICTIONARY else {}
+    profile["travel_hours"] = float(option.get("travel_hours", profile.get("travel_hours", 0.0)))
+    profile["rest_cost_percent"] = float(option.get("rest_cost_percent", profile.get("rest_cost_percent", TRAVEL_REST_COST_PERCENT)))
+    profile["calorie_cost"] = float(option.get("calorie_cost", profile.get("calorie_cost", TRAVEL_CALORIE_COST)))
+    profile["checkpoint_index"] = int(option.get("checkpoint_index", profile.get("checkpoint_index", 1)))
+    _active_location = profile.duplicate(true)
+    return profile.duplicate(true)
 
 func get_hunt_status() -> Dictionary:
     var pending_stock = get_pending_game_stock()
@@ -1491,6 +2121,15 @@ func perform_fishing() -> Dictionary:
             "action": "fishing"
         }
 
+    var location = get_active_location()
+    if !bool(location.get("fishing_allowed", false)):
+        return {
+            "success": false,
+            "reason": "location_blocked",
+            "action": "fishing",
+            "location": location
+        }
+
     var rod_stock = inventory_system.get_item_count("fishing_rod") if inventory_system else 0
     if rod_stock <= 0:
         return {
@@ -1580,6 +2219,7 @@ func perform_fishing() -> Dictionary:
     result["grubs_consumed"] = grubs_consumed
     result["grubs_before"] = grub_stock
     result["grubs_remaining"] = inventory_system.get_item_count("grubs") if inventory_system else 0
+    result["location"] = location
     if !grub_consume_report.is_empty():
         result["grub_consume_report"] = grub_consume_report
         result["grub_consume_failed"] = !grub_consume_report.get("success", false)
@@ -1624,7 +2264,7 @@ func perform_forging() -> Dictionary:
 
     var rest_spent = sleep_system.consume_sleep(FORGING_REST_COST_PERCENT)
     var calorie_burn = sleep_system.adjust_daily_calories(FORGING_CALORIE_COST)
-    var loot_roll = _roll_forging_loot()
+    var loot_roll = _roll_forging_loot_for_location()
     var result := time_report.duplicate()
     result["action"] = "forging"
     result["status"] = result.get("status", "applied")
@@ -2634,6 +3274,9 @@ func perform_travel_to_next_location() -> Dictionary:
         rollback["state"] = expedition_system.get_state()
         return rollback
 
+    var location = _apply_active_location(option)
+    var encounter = _roll_travel_encounter(option)
+
     var result := time_report.duplicate()
     result["action"] = "travel"
     result["status"] = result.get("status", "applied")
@@ -2648,6 +3291,9 @@ func perform_travel_to_next_location() -> Dictionary:
     result["travel_hours"] = hours
     result["minutes_required"] = time_report.get("minutes_required", result.get("minutes_spent", 0))
     result["state"] = expedition_system.get_state()
+    result["location"] = location
+    if !encounter.is_empty():
+        result["encounter"] = encounter
     return result
 
 func craft_item(recipe_id: String) -> Dictionary:
@@ -2850,353 +3496,149 @@ func _pick_fishing_size(roll: float) -> Dictionary:
         return FISHING_SIZE_TABLE[FISHING_SIZE_TABLE.size() - 1]
     return {}
 
-func _roll_forging_loot() -> Array:
-    var table = [
-        {
-            "item_id": "mushrooms",
-            "chance": 0.25,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "berries",
-            "chance": 0.25,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "walnuts",
-            "chance": 0.25,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "grubs",
-            "chance": 0.20,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "apples",
-            "chance": 0.20,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "oranges",
-            "chance": 0.20,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "raspberries",
-            "chance": 0.20,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "blueberries",
-            "chance": 0.20,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "ripped_cloth",
-            "chance": 0.30,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "rock",
-            "chance": 0.30,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "vines",
-            "chance": 0.175,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "wood",
-            "chance": 0.45,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "feather",
-            "chance": 0.30,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "plastic_sheet",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "metal_scrap",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "nails",
-            "chance": 0.10,
-            "quantity": 3,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "duct_tape",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "medicinal_herbs",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "fuel",
-            "chance": 0.10,
-            "quantity_range": [3, 5],
-            "tier": "advanced"
-        },
-        {
-            "item_id": "mechanical_parts",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "electrical_parts",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "batteries",
-            "chance": 0.15,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "car_battery",
-            "chance": 0.075,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "flashlight",
-            "chance": 0.05,
-            "quantity": 1,
-            "tier": "advanced"
-        }
-    ]
 
+func _roll_forging_loot_for_location() -> Array:
+    var profile_id = _get_active_forage_profile()
+    var table = _get_forage_table(profile_id)
     return _roll_loot_from_table(table)
 
 func _roll_campground_loot() -> Array:
-    var table = [
-        {
-            "item_id": "mushrooms",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "berries",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "apples",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "oranges",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "raspberries",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "blueberries",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "walnuts",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "grubs",
-            "chance": 0.10,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "ripped_cloth",
-            "chance": 0.55,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "wood",
-            "chance": 0.45,
-            "quantity": 1,
-            "tier": "basic"
-        },
-        {
-            "item_id": "plastic_sheet",
-            "chance": 0.25,
-            "quantity": 2,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "metal_scrap",
-            "chance": 0.25,
-            "quantity": 2,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "nails",
-            "chance": 0.25,
-            "quantity": 3,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "duct_tape",
-            "chance": 0.25,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "medicinal_herbs",
-            "chance": 0.25,
-            "quantity": 1,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "fuel",
-            "chance": 0.25,
-            "quantity_range": [3, 5],
-            "tier": "advanced"
-        },
-        {
-            "item_id": "mechanical_parts",
-            "chance": 0.25,
-            "quantity": 2,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "electrical_parts",
-            "chance": 0.25,
-            "quantity": 2,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "canned_food",
-            "chance": 0.15,
-            "quantity": 1,
-            "tier": "provision"
-        },
-        {
-            "item_id": "nails_pack",
-            "chance": 0.20,
-            "quantity": 5,
-            "tier": "advanced"
-        },
-        {
-            "item_id": "feather",
-            "chance": 0.50,
-            "quantity": 1,
-            "tier": "basic"
-        }
-    ]
-
+    var profile_id = _get_active_forage_profile()
+    if profile_id == "stream_banks":
+        profile_id = "camp_cache"
+    var table = _get_forage_table(profile_id)
     return _roll_loot_from_table(table)
 
-func _roll_hunt_animal() -> Dictionary:
-    if _rng == null:
-        return {}
-    for entry in HUNT_ANIMAL_TABLE:
-        var chance = float(entry.get("chance", 0.0))
-        if chance <= 0.0:
-            continue
-        var roll = _rng.randf()
-        if roll < chance:
-            return {
-                "id": entry.get("id", ""),
-                "display_name": entry.get("label", entry.get("id", "")),
-                "chance": chance,
-                "roll": roll,
-                "food_units": float(entry.get("food_units", 0.0))
-            }
-    return {}
+func _get_active_forage_profile() -> String:
+    var location = get_active_location()
+    var profile = String(location.get("forage_profile", "tower_standard"))
+    if profile.is_empty():
+        return "tower_standard"
+    return profile.to_lower()
 
-func _choose_snare_animal() -> Dictionary:
-    if _rng == null or SNARE_ANIMAL_IDS.is_empty():
-        return {}
-    var index = _rng.randi_range(0, SNARE_ANIMAL_IDS.size() - 1)
-    var animal_id = String(SNARE_ANIMAL_IDS[index])
-    var label = HUNT_ANIMAL_LABELS.get(animal_id, animal_id.capitalize())
-    var food_units = float(HUNT_ANIMAL_BASES.get(animal_id, 0.0))
-    return {
-        "id": animal_id,
-        "label": label,
-        "food_units": food_units
-    }
-
-func _add_pending_game_food(animal_id: String, amount: float):
-    if animal_id.is_empty() or amount <= 0.0:
-        return
-    var current = float(_pending_game_food.get(animal_id, 0.0))
-    _pending_game_food[animal_id] = current + amount
-
-func _consume_pending_game_food(amount: float):
-    amount = max(amount, 0.0)
-    if amount <= 0.0:
-        return
-    var remaining = amount
-    var keys: Array = _pending_game_food.keys()
-    for key in keys:
-        if remaining <= 0.0:
-            break
-        var stored = float(_pending_game_food.get(key, 0.0))
-        if stored <= 0.0:
-            continue
-        var consumed = min(stored, remaining)
-        stored -= consumed
-        remaining -= consumed
-        if stored <= 0.0001:
-            _pending_game_food.erase(key)
+func _get_forage_table(profile_id: String) -> Array:
+    var key = profile_id.to_lower()
+    if key == "wild_standard":
+        key = "tower_standard"
+    if !FORAGE_PROFILE_TABLES.has(key):
+        key = "tower_standard"
+    var source: Array = FORAGE_PROFILE_TABLES.get(key, [])
+    var cloned: Array = []
+    for entry in source:
+        if typeof(entry) == TYPE_DICTIONARY:
+            cloned.append(entry.duplicate(true))
         else:
-            _pending_game_food[key] = stored
-    if remaining > 0.0001:
-        _pending_game_food.clear()
-    _emit_hunt_stock_changed()
+            cloned.append(entry)
+    return cloned
 
-func _get_pending_game_food_units() -> float:
-    var total: float = 0.0
-    for value in _pending_game_food.values():
-        total += float(value)
-    return total
+func _roll_travel_encounter(option: Dictionary) -> Dictionary:
+    if _rng == null or health_system == null:
+        return {}
+    var location = get_active_location()
+    var hazard = String(location.get("hazard_tier", option.get("hazard_tier", "watchful"))).to_lower()
+    var tier: Dictionary = TRAVEL_HAZARD_TIERS.get(hazard, TRAVEL_HAZARD_TIERS.get("watchful", {}))
+    var min_chance = float(tier.get("chance_min", 0.18))
+    var max_chance = float(tier.get("chance_max", 0.32))
+    if max_chance < min_chance:
+        var swap = min_chance
+        min_chance = max_chance
+        max_chance = swap
+    var base_roll = _rng.randf_range(min_chance, max_chance)
+    var fatigue_penalty = 0.0
+    if sleep_system and sleep_system.get_sleep_percent() <= 35.0:
+        fatigue_penalty = 0.10
+    var has_knife = inventory_system and inventory_system.get_item_count(CRAFTED_KNIFE_ID) > 0
+    var has_bow = inventory_system and inventory_system.get_item_count("bow") > 0
+    var has_arrows = inventory_system and inventory_system.get_item_count("arrow") > 0
+    var weapon_reduction = 0.0
+    if has_knife:
+        weapon_reduction += float(TRAVEL_WEAPON_CHANCE_REDUCTION.get("knife", 0.0))
+    if has_bow and has_arrows:
+        weapon_reduction += float(TRAVEL_WEAPON_CHANCE_REDUCTION.get("ranged", 0.0))
+    weapon_reduction = clamp(weapon_reduction, 0.0, 0.95)
+    var chance = clamp(base_roll + fatigue_penalty - weapon_reduction, 0.0, 1.0)
+    var roll = _rng.randf()
+    var encounter := {
+        "hazard_tier": hazard,
+        "chance": chance,
+        "base_roll": base_roll,
+        "roll": roll,
+        "fatigue_penalty": fatigue_penalty,
+        "weapon_reduction": weapon_reduction,
+        "has_knife": has_knife,
+        "has_bow": has_bow,
+        "has_arrows": has_arrows,
+        "triggered": roll < chance
+    }
+    if !encounter.get("triggered", false):
+        return encounter
+    var focus: Dictionary = location.get("encounter_focus", option.get("encounter_focus", {}))
+    var threat = _pick_travel_encounter_type(focus)
+    encounter["type"] = threat
+    var damage_report = _resolve_encounter_damage(threat, has_knife, has_bow and has_arrows)
+    if !damage_report.is_empty():
+        for key in damage_report.keys():
+            encounter[key] = damage_report[key]
+    return encounter
+
+func _pick_travel_encounter_type(focus: Dictionary) -> String:
+    var weights: Dictionary = {}
+    var total := 0.0
+    for entry in TRAVEL_ENCOUNTER_TYPES:
+        var weight = float(focus.get(entry, 0.0))
+        if weight < 0.0:
+            weight = 0.0
+        weights[entry] = weight
+        total += weight
+    if total <= 0.0:
+        return TRAVEL_ENCOUNTER_TYPES[_rng.randi_range(0, TRAVEL_ENCOUNTER_TYPES.size() - 1)]
+    var roll = _rng.randf() * total
+    var cumulative := 0.0
+    for entry in TRAVEL_ENCOUNTER_TYPES:
+        cumulative += float(weights.get(entry, 0.0))
+        if roll <= cumulative:
+            return entry
+    return TRAVEL_ENCOUNTER_TYPES.back()
+
+func _resolve_encounter_damage(threat: String, has_knife: bool, has_ranged: bool) -> Dictionary:
+    var key = threat.to_lower()
+    var ranges: Dictionary = TRAVEL_ENCOUNTER_DAMAGE.get(key, {})
+    if ranges.is_empty() or _rng == null or health_system == null:
+        return {}
+    var min_damage = int(ranges.get("min", 0))
+    var max_damage = int(ranges.get("max", min_damage))
+    if max_damage < min_damage:
+        var swap = min_damage
+        min_damage = max_damage
+        max_damage = swap
+    var rolled = _rng.randi_range(min_damage, max_damage)
+    var mitigation_key := "none"
+    if has_knife and has_ranged:
+        mitigation_key = "dual"
+    elif has_knife or has_ranged:
+        mitigation_key = "single"
+    var mitigation_factor = float(TRAVEL_ENCOUNTER_MITIGATION.get(mitigation_key, 1.0))
+    var mitigated = mitigation_key != "none"
+    var adjusted = int(round(rolled * mitigation_factor)) if mitigation_factor > 0.0 else 0
+    var report := {
+        "damage_roll": rolled,
+        "damage_min": min_damage,
+        "damage_max": max_damage,
+        "mitigated": mitigated,
+        "mitigation_factor": mitigation_factor,
+        "mitigation_tier": mitigation_key,
+        "damage_applied": 0.0
+    }
+    if adjusted <= 0:
+        report["health_before"] = health_system.get_health()
+        report["health_after"] = report["health_before"]
+        return report
+    var damage_report = health_system.apply_damage(adjusted, "travel_%s" % key)
+    report["damage_report"] = damage_report
+    report["damage_applied"] = float(damage_report.get("applied", adjusted))
+    report["health_before"] = damage_report.get("previous_health", damage_report.get("health_before", health_system.get_health()))
+    report["health_after"] = damage_report.get("new_health", damage_report.get("health_after", health_system.get_health()))
+    return report
 
 func _emit_hunt_stock_changed():
     hunt_stock_changed.emit(get_pending_game_stock())
@@ -3270,6 +3712,77 @@ func _format_dropped_entries(entries: Array) -> Array:
             "roll": float(entry.get("roll", 0.0))
         })
     return formatted
+
+func _ensure_tutorial_popup() -> bool:
+    if is_instance_valid(_tutorial_popup):
+        return true
+    var tree = get_tree()
+    if tree == null:
+        return false
+    var root = tree.get_root()
+    if root == null:
+        return false
+    var node = root.get_node_or_null("Main/UI/ActionPopupPanel")
+    if node is ActionPopupPanel:
+        _tutorial_popup = node
+    return is_instance_valid(_tutorial_popup)
+
+func _resolve_tutorial_popup():
+    _ensure_tutorial_popup()
+
+func _trigger_spawn_tutorial():
+    request_tutorial("tower_welcome")
+
+func request_tutorial(tutorial_id: String) -> bool:
+    var key = tutorial_id.to_lower()
+    if _tutorial_flags.get(key, false):
+        return false
+    var payload = _build_tutorial_payload(key)
+    if payload.is_empty():
+        _tutorial_flags[key] = true
+        return false
+    if !_ensure_tutorial_popup():
+        return false
+    var title = String(payload.get("title", ""))
+    var lines: PackedStringArray = payload.get("lines", PackedStringArray([]))
+    if lines.is_empty():
+        _tutorial_flags[key] = true
+        return false
+    _tutorial_popup.show_message(title, lines)
+    _tutorial_flags[key] = true
+    return true
+
+func _build_tutorial_payload(key: String) -> Dictionary:
+    match key:
+        "tower_welcome":
+            return {
+                "title": "Welcome to Lone Pine",
+                "lines": PackedStringArray([
+                    "Hey lookout! Dispatch here—we've got the tower ready for your watch.",
+                    "Start each morning with the radio, keep the stove humming, and scan the horizon from the deck.",
+                    "Forge supplies, cook rations, and patch the tower—tidy packs make every job quicker.",
+                    "When you're carving meat you might think, 'If I had a sharper tool though…'—a honed knife saves precious bites."
+                ])
+            }
+        "inventory_intro":
+            return {
+                "title": "Supply Locker Primer",
+                "lines": PackedStringArray([
+                    "Your locker sorts gear by stack so you can spot tools at a glance.",
+                    "Keep materials grouped; clean shelves mean the crafting bench grabs what it needs without fuss.",
+                    "Snag a backpack when you find one—extra carry space buys longer scavenges between trips."
+                ])
+            }
+        "crafting_intro":
+            return {
+                "title": "Workbench Brief",
+                "lines": PackedStringArray([
+                    "Highlight any blueprint to see the resource list and my scribbled hints.",
+                    "Pair bows with fresh arrows, knives with butchering, and keep spare tinder ready for fire kits.",
+                    "Build a portable craft station once you're roaming so trail repairs stay on schedule."
+                ])
+            }
+    return {}
 
 func _on_day_rolled_over():
     current_day += 1
