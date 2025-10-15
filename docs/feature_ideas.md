@@ -14,7 +14,7 @@
 - **Prep Phase Milestones**: Gate expedition start behind tower quests requiring stockpiles (food 10-15 units, medkits 3-5, tools durability 80%+).
 - **Route Planning Map**: Unlock hex-map routes (5-9 tiles per leg) with terrain tags affecting stamina drain and encounter odds.
 - **Checkpoint Atlas**: Press `M` to open an 8-node trek map; each checkpoint branches into two randomized legs lasting 3-8 in-game hours.
-- **Location Deck**: Shuffle Overgrown Path, Clearing, Small Stream, Thick Forest, Old Campsite, Small Cave, and Hunting Stand cards when presenting the two travel choices.
+- **Location Deck**: Shuffle Overgrown Path, Clearing, Small Stream, Thick Forest, Old Campsite, Old Cave, and Hunting Stand cards when presenting the two travel choices.
 - **Location Stat Index**:
   | Location | Hours Min | Hours Max | Rest % | Calories | Hazard Tier | Temperature Band | Travel Note |
   | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@
   | Small Stream | 4.0 | 5.5 | 15.0 | 600 | Hostile | Temperate | Cold water banks require steady footing to avoid slips. |
   | Thick Forest | 5.0 | 6.5 | 16.5 | 640 | Calm | Cool | Dense pines force cautious steps while cover stays high. |
   | Old Campsite | 4.0 | 6.0 | 15.0 | 590 | Watchful | Cool | Lootable ruins trade time for extra salvage under tarps. |
-  | Small Cave | 4.5 | 6.0 | 17.0 | 610 | Calm | Cold | Narrow crawl shields travelers from storms and scouts. |
+| Old Cave | 4.5 | 6.0 | 17.0 | 610 | Calm | Cold | Narrow crawl shields travelers from storms and scouts. |
   | Hunting Stand | 3.5 | 4.5 | 14.0 | 570 | Watchful | Cool | Elevated sightlines ease scouting but invite aerial drafts. |
 - **Daily Trek Rhythm**: Structure each travel day into morning break camp, midday event, and dusk campfire crafting with time-sliced decisions.
 - **Portable Craft Station**: Assemble the roaming bench (Metal Scrap ×2, Wood ×4, Ripped Cloth ×1, Plastic Sheet ×2, Nails ×5, Rock ×2, Crafted Knife) to unlock tier-1 crafting while hiking.
@@ -31,7 +31,7 @@
 - **Route Danger Curves**: Let shorter legs raise human/zombie/wolf encounter odds 25-60%, mitigated by equipped weapons (knife, bow + arrows) that convert incoming damage to bruises or null outcomes.
 
 ### Encounter Banding Draft
-- **Calm Tier (08-15%)**: Long, concealed routes (Thick Forest, Small Cave) start here; knives reduce residual damage to 1-2 HP.
+- **Calm Tier (08-15%)**: Long, concealed routes (Thick Forest, Old Cave) start here; knives reduce residual damage to 1-2 HP.
 - **Watchful Tier (18-32%)**: Balanced legs (Overgrown Path, Old Campsite, Hunting Stand) sit mid-risk; bows or pistols nullify 50-75% of contact harm.
 - **Hostile Tier (35-55%)**: Short, exposed paths (Clearing, Small Stream) spike risk; firearms or reinforced melee negate all but bleed procs.
 - **Mitigation Rules**: Compute base chance from tier, apply -10% per prepared weapon slot, -5% for armor layers, and +10% when traveling fatigued above 65%.
@@ -42,7 +42,7 @@
 - **Clearing**: Fast traversal and standard loot; lack of cover drives higher hostile survivor, wolf, and zombie contact. Sun exposure nudges temperature above temperate.
 - **Thick Forest**: Travel takes longer than Overgrown Path but enemy encounters stay minimal; shade keeps the ambient temperature cooler.
 - **Old Campsite**: Weighted loot skew toward Cloth, Wood, Mechanical Parts, Electrical Parts, Scrap Metal, Batteries, Flashlight, Backpack, plus the Small Stream forage bundle. Encounter mix favors zombies and hostile survivors; wolves are rare. Cooler due to tarp sheltering.
-- **Small Cave**: Default loot profile, safest encounter tier, colder climate, and grants rain protection while occupied.
+- **Old Cave**: Default loot profile, safest encounter tier, colder climate, and grants rain protection while occupied.
 - **Camp Morale System**: Track party morale using shelter quality, meal variety, and story prompts; low morale triggers debuffs or disputes.
 
 ## Combat & Defense

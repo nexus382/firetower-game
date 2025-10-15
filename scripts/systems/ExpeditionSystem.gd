@@ -109,7 +109,7 @@ const LOCATION_DECK := [
         "shelter_from_rain": true
     },
     {
-        "id": "small_cave",
+        "id": "old_cave",
         "label": "Old Cave",
         "hours_min": 4.5,
         "hours_max": 6.0,

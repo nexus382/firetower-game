@@ -287,7 +287,7 @@ const LOCATION_PROFILES := {
         },
         "shelter_from_rain": true
     },
-    "small_cave": {
+    "old_cave": {
         "label": "Old Cave",
         "summary": "Cold, quiet shelter carved out of the ridge.",
         "hazard_tier": "calm",

@@ -178,7 +178,7 @@
 * **Role**: Multi-day wilderness trek coordinator that sequences checkpoints, draws travel routes, and feeds UI summaries.
 * **Checkpoint Schema**: Eight sequential legs (0–7) each store `available_routes` (two entries), `selected_route_index` (`null` until chosen), and `completed` (`false`/`true`).
 * **Route Payload**: Every route defines `location_id`, `display_name`, `travel_hours` (baseline 4.0–12.0 window), and optional modifiers (`rest_delta`, `calorie_delta`, `morale_delta`) so balancing tweaks remain data-driven.
-* **Location Deck**: Seed with the wilderness set (Overgrown Path, Clearing, Small Stream, Thick Forest, Old Campsite, Small Cave, Hunting Stand) and shuffle between checkpoints to keep legs fresh.
+* **Location Deck**: Seed with the wilderness set (Overgrown Path, Clearing, Small Stream, Thick Forest, Old Campsite, Old Cave, Hunting Stand) and shuffle between checkpoints to keep legs fresh.
 * **Progression Hooks**: `begin_expedition()` seeds RNG and draws first leg, `select_route(checkpoint_index, route_index)` commits a path, `advance_to_next_checkpoint()` flags completion, and `is_expedition_complete()` returns `true` once checkpoint 7 closes.
 * **Task Integration**: Travel actions consume the selected route's payload, drive time advancement, and emit `expedition_progressed(checkpoint_index, route_data)` for HUD/map refreshes.
 
@@ -283,7 +283,7 @@
 * **Small Stream**: Creekside detour; medium travel hours (6.0–8.0) with hydration bonus but cold checks if warmth is low.
 * **Thick Forest**: Heavy canopy stretch; longer travel hours (7.0–11.0), rest tax, and stealth advantage versus roaming threats.
 * **Old Campsite**: Abandoned rest stop; medium travel hours (5.5–7.5) with a loot roll for spare supplies and a minor infection risk.
-* **Small Cave**: Rocky crawlspace; compact travel hours (4.5–6.5), warmth boost overnight, and chance to lose navigation time if light sources are absent.
+* **Old Cave**: Rocky crawlspace; compact travel hours (4.5–6.5), warmth boost overnight, and chance to lose navigation time if light sources are absent.
 * **Hunting Stand**: Elevated route; longer travel hours (6.5–9.5) but grants scouting intel that can reveal upcoming hazards on the next checkpoint.
 
 ## Foraging Loot Table (`_roll_forging_loot`)
