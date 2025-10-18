@@ -1,0 +1,56 @@
+name: Godot CI (Headless Tests)
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GODOT_VERSION: "4.2"
+      GODOT_BIN: "godot"
+      GUT_JUNIT_XML: ".ci/results/gut-report.xml"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: false
+      - name: Cache import cache  # Why: avoids slow/flaky first imports
+        uses: actions/cache@v4
+        with:
+          path: |
+            .godot
+            .import
+          key: ${{ runner.os }}-godot-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot') }}
+          restore-keys: |
+            ${{ runner.os }}-godot-${{ env.GODOT_VERSION }}-
+      - name: Pre-import project
+        run: |
+          mkdir -p .ci
+          ${{ env.GODOT_BIN }} --headless --verbose --editor --quit || true
+      - name: Run GUT tests
+        run: |
+          mkdir -p .ci/results
+          ${{ env.GODOT_BIN }} --headless -s res://addons/gut/gut_cmdln.gd \
+            -gexit -glog=2 -gdir=res://tests -ginclude_subdirs=true \
+            -gxml="res://${{ env.GUT_JUNIT_XML }}"
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gut-report
+          path: .ci/results
+      - name: Test summary
+        if: always()
+        run: |
+          echo "### GUT Test Report" >> $GITHUB_STEP_SUMMARY
+          if [ -f "${{ env.GUT_JUNIT_XML }}" ]; then
+            echo "Saved JUnit XML at ${{ env.GUT_JUNIT_XML }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No XML report found." >> $GITHUB_STEP_SUMMARY
+          fi
