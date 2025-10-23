@@ -4,11 +4,6 @@
 extends Area2D
 class_name Radio
 
-# Preload typed dependencies so Godot can resolve hints during parse.
-const GameManager := preload("res://scripts/GameManager.gd")
-const ActionPopupPanel := preload("res://scripts/ui/ActionPopupPanel.gd")
-const Player := preload("res://scripts/Player.gd")
-
 const ATTENTION_ON_SECONDS := 1.5
 const ATTENTION_OFF_SECONDS := 0.2
 
@@ -21,8 +16,8 @@ const ATTENTION_OFF_SECONDS := 0.2
 # Tracks when the player can trigger the interaction prompt.
 var _player_in_range: bool = false
 var _game_manager: GameManager = null
-var _radio_panel: Control = null
-var _tutorial_popup: ActionPopupPanel = null
+var _radio_panel: Control
+var _tutorial_popup: ActionPopupPanel
 var _prompt_template: String = ""
 var _attention_timer: Timer
 var _attention_showing: bool = false
