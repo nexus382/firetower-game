@@ -319,7 +319,7 @@ func create_radio_station():
     if living_node == null:
         return
 
-    var radio: Radio = RadioScene.instantiate()
+    var radio: Area2D = RadioScene.instantiate() as Area2D
     if radio == null:
         return
     radio.name = "Radio"
