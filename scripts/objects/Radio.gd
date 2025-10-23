@@ -6,6 +6,7 @@ class_name Radio
 
 const ATTENTION_ON_SECONDS := 1.5
 const ATTENTION_OFF_SECONDS := 0.2
+const ActionPopupPanelClass := preload("res://scripts/ui/ActionPopupPanel.gd")
 
 @export var prompt_text: String = "Press [%s] to tune"
 @export var static_text: String = "Only static crackles tonight."
@@ -17,7 +18,7 @@ const ATTENTION_OFF_SECONDS := 0.2
 var _player_in_range: bool = false
 var _game_manager: GameManager = null
 var _radio_panel: Control
-var _tutorial_popup: ActionPopupPanel
+var _tutorial_popup: ActionPopupPanelClass
 var _prompt_template: String = ""
 var _attention_timer: Timer
 var _attention_showing: bool = false
@@ -61,7 +62,7 @@ func _resolve_dependencies():
     _radio_panel = panel_node if panel_node is Control else null
 
     var popup_node = root.get_node_or_null("Main/UI/ActionPopupPanel")
-    _tutorial_popup = popup_node as ActionPopupPanel if popup_node is ActionPopupPanel else null
+    _tutorial_popup = popup_node as ActionPopupPanelClass if popup_node is ActionPopupPanelClass else null
 
 func _unhandled_input(event):
     if !_player_in_range:
