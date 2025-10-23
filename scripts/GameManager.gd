@@ -1876,23 +1876,24 @@ func request_radio_broadcast() -> Dictionary:
             "text": ""
         }
 
-    var supply_note = _build_daily_supply_radio_note()
+    # Structured supply note (title + lines + joined text) keeps UI flexible when composing the broadcast.
+    var supply_note := _build_daily_supply_radio_note()
+    var supply_text := ""
     if !supply_note.is_empty():
-        var existing_text = String(broadcast.get("text", ""))
-        if existing_text.is_empty():
-            existing_text = supply_note
-        else:
-            existing_text = "{0}\n\n{1}".format([existing_text, supply_note])
-        broadcast["text"] = existing_text
-        has_message = true
+        supply_text = String(supply_note.get("text", ""))
+        if !supply_text.is_empty():
+            has_message = true
 
     var result := {
         "success": true,
         "day": current_day,
         "has_message": has_message,
         "broadcast": broadcast,
-        "daily_supply_status": _resolve_daily_supply_status()
+        "daily_supply_status": _resolve_daily_supply_status(),
+        "daily_supply_note": supply_note
     }
+    if supply_text.is_empty():
+        result.erase("daily_supply_note")
     if !has_message:
         result["reason"] = "no_broadcast"
     return result
@@ -1984,7 +1985,8 @@ func _acknowledge_daily_supply_notice():
     if !_daily_supply_spoil_notice.is_empty():
         _daily_supply_spoil_notice.clear()
 
-func _build_daily_supply_radio_note() -> String:
+func _build_daily_supply_radio_note() -> Dictionary:
+    # Returns `{ "title": String, "lines": PackedStringArray, "text": String }` when a note should surface.
     var lines: PackedStringArray = []
 
     if !_daily_supply_spoil_notice.is_empty():
@@ -2005,9 +2007,14 @@ func _build_daily_supply_radio_note() -> String:
             lines.append("Dispatch left a fresh hamper at the base door—claim it before dusk or it spoils.\n{0}".format([summary_text]))
 
     if lines.is_empty():
-        return ""
+        return {}
 
-    return "Supply Cache Update:\n%s" % "\n\n".join(lines)
+    var title := "Supply Cache Update"
+    return {
+        "title": title,
+        "lines": lines,
+        "text": "%s:\n%s" % [title, "\n\n".join(lines)]
+    }
 
 func _spawn_daily_supply_drop(source: String = ""):
     var items = _roll_daily_supply_items()

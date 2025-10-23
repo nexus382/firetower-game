@@ -97,18 +97,43 @@ func _handle_interaction():
     var broadcast: Dictionary = report.get("broadcast", {})
     if report.get("has_message", false) and !broadcast.is_empty():
         var title = broadcast.get("title", "Radio Update")
-        var text = broadcast.get("text", static_text)
+        var blocks: Array = []
+        var base_text = String(broadcast.get("text", ""))
+        if !base_text.is_empty():
+            blocks.append(base_text)
+
         var claim_report = _game_manager.claim_daily_supply_drop()
+        # Append structured supply note after the claim so reminders stay accurate when the cache is secured.
+        var supply_note: Dictionary = report.get("daily_supply_note", {})
+        var supply_lines: PackedStringArray = supply_note.get("lines", PackedStringArray([]))
+        if claim_report.get("claimed", false) and !supply_lines.is_empty():
+            var trimmed := PackedStringArray([])
+            for line in supply_lines:
+                if line.find("Dispatch left a fresh hamper") != -1:
+                    continue
+                trimmed.append(line)
+            supply_lines = trimmed
+        if supply_lines.size() > 0:
+            var note_title = String(supply_note.get("title", ""))
+            var note_body = "\n\n".join(supply_lines)
+            var supply_block = note_body if note_title.is_empty() else "%s:\n%s" % [note_title, note_body]
+            blocks.append(supply_block)
+
         if claim_report.get("had_cache", false):
             if claim_report.get("claimed", false):
                 var summary = String(claim_report.get("summary_text", ""))
                 if !summary.is_empty():
-                    var claim_block = "Hamper Secured:\n{0}".format([summary])
-                    text = claim_block if text.is_empty() else "{0}\n\n{1}".format([text, claim_block])
-            elif String(claim_report.get("reason", "")).is_empty() == false:
+                    blocks.append("Hamper Secured:\n%s" % summary)
+            else:
                 var miss_reason = String(claim_report.get("reason", ""))
-                var friendly_reason = miss_reason.replace("_", " ").capitalize()
-                text = "{0}\n\nHamper Status: {1}".format([text, friendly_reason])
+                if !miss_reason.is_empty():
+                    var friendly_reason = miss_reason.replace("_", " ").capitalize()
+                    blocks.append("Hamper Status: %s" % friendly_reason)
+
+        var text = "\n\n".join(blocks)
+        if text.is_empty():
+            text = static_text
+
         var day_value = report.get("day", 0)
         _show_panel_with_message({
             "title": "{0} - Day {1}".format([title, day_value]),
