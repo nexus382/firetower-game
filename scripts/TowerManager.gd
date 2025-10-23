@@ -8,7 +8,7 @@ class_name TowerManager
 var tower_bounds: Rect2
 var catwalk_width: float = 0.05  # 5% of tower width (keep between 0.04 - 0.08 for play space)
 
-const Radio = preload("res://scripts/objects/Radio.gd")
+const RadioScene = preload("res://scenes/objects/Radio.tscn")
 const CraftingTable = preload("res://scripts/objects/CraftingTable.gd")
 const WoodStove = preload("res://scripts/objects/WoodStove.gd")
 
@@ -303,15 +303,17 @@ func create_ladder():
     print("🏗️ Created ladder at: %s" % ladder_pos)
 
 func create_radio_station():
-    """Create a static radio against the living room wall."""
-    if Radio == null:
+    """Instance the shared radio scene against the living room wall."""
+    if RadioScene == null:
         return
 
     var living_node: Node = inside_view.get_node_or_null("LivingArea")
     if living_node == null:
         return
 
-    var radio: Radio = Radio.new()
+    var radio: Radio = RadioScene.instantiate()
+    if radio == null:
+        return
     radio.name = "Radio"
 
     var margin = 24.0
