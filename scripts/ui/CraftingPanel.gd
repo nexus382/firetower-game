@@ -46,6 +46,8 @@ func open_panel():
         _build_recipe_list()
         _refresh_detail_text()
         _update_recipe_states()
+        if game_manager:
+            game_manager.request_tutorial("crafting_intro")
     if close_button:
         close_button.focus_mode = Control.FOCUS_ALL
     var first_button: Button = _buttons.get(_active_recipe, {}).get("button") if _buttons.has(_active_recipe) else null
@@ -248,6 +250,15 @@ func _refresh_detail_text():
     var description = String(recipe.get("description", ""))
     if !description.is_empty():
         lines.append(description)
+    var tips: Array = recipe.get("tips", [])
+    if !tips.is_empty():
+        if !lines.is_empty():
+            lines.append("")
+        for tip in tips:
+            var hint = String(tip)
+            if hint.is_empty():
+                continue
+            lines.append("• %s" % hint)
     var duration = float(recipe.get("hours", 1.0))
     if duration > 0.0:
         var minutes = int(ceil(duration * 60.0 * max(_resolve_multiplier(), 0.01)))

@@ -11,12 +11,14 @@ func _ready():
     print("🎮 Player initialized at position: %s" % position)
 
     # Connect to tower manager for positioning
-    var tower_manager = get_node("../TowerManager")
-    if tower_manager:
-        # Position player in the center of the Living Area
-        var living_center = tower_manager.living_area_rect.position + tower_manager.living_area_rect.size / 2
-        position = living_center
-        print("🎮 Player positioned in Living Area center: %s" % position)
+    var tower_manager = get_node_or_null("../TowerManager")
+    if tower_manager is TowerManager:
+        var living_center = tower_manager.get_living_area_center()
+        if living_center != Vector2.ZERO:
+            position = living_center
+            print("🎮 Player positioned in Living Area center: %s" % position)
+    else:
+        print("⚠️ TowerManager unavailable; keeping default spawn.")
 
 func _physics_process(delta):
     handle_movement()

@@ -29,6 +29,7 @@ var inventory_system: InventorySystem
 var time_system: TimeSystem
 var _tool_buttons: Dictionary = {}
 var _last_state: Dictionary = {}
+var _showing_hint: bool = false
 
 func _ready():
     visible = false
@@ -69,6 +70,9 @@ func open_panel():
         visible = true
         status_label.text = ""
         _refresh_state()
+        if status_label:
+            status_label.text = _build_fire_basics_hint()
+            _showing_hint = true
     if add_button and !add_button.disabled:
         add_button.focus_mode = Control.FOCUS_ALL
         add_button.grab_focus()
@@ -80,6 +84,7 @@ func open_panel():
 
 func close_panel():
     visible = false
+    _showing_hint = false
 
 func _unhandled_input(event):
     if !visible:
@@ -133,7 +138,7 @@ func _refresh_state():
         kindling_value.text = "%d in pack" % max(kindling_count, 0)
 
     if capacity_label:
-        capacity_label.text = "Capacity: %d free" % max(capacity, 0)
+        capacity_label.text = "Firebox: %d slots free · 4h per log" % max(capacity, 0)
     if add_button:
         var wood_stock = inventory_system.get_item_count("wood") if inventory_system else 0
         add_button.disabled = capacity <= 0 or wood_stock <= 0
@@ -150,7 +155,7 @@ func _rebuild_tool_buttons(is_lit: bool, has_fuel: bool, kindling_count: int):
     _tool_buttons.clear()
 
     if tool_header:
-        tool_header.text = "Fire Starting Tools"
+        tool_header.text = "Fire Starters · 1 tinder per try"
 
     if inventory_system == null:
         var offline = Label.new()
@@ -164,14 +169,14 @@ func _rebuild_tool_buttons(is_lit: bool, has_fuel: bool, kindling_count: int):
     if bow_stock > 0:
         options.append({
             "id": FIRE_STARTING_BOW_ID,
-            "label": "Bow Drill (75% chance)",
+            "label": "Bow Drill · 75% spark · tinder recovers 50%",
             "stock": bow_stock
         })
     var flint_stock = inventory_system.get_item_count(FLINT_AND_STEEL_ID)
     if flint_stock > 0:
         options.append({
             "id": FLINT_AND_STEEL_ID,
-            "label": "Flint & Steel (90% | %d uses)" % flint_stock,
+            "label": "Flint & Steel · 90% spark · %d charges" % max(flint_stock, 0),
             "stock": flint_stock
         })
 
@@ -204,9 +209,13 @@ func _format_burn_time(minutes: float) -> String:
         return "%dh" % hours
     return "%dm" % mins
 
+func _build_fire_basics_hint() -> String:
+    return "Logs burn about 4h each. Kindling feeds one attempt. Bow Drill sparks around 75% and may spare tinder; Flint & Steel hits near 90% but chews a charge."
+
 func _on_add_wood_pressed():
     if game_manager == null:
         status_label.text = "Stove offline"
+        _showing_hint = false
         return
     var result = game_manager.add_wood_to_stove(1)
     if !result.get("success", false):
@@ -224,12 +233,15 @@ func _on_add_wood_pressed():
                 status_label.text = "Add wood failed"
     else:
         var added = int(result.get("added", 0))
-        status_label.text = "Loaded %d wood" % max(added, 0)
+        var added_count = max(added, 0)
+        status_label.text = "Loaded %d log%s (~4h burn each)" % [added_count, "s" if added_count != 1 else ""]
+    _showing_hint = false
     _refresh_state()
 
 func _on_fire_tool_pressed(tool_id: String):
     if game_manager == null:
         status_label.text = "Stove offline"
+        _showing_hint = false
         return
     var result = game_manager.light_wood_stove(tool_id)
     if !result.get("success", false):
@@ -243,9 +255,12 @@ func _on_fire_tool_pressed(tool_id: String):
                 status_label.text = "Fire already lit"
             "failed_roll":
                 var chance = int(round(result.get("chance", 0.0) * 100.0))
-                status_label.text = "Spark missed (%d%% chance)" % clamp(chance, 0, 100)
+                var returned = result.get("kindling_returned", false)
+                var base = "No flame (%d%% try)." % clamp(chance, 0, 100)
+                var explanation = "Fire didn't quite catch on the lit kindling." if !returned else "Couldn't even get the kindling to properly light."
+                status_label.text = "%s %s" % [base, explanation]
             "flint_consume_failed":
-                status_label.text = "Flint and steel wore out"
+                status_label.text = "Flint & steel wore down—no spark"
             "kindling_consume_failed":
                 status_label.text = "Kindling missing"
             "missing_tool":
@@ -259,7 +274,8 @@ func _on_fire_tool_pressed(tool_id: String):
     else:
         var state: Dictionary = result.get("state", {})
         var burn_minutes = float(state.get("burn_minutes_remaining", 0.0))
-        status_label.text = "Fire lit (%s remaining)" % _format_burn_time(burn_minutes)
+        status_label.text = "Fire lit (%s of warmth). Logs are drawing steadily." % _format_burn_time(burn_minutes)
+    _showing_hint = false
     _refresh_state()
 
 func _on_inventory_changed(_item_id: String, _delta: int, _food: float, _total: float):

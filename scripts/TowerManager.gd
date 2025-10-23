@@ -8,7 +8,9 @@ class_name TowerManager
 var tower_bounds: Rect2
 var catwalk_width: float = 0.05  # 5% of tower width (keep between 0.04 - 0.08 for play space)
 
-const Radio = preload("res://scripts/objects/Radio.gd")
+# Scene + script references for fixtures instanced at runtime.
+const RadioScene = preload("res://scenes/objects/Radio.tscn")
+const Radio := preload("res://scripts/objects/Radio.gd")
 const CraftingTable = preload("res://scripts/objects/CraftingTable.gd")
 const WoodStove = preload("res://scripts/objects/WoodStove.gd")
 
@@ -20,6 +22,14 @@ var inner_bounds: Rect2
 
 # Visual nodes
 var inside_view: Node2D
+
+func get_living_area_center() -> Vector2:
+    """Return the midpoint of the living area or a safe fallback."""
+    if living_area_rect.size != Vector2.ZERO:
+        return living_area_rect.position + (living_area_rect.size * 0.5)
+    if tower_bounds.size != Vector2.ZERO:
+        return tower_bounds.position + (tower_bounds.size * 0.5)
+    return Vector2.ZERO
 
 func _ready():
     print("🏗️ TowerManager: Creating tower layout...")
@@ -303,15 +313,17 @@ func create_ladder():
     print("🏗️ Created ladder at: %s" % ladder_pos)
 
 func create_radio_station():
-    """Create a static radio against the living room wall."""
-    if Radio == null:
+    """Instance the shared radio scene against the living room wall."""
+    if RadioScene == null:
         return
 
     var living_node: Node = inside_view.get_node_or_null("LivingArea")
     if living_node == null:
         return
 
-    var radio: Radio = Radio.new()
+    var radio: Radio = RadioScene.instantiate()
+    if radio == null:
+        return
     radio.name = "Radio"
 
     var margin = 24.0
@@ -321,40 +333,6 @@ func create_radio_station():
     )
     radio.position = radio_pos
 
-    var body = ColorRect.new()
-    body.name = "Body"
-    body.size = Vector2(48, 32)
-    body.position = Vector2(-24, -16)
-    body.color = Color.DIM_GRAY
-    body.z_index = 2
-    radio.add_child(body)
-
-    var prompt = Label.new()
-    prompt.name = "PromptLabel"
-    prompt.position = Vector2(-60, -52)
-    prompt.add_theme_color_override("font_color", Color.WHITE)
-    prompt.add_theme_font_size_override("font_size", 12)
-    radio.add_child(prompt)
-
-    var name_label = Label.new()
-    name_label.name = "NameLabel"
-    name_label.text = "Radio"
-    name_label.position = Vector2(-20, -72)
-    name_label.custom_minimum_size = Vector2(40, 16)
-    name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    name_label.add_theme_color_override("font_color", Color.WHITE)
-    name_label.add_theme_font_size_override("font_size", 12)
-    name_label.z_index = 3
-    radio.add_child(name_label)
-
-    var collision = CollisionShape2D.new()
-    collision.name = "InteractShape"
-    var shape = RectangleShape2D.new()
-    shape.size = Vector2(64, 48)
-    collision.shape = shape
-    radio.add_child(collision)
-
-    radio.add_to_group("interactable")
     living_node.add_child(radio)
     print("📻 Created radio at: %s" % radio_pos)
 
