@@ -119,11 +119,6 @@ func bootstrap_defaults():
         KEY_FOOD_UNITS: 0.0,
         KEY_STACK_LIMIT: 99
     })
-    register_item_definition("cloth_scraps", {
-        KEY_DISPLAY_NAME: "Cloth Scraps",
-        KEY_FOOD_UNITS: 0.0,
-        KEY_STACK_LIMIT: 99
-    })
     register_item_definition("plastic_sheet", {
         KEY_DISPLAY_NAME: "Plastic Sheet",
         KEY_FOOD_UNITS: 0.0,
