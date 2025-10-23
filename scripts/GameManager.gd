@@ -160,6 +160,79 @@ const FISHING_SIZE_TABLE := [
     }
 ]
 
+# Daily supply hamper keeps radio check-ins meaningful and stocked.
+const DAILY_SUPPLY_MIN_ROLLS: int = 2
+const DAILY_SUPPLY_MAX_ROLLS: int = 3
+const DAILY_SUPPLY_EXPIRES_AFTER_DAYS: int = 1
+const DAILY_SUPPLY_TABLE := [
+    {
+        "item_id": "berries",
+        "quantity_range": [1, 2],
+        "chance": 0.85,
+        "category": "perishable"
+    },
+    {
+        "item_id": "apples",
+        "quantity_range": [1, 2],
+        "chance": 0.75,
+        "category": "perishable"
+    },
+    {
+        "item_id": "oranges",
+        "quantity_range": [1, 2],
+        "chance": 0.75,
+        "category": "perishable"
+    },
+    {
+        "item_id": "raspberries",
+        "quantity_range": [1, 3],
+        "chance": 0.65,
+        "category": "perishable"
+    },
+    {
+        "item_id": "blueberries",
+        "quantity_range": [1, 3],
+        "chance": 0.65,
+        "category": "perishable"
+    },
+    {
+        "item_id": "walnuts",
+        "quantity_range": [1, 3],
+        "chance": 0.60,
+        "category": "perishable"
+    },
+    {
+        "item_id": "grubs",
+        "quantity_range": [1, 2],
+        "chance": 0.55,
+        "category": "perishable"
+    },
+    {
+        "item_id": "ripped_cloth",
+        "quantity_range": [1, 2],
+        "chance": 0.55,
+        "category": "supply"
+    },
+    {
+        "item_id": "wood",
+        "quantity_range": [1, 3],
+        "chance": 0.60,
+        "category": "supply"
+    },
+    {
+        "item_id": "fishing_bait",
+        "quantity_range": [1, 2],
+        "chance": 0.50,
+        "category": "supply"
+    },
+    {
+        "item_id": "nails",
+        "quantity_range": [2, 4],
+        "chance": 0.45,
+        "category": "supply"
+    }
+]
+
 # Travel hazard tiers define encounter chance ranges (0.0-1.0) for route rolls.
 const TRAVEL_HAZARD_TIERS := {
     "calm": {
@@ -1125,6 +1198,8 @@ var _radio_tip_shown: bool = false
 var _active_location: Dictionary = {}
 var _tutorial_popup: ActionPopupPanel
 var _tutorial_flags: Dictionary = {}
+var _daily_supply_state: Dictionary = {}
+var _daily_supply_spoil_notice: Dictionary = {}
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -1185,7 +1260,8 @@ func _ready():
         tower_health_system.set_initial_weather_state(weather_system.get_state())
     if news_system:
         news_system.reset_day(current_day)
-        _refresh_radio_attention("startup")
+    _spawn_daily_supply_drop("startup")
+    _refresh_radio_attention("startup")
     if zombie_system:
         zombie_system.zombies_damaged_tower.connect(_on_zombie_damage_tower)
         zombie_system.zombies_spawned.connect(_on_zombies_spawned)
@@ -1789,25 +1865,41 @@ func get_combined_activity_multiplier() -> float:
     return get_time_multiplier() * get_weather_activity_multiplier()
 
 func request_radio_broadcast() -> Dictionary:
-    if news_system == null:
-        return {
-            "success": false,
-            "reason": "news_offline"
+    var broadcast: Dictionary = {}
+    var has_message := false
+    if news_system:
+        broadcast = news_system.get_broadcast_for_day(current_day)
+        has_message = !broadcast.is_empty() and !String(broadcast.get("text", "")).is_empty()
+    if broadcast.is_empty():
+        broadcast = {
+            "title": "Tower Dispatch",
+            "text": ""
         }
 
-    var broadcast = news_system.get_broadcast_for_day(current_day)
-    var has_message = !broadcast.is_empty() and !broadcast.get("text", "").is_empty()
+    var supply_note = _build_daily_supply_radio_note()
+    if !supply_note.is_empty():
+        var existing_text = String(broadcast.get("text", ""))
+        if existing_text.is_empty():
+            existing_text = supply_note
+        else:
+            existing_text = "{0}\n\n{1}".format([existing_text, supply_note])
+        broadcast["text"] = existing_text
+        has_message = true
+
     var result := {
         "success": true,
         "day": current_day,
         "has_message": has_message,
-        "broadcast": broadcast
+        "broadcast": broadcast,
+        "daily_supply_status": _resolve_daily_supply_status()
     }
     if !has_message:
         result["reason"] = "no_broadcast"
     return result
 
 func has_unheard_radio_message() -> bool:
+    if _daily_supply_requires_attention():
+        return true
     if news_system == null:
         return false
     var broadcast = news_system.get_broadcast_for_day(current_day)
@@ -1818,8 +1910,10 @@ func has_unheard_radio_message() -> bool:
 
 func mark_radio_message_heard():
     if current_day <= _radio_last_ack_day:
+        _acknowledge_daily_supply_notice()
         return
     _radio_last_ack_day = current_day
+    _acknowledge_daily_supply_notice()
     _refresh_radio_attention("acknowledged")
 
 func should_show_radio_tip() -> bool:
@@ -1829,6 +1923,247 @@ func mark_radio_tip_shown():
     if _radio_tip_shown:
         return
     _radio_tip_shown = true
+
+func claim_daily_supply_drop() -> Dictionary:
+    var result := {
+        "had_cache": false,
+        "claimed": false,
+        "items": [],
+        "summary_text": "",
+        "day": current_day,
+        "reason": ""
+    }
+    if _daily_supply_state.is_empty():
+        return result
+
+    result["had_cache"] = true
+    var hamper: Dictionary = _daily_supply_state.duplicate(true)
+    _daily_supply_state.clear()
+
+    if inventory_system == null:
+        _daily_supply_state = hamper
+        result["reason"] = "inventory_unavailable"
+        return result
+
+    var hamper_day = int(hamper.get("day", current_day))
+    result["day"] = hamper_day
+
+    var items: Array = hamper.get("items", [])
+    var reports: Array = []
+    for entry in items:
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        var item_id = String(entry.get("item_id", ""))
+        var quantity = int(entry.get("quantity", 0))
+        if item_id.is_empty() or quantity <= 0:
+            continue
+        var add_report = inventory_system.add_item(item_id, quantity)
+        reports.append(add_report)
+
+    if reports.is_empty():
+        result["reason"] = "empty_cache"
+        return result
+
+    result["claimed"] = true
+    result["items"] = reports
+    result["summary_text"] = _format_daily_supply_summary(reports)
+    print("📦 Daily hamper claimed ->\n%s" % result["summary_text"])
+    return result
+
+func _resolve_daily_supply_status() -> String:
+    if !_daily_supply_state.is_empty():
+        return "available"
+    if !_daily_supply_spoil_notice.is_empty():
+        return "spoiled_notice"
+    return "none"
+
+func _daily_supply_requires_attention() -> bool:
+    return !_daily_supply_state.is_empty() or !_daily_supply_spoil_notice.is_empty()
+
+func _acknowledge_daily_supply_notice():
+    if !_daily_supply_spoil_notice.is_empty():
+        _daily_supply_spoil_notice.clear()
+
+func _build_daily_supply_radio_note() -> String:
+    var lines: PackedStringArray = []
+
+    if !_daily_supply_spoil_notice.is_empty():
+        var spoil_summary = String(_daily_supply_spoil_notice.get("summary", ""))
+        if spoil_summary.is_empty():
+            spoil_summary = _format_daily_supply_summary(_daily_supply_spoil_notice.get("items", []))
+        if spoil_summary.is_empty():
+            lines.append("Yesterday's hamper spoiled before you checked in. Make time each morning so nothing rots.")
+        else:
+            lines.append("Yesterday's hamper spoiled before you checked in:\n{0}\nMake time each morning so nothing rots.".format([spoil_summary]))
+
+    if !_daily_supply_state.is_empty():
+        var items: Array = _daily_supply_state.get("items", [])
+        var summary_text = _format_daily_supply_summary(items)
+        if summary_text.is_empty():
+            lines.append("Dispatch left a fresh hamper at the base door—claim it before dusk or it spoils.")
+        else:
+            lines.append("Dispatch left a fresh hamper at the base door—claim it before dusk or it spoils.\n{0}".format([summary_text]))
+
+    if lines.is_empty():
+        return ""
+
+    return "Supply Cache Update:\n%s" % "\n\n".join(lines)
+
+func _spawn_daily_supply_drop(source: String = ""):
+    var items = _roll_daily_supply_items()
+    if items.is_empty():
+        _daily_supply_state.clear()
+        return
+    _daily_supply_state = {
+        "day": current_day,
+        "items": items,
+        "source": source
+    }
+    var summary = _format_daily_supply_summary(items)
+    if !summary.is_empty():
+        print("🎒 Daily hamper staged (%s) ->\n%s" % [source, summary])
+
+func _handle_daily_supply_decay(source: String = ""):
+    if _daily_supply_state.is_empty():
+        return
+    var hamper_day = int(_daily_supply_state.get("day", current_day))
+    if current_day - hamper_day < DAILY_SUPPLY_EXPIRES_AFTER_DAYS:
+        return
+
+    var preserved_items: Array = []
+    for entry in _daily_supply_state.get("items", []):
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        preserved_items.append(entry.duplicate(true))
+
+    var summary = _format_daily_supply_summary(preserved_items)
+    _daily_supply_spoil_notice = {
+        "day": hamper_day,
+        "items": preserved_items,
+        "summary": summary,
+        "source": source
+    }
+    _daily_supply_state.clear()
+    if summary.is_empty():
+        print("⚠️ Daily hamper spoiled with no salvageable goods")
+    else:
+        print("⚠️ Daily hamper spoiled ->\n%s" % summary)
+
+func _roll_daily_supply_items() -> Array:
+    if DAILY_SUPPLY_TABLE.is_empty():
+        return []
+
+    var picks: Array = []
+    var perishable_entries: Array = []
+    for entry in DAILY_SUPPLY_TABLE:
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        if String(entry.get("category", "")) == "perishable":
+            perishable_entries.append(entry)
+
+    var perishable_added := false
+    if !perishable_entries.is_empty():
+        for attempt in range(3):
+            var forced = perishable_entries[_rng.randi_range(0, perishable_entries.size() - 1)]
+            var forced_entry = _roll_daily_supply_entry(forced)
+            if forced_entry.is_empty():
+                continue
+            _append_daily_supply_entry(picks, forced_entry)
+            perishable_added = true
+            break
+
+    var total_rolls = _rng.randi_range(DAILY_SUPPLY_MIN_ROLLS, DAILY_SUPPLY_MAX_ROLLS)
+    while picks.size() < total_rolls:
+        var source = DAILY_SUPPLY_TABLE[_rng.randi_range(0, DAILY_SUPPLY_TABLE.size() - 1)]
+        var rolled = _roll_daily_supply_entry(source)
+        if rolled.is_empty():
+            continue
+        _append_daily_supply_entry(picks, rolled)
+        if String(rolled.get("category", "")) == "perishable":
+            perishable_added = true
+
+    if !perishable_added:
+        _append_daily_supply_entry(picks, {
+            "item_id": "berries",
+            "quantity": 1,
+            "category": "perishable"
+        })
+
+    return picks
+
+func _roll_daily_supply_entry(entry: Dictionary) -> Dictionary:
+    var item_id = String(entry.get("item_id", ""))
+    if item_id.is_empty():
+        return {}
+
+    var chance = clamp(float(entry.get("chance", 1.0)), 0.0, 1.0)
+    if _rng.randf() > chance:
+        return {}
+
+    var quantity := 1
+    var range = entry.get("quantity_range")
+    if range is Array and range.size() >= 2:
+        var min_q = int(range[0])
+        var max_q = int(range[1])
+        if min_q > max_q:
+            var temp = min_q
+            min_q = max_q
+            max_q = temp
+        quantity = _rng.randi_range(min_q, max_q)
+    else:
+        quantity = max(int(entry.get("quantity", 1)), 1)
+
+    return {
+        "item_id": item_id,
+        "quantity": quantity,
+        "category": entry.get("category", "supply")
+    }
+
+func _append_daily_supply_entry(picks: Array, entry: Dictionary):
+    var item_id = String(entry.get("item_id", ""))
+    var quantity = int(entry.get("quantity", 0))
+    if item_id.is_empty() or quantity <= 0:
+        return
+
+    for existing in picks:
+        if typeof(existing) != TYPE_DICTIONARY:
+            continue
+        if String(existing.get("item_id", "")) == item_id:
+            existing["quantity"] = int(existing.get("quantity", 0)) + quantity
+            return
+
+    picks.append({
+        "item_id": item_id,
+        "quantity": quantity,
+        "category": entry.get("category", "supply")
+    })
+
+func _format_daily_supply_summary(entries: Array) -> String:
+    if entries.is_empty():
+        return ""
+
+    var lines: PackedStringArray = []
+    for entry in entries:
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        var item_id = String(entry.get("item_id", ""))
+        var display = String(entry.get("display_name", ""))
+        if display.is_empty() and inventory_system:
+            display = inventory_system.get_item_display_name(item_id)
+        if display.is_empty() and !item_id.is_empty():
+            display = item_id.capitalize()
+
+        var quantity = 0
+        if entry.has("quantity"):
+            quantity = int(entry.get("quantity", 0))
+        elif entry.has("quantity_added"):
+            quantity = int(entry.get("quantity_added", 0))
+        if quantity <= 0 or display.is_empty():
+            continue
+
+        lines.append("• %s ×%d" % [display, quantity])
+
+    return "\n".join(lines)
 
 func _refresh_radio_attention(_source: String = ""):
     radio_attention_changed.emit(has_unheard_radio_message())
@@ -3793,9 +4128,11 @@ func _on_day_rolled_over():
     if tower_health_system:
         var current_state = weather_system.get_state() if weather_system else WeatherSystem.WEATHER_CLEAR
         tower_health_system.on_day_completed(current_state)
+    _handle_daily_supply_decay("day_rollover")
     if news_system:
         news_system.reset_day(current_day)
-        _refresh_radio_attention("day_rollover")
+    _spawn_daily_supply_drop("day_rollover")
+    _refresh_radio_attention("day_rollover")
     if zombie_system:
         zombie_system.start_day(current_day, _rng)
     if wolf_system:

@@ -98,6 +98,17 @@ func _handle_interaction():
     if report.get("has_message", false) and !broadcast.is_empty():
         var title = broadcast.get("title", "Radio Update")
         var text = broadcast.get("text", static_text)
+        var claim_report = _game_manager.claim_daily_supply_drop()
+        if claim_report.get("had_cache", false):
+            if claim_report.get("claimed", false):
+                var summary = String(claim_report.get("summary_text", ""))
+                if !summary.is_empty():
+                    var claim_block = "Hamper Secured:\n{0}".format([summary])
+                    text = claim_block if text.is_empty() else "{0}\n\n{1}".format([text, claim_block])
+            elif String(claim_report.get("reason", "")).is_empty() == false:
+                var miss_reason = String(claim_report.get("reason", ""))
+                var friendly_reason = miss_reason.replace("_", " ").capitalize()
+                text = "{0}\n\nHamper Status: {1}".format([text, friendly_reason])
         var day_value = report.get("day", 0)
         _show_panel_with_message({
             "title": "{0} - Day {1}".format([title, day_value]),

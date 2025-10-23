@@ -46,6 +46,7 @@
   - Multipliers: `get_time_multiplier()`, `get_weather_activity_multiplier()`, `get_combined_activity_multiplier()`.
 * **Radio & narrative**
   - `request_radio_broadcast()` – returns cached `NewsBroadcastSystem` message for the current day (or static when missing).
+  - Daily supply hamper – radio check-ins auto-claim the co-op hamper (berries, nuts, cloth, bait mixes) and missing a day spoils the drop with a reminder in the next briefing.
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
