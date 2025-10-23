@@ -46,6 +46,7 @@
   - Multipliers: `get_time_multiplier()`, `get_weather_activity_multiplier()`, `get_combined_activity_multiplier()`.
 * **Radio & narrative**
   - `request_radio_broadcast()` – returns cached `NewsBroadcastSystem` message for the current day (or static when missing).
+  - Daily supply hamper – radio check-ins auto-claim the co-op hamper (berries, nuts, cloth, bait mixes) and missing a day spoils the drop with a reminder in the next briefing.
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
@@ -178,7 +179,7 @@
 * **Role**: Multi-day wilderness trek coordinator that sequences checkpoints, draws travel routes, and feeds UI summaries.
 * **Checkpoint Schema**: Eight sequential legs (0–7) each store `available_routes` (two entries), `selected_route_index` (`null` until chosen), and `completed` (`false`/`true`).
 * **Route Payload**: Every route defines `location_id`, `display_name`, `travel_hours` (baseline 4.0–12.0 window), and optional modifiers (`rest_delta`, `calorie_delta`, `morale_delta`) so balancing tweaks remain data-driven.
-* **Location Deck**: Seed with the wilderness set (Overgrown Path, Clearing, Small Stream, Thick Forest, Old Campsite, Small Cave, Hunting Stand) and shuffle between checkpoints to keep legs fresh.
+* **Location Deck**: Seed with the wilderness set (Overgrown Path, Clearing, Small Stream, Thick Forest, Old Campsite, Old Cave, Hunting Stand) and shuffle between checkpoints to keep legs fresh.
 * **Progression Hooks**: `begin_expedition()` seeds RNG and draws first leg, `select_route(checkpoint_index, route_index)` commits a path, `advance_to_next_checkpoint()` flags completion, and `is_expedition_complete()` returns `true` once checkpoint 7 closes.
 * **Task Integration**: Travel actions consume the selected route's payload, drive time advancement, and emit `expedition_progressed(checkpoint_index, route_data)` for HUD/map refreshes.
 
@@ -238,7 +239,7 @@
 * **Task Menu Sleep Planner**: Shows queued versus usable rest when dawn would trim the request, including the exact hours applied, energy restored, calories burned, and the dawn-cut duration preview.
 * **Crafting Panel Layout**: Recipe rows keep left-aligned buttons with padded margins and a dedicated cost column rendered as bullet rows (material stock, build time, rest tax, calorie burn) for quick scanning.
 | Eat (`perform_eating`) | 1h | None | -`food_units*1000` (net calories gained) | Sufficient food units | Consumes food, updates daily calories, returns weight snapshot. |
-| Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls loot table (wood 45%, ripped cloth 30%, staple forage 20–25%, advanced tech 5–15%), respects carry cap 5 (12 with Backpack), logs overflow, and applies a 30% wolf strike (5–15 HP) when a pack is active. |
+| Forge (`perform_forging`) | 1h | -10% energy | +300 cal burned (plus awake burn) | No active zombies | Rolls the active location's forage profile (tower base favors wood/cloth, stream banks swap to fruits + feathers, camps tilt toward salvage), respects carry cap 5 (12 with Backpack), logs overflow, and applies a 30% wolf strike (5–15 HP) when a pack is active. |
 | Search Campground (`perform_campground_search`) | 4h | -20% energy | +800 cal burned (plus awake burn) | No active zombies | Sweeps a campsite loot table (ripped cloth 55%, wood 45%, advanced bundles 25%), honors carry cap 5 (12 with Backpack), reports dropped overflow, and shares the same wolf strike risk while wolves surround the tower. |
 | Hunt (`perform_hunt`) | 2h | -10% energy | +400 cal burned (plus awake burn) | No active zombies, Bow equipped, ≥1 Arrow | Up to three shots per trip (50% break chance each); sequential rolls Rabbit 30% (2 food), Squirrel 30% (2 food), Boar 20% (6 food), Doe 25% (5 food), Buck 20% (7 food). Broken arrows consumed, food added, raw game stored for Butcher/Cook Whole processing. |
 | Butcher & Cook (`perform_butcher_and_cook`) | 1h | -5% energy | +150 cal burned | Crafted Knife, lit fire, stored hunt/snare game, sufficient food on hand | Converts available game into a 25% bonus rounded up to the nearest 0.5, deducts processed stock, and updates total food units. |
@@ -268,15 +269,14 @@
 | Spike Trap | 1 | 1.0 | 12.5 | Wood ×6 | Defensive deployable; burns 250 calories. |
 | The Spear | 1 | 1.0 | 5.0 | Wood ×1 | Close-defense tool; burns 250 calories. |
 | String | 1 | 1.0 | 2.5 | Ripped Cloth ×1 | Intermediate crafting good; burns 250 calories. |
-| Cloth Scraps | 2 | 1.0 | 2.5 | Ripped Cloth ×1 | Cuts fabric into pack-ready scraps; burns 250 calories. |
 | Bandage | 1 | 1.0 | 5.0 | Ripped Cloth ×1 | Restores 10% health on use; burns 250 calories. |
 | Herbal First Aid Kit | 1 | 1.0 | 12.5 | Mushrooms ×3, Ripped Cloth ×1, String ×1, Wood ×1, Medicinal Herbs ×2 | Heals 50 HP when used; burns 250 calories. |
 | Medicated Bandage | 1 | 1.0 | 7.5 | Bandage ×1, Medicinal Herbs ×1 | Restores 25 HP on use; burns 250 calories. |
-| Backpack | 1 | 1.0 | 15.0 | Wood ×4, String ×1, Rope ×1, Cloth Scraps ×3 | Expands carry limit to 12 slots for forging/camp loot; burns 250 calories. |
+| Backpack | 1 | 1.0 | 15.0 | Wood ×4, String ×1, Rope ×1, Ripped Cloth ×3 | Expands carry limit to 12 slots for forging/camp loot; burns 250 calories. |
 | Bow | 1 | 1.0 | 10.0 | Rope ×1, Wood ×1 | Flexible ranged base for Hunt (arrows have a 50% break chance per shot); burns 250 calories. |
 | Arrow | 1 | 1.0 | 5.0 | Feather ×2, Rock ×1, Wood ×1 | Ammunition for Hunt; each shot rolls 50% to break (consumed) or returns to inventory. |
 | Animal Snare | 1 | 1.0 | 10.0 | Rope ×2, Wood ×2 | Deployable loop trap for Place/Check Snare tasks; burns 250 calories. |
-| Portable Craft Station | 1 | 1.0 | 12.5 | Metal Scrap ×2, Wood ×4, Cloth Scraps ×1, Plastic Sheet ×2, Nails ×5, Rock ×2, Crafted Knife ×1 | Grants on-the-go crafting access during expedition travel; consumes the listed materials and burns 250 calories. |
+| Portable Craft Station | 1 | 1.0 | 12.5 | Metal Scrap ×2, Wood ×4, Ripped Cloth ×1, Plastic Sheet ×2, Nails ×5, Rock ×2, Crafted Knife ×1 | Grants on-the-go crafting access during expedition travel; consumes the listed materials and burns 250 calories. |
 
 ## Expedition Route Catalog
 * **Overgrown Path**: Narrow trail with dense brush; moderate travel hours (5.0–8.0) and light morale drain due to constant clearing.
@@ -284,7 +284,7 @@
 * **Small Stream**: Creekside detour; medium travel hours (6.0–8.0) with hydration bonus but cold checks if warmth is low.
 * **Thick Forest**: Heavy canopy stretch; longer travel hours (7.0–11.0), rest tax, and stealth advantage versus roaming threats.
 * **Old Campsite**: Abandoned rest stop; medium travel hours (5.5–7.5) with a loot roll for spare supplies and a minor infection risk.
-* **Small Cave**: Rocky crawlspace; compact travel hours (4.5–6.5), warmth boost overnight, and chance to lose navigation time if light sources are absent.
+* **Old Cave**: Rocky crawlspace; compact travel hours (4.5–6.5), warmth boost overnight, and chance to lose navigation time if light sources are absent.
 * **Hunting Stand**: Elevated route; longer travel hours (6.5–9.5) but grants scouting intel that can reveal upcoming hazards on the next checkpoint.
 
 ## Foraging Loot Table (`_roll_forging_loot`)
@@ -366,7 +366,6 @@
 | spear | The Spear | 0.0 | 1 |
 | spike_trap | Spike Trap | 0.0 | 10 |
 | ripped_cloth | Ripped Cloth | 0.0 | 99 |
-| cloth_scraps | Cloth Scraps | 0.0 | 99 |
 | string | String | 0.0 | 99 |
 | rock | Rock | 0.0 | 99 |
 | vines | Vines | 0.0 | 99 |
