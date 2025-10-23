@@ -1,7 +1,7 @@
 # Firetower Survival Guide
 
 ## Core Loop Snapshot
-* **Day Cycle**: Daybreak at 6:00 AM, 1,440 total minutes per day maintained by `TimeSystem`.
+* **Day Cycle**: Daybreak at 6:00 AM, 1,440 total minutes per day maintained by `TimeSystem` scheduler.
 * **Action Flow**: `GameManager` advances the clock, burns calories, and updates rest using sleep/weather multipliers per activity.
 * **Weather Cadence**: Hourly precipitation roll while clear (5% start chance). Successful rolls weight intensity heavy 15%, rain 35%, sprinkling 50% with default durations 5h/2h/1h.
 * **Zombie Pressure**: Spawn checks start on Day 6. Successful day rolls schedule one wave (hour 0-23) and apply `0.5 * zombies` tower damage every 360 minutes while active.

@@ -1315,6 +1315,53 @@ func get_carry_capacity() -> int:
 func get_hunt_animals() -> Array:
     return HUNT_ANIMAL_TABLE.duplicate(true)
 
+func _get_pending_game_food_units() -> float:
+    """Summarize all pending game in food units for quick UI access."""
+    var total: float = 0.0
+    for value in _pending_game_food.values():
+        total += float(value)
+    return max(total, 0.0)
+
+func _add_pending_game_food(animal_id: String, food_units: float) -> void:
+    """Track field-dressed meat until the player processes it."""
+    var key = animal_id.to_lower()
+    var amount = max(food_units, 0.0)
+    if key.is_empty() or amount <= 0.0:
+        return
+    var existing = float(_pending_game_food.get(key, 0.0))
+    _pending_game_food[key] = max(existing + amount, 0.0)
+
+func _consume_pending_game_food(amount: float) -> void:
+    """Reduce pending meat stock as it is butchered or cooked."""
+    var remaining = max(amount, 0.0)
+    if remaining <= 0.0 or _pending_game_food.is_empty():
+        return
+
+    var keys: Array = []
+    for key in _pending_game_food.keys():
+        keys.append(String(key))
+    keys.sort()
+
+    var changed: bool = false
+    for key in keys:
+        if remaining <= 0.0:
+            break
+        var stored = float(_pending_game_food.get(key, 0.0))
+        if stored <= 0.0:
+            _pending_game_food.erase(key)
+            continue
+        var consumed = min(stored, remaining)
+        var updated = stored - consumed
+        remaining -= consumed
+        changed = true
+        if updated <= 0.0005:
+            _pending_game_food.erase(key)
+        else:
+            _pending_game_food[key] = updated
+
+    if changed:
+        _emit_hunt_stock_changed()
+
 func get_pending_game_stock() -> Dictionary:
     var animals: Dictionary = {}
     for key in _pending_game_food.keys():
@@ -2890,6 +2937,52 @@ func perform_hunt() -> Dictionary:
 
     return result
 
+func _roll_hunt_animal() -> Dictionary:
+    """Resolve a single hunting shot into a specific animal or a miss."""
+    if _rng == null:
+        return {}
+
+    var candidates: Array = []
+    for entry in HUNT_ANIMAL_TABLE:
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        var chance = max(float(entry.get("chance", 0.0)), 0.0)
+        if chance <= 0.0:
+            continue
+        var snapshot = entry.duplicate(true)
+        snapshot["chance"] = clamp(chance, 0.0, 1.0)
+        candidates.append(snapshot)
+
+    if candidates.is_empty():
+        return {}
+
+    for index in range(candidates.size()):
+        var swap_index = _rng.randi_range(index, candidates.size() - 1)
+        var temp = candidates[index]
+        candidates[index] = candidates[swap_index]
+        candidates[swap_index] = temp
+
+    for entry in candidates:
+        var roll = _rng.randf()
+        var chance = float(entry.get("chance", 0.0))
+        if roll >= chance:
+            continue
+        var animal_id = String(entry.get("id", "")).to_lower()
+        if animal_id.is_empty():
+            return {}
+        var food_units = float(entry.get("food_units", HUNT_ANIMAL_BASES.get(animal_id, 0.0)))
+        var label = entry.get("label", HUNT_ANIMAL_LABELS.get(animal_id, animal_id.capitalize()))
+        return {
+            "id": animal_id,
+            "label": label,
+            "food_units": max(food_units, 0.0),
+            "chance": chance,
+            "roll": roll,
+            "source": "hunt"
+        }
+
+    return {}
+
 func perform_butcher_and_cook() -> Dictionary:
     var prep = _prepare_game_processing("butcher", true)
     if !prep.get("ready", false):
@@ -4308,6 +4401,29 @@ func _advance_snares(minutes: int, rolled_over: bool):
         entry["minutes_buffer"] = buffer
     if changed or minutes >= 60 or rolled_over:
         _rebuild_snare_state()
+
+func _choose_snare_animal() -> Dictionary:
+    """Pick a small-game catch for snares using shared hunt tables."""
+    if _rng == null:
+        return {}
+    var options: Array = []
+    for id_value in SNARE_ANIMAL_IDS:
+        var key = String(id_value).to_lower()
+        if key.is_empty():
+            continue
+        options.append(key)
+    if options.is_empty():
+        return {}
+    var index = _rng.randi_range(0, options.size() - 1)
+    var animal_id = options[index]
+    var label = HUNT_ANIMAL_LABELS.get(animal_id, animal_id.capitalize())
+    var food_units = float(HUNT_ANIMAL_BASES.get(animal_id, 1.0))
+    return {
+        "id": animal_id,
+        "label": label,
+        "food_units": max(food_units, 0.0),
+        "source": "snare"
+    }
 
 func _resolve_meal_portion(portion_key: String) -> Dictionary:
     var key = portion_key.to_lower()
