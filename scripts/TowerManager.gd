@@ -21,6 +21,14 @@ var inner_bounds: Rect2
 # Visual nodes
 var inside_view: Node2D
 
+func get_living_area_center() -> Vector2:
+    """Return the midpoint of the living area or a safe fallback."""
+    if living_area_rect.size != Vector2.ZERO:
+        return living_area_rect.position + (living_area_rect.size * 0.5)
+    if tower_bounds.size != Vector2.ZERO:
+        return tower_bounds.position + (tower_bounds.size * 0.5)
+    return Vector2.ZERO
+
 func _ready():
     print("🏗️ TowerManager: Creating tower layout...")
     setup_tower_layout()
