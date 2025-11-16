@@ -331,6 +331,10 @@ func _ready():
             _refresh_lead_feedback()
         if game_manager.has_signal("expedition_state_changed"):
             game_manager.expedition_state_changed.connect(_on_expedition_state_changed)
+        if game_manager.has_signal("game_mode_changed"):
+            game_manager.game_mode_changed.connect(_on_game_mode_changed)
+        if game_manager.has_signal("location_intel_changed"):
+            game_manager.location_intel_changed.connect(_on_location_intel_changed)
         _expedition_state = game_manager.get_expedition_state()
     else:
         _set_forging_feedback("Forging unavailable", "offline")
@@ -784,10 +788,36 @@ func _build_forging_description() -> String:
     var multiplier = game_manager.get_combined_activity_multiplier() if game_manager else 1.0
     multiplier = max(multiplier, 0.01)
     var minutes = int(ceil(60.0 * multiplier))
-    lines.append("Spend 1 hr (x%.1f) sweeping the woods." % multiplier)
+    lines.append("Spend 1 hr (x%.1f) sweeping nearby terrain." % multiplier)
     lines.append("Energy -%s%% | +%d cal burn" % [_format_percent_value(FORGING_REST_COST_PERCENT), int(round(FORGING_CALORIE_COST))])
-    lines.append("Food finds: Mushrooms 25%% / Berries 25%% / Walnuts 25%% / Grubs 20%% / Apples 20%% / Oranges 20%% / Raspberries 20%% / Blueberries 20%%")
-    lines.append("Advanced finds (10%%): Plastic Sheet, Metal Scrap, Nails x3, Duct Tape, Medicinal Herbs, Fuel (3-5), Mechanical Parts, Electrical Parts")
+    if game_manager:
+        var hint = game_manager.get_forage_hint_for_current_location()
+        var outlook: Dictionary = hint.get("outlook", {})
+        var items: Array = outlook.get("items", [])
+        var location_label = String(hint.get("location_label", "Area"))
+        if !items.is_empty():
+            lines.append("")
+            lines.append("%s loot outlook:" % location_label)
+            for entry in items:
+                if typeof(entry) != TYPE_DICTIONARY:
+                    continue
+                var label = String(entry.get("display_name", entry.get("item_id", "Loot")))
+                var tier = String(entry.get("tier", "basic")).capitalize()
+                var percent = int(round(float(entry.get("chance", 0.0)) * 100.0))
+                lines.append("• %d%% %s (%s)" % [percent, label, tier])
+        var base_lines: PackedStringArray = hint.get("base_lines", PackedStringArray([]))
+        if base_lines.size() > 0:
+            lines.append("")
+            for line in base_lines:
+                lines.append(line)
+        var intel: Dictionary = hint.get("intel", {})
+        if typeof(intel) == TYPE_DICTIONARY and !intel.is_empty():
+            var intel_lines: PackedStringArray = intel.get("lines", PackedStringArray([]))
+            if intel_lines.size() > 0:
+                lines.append("")
+                lines.append("Tip:")
+                for tip_line in intel_lines:
+                    lines.append("• %s" % tip_line)
     lines.append("Takes %s" % _format_duration(minutes))
     if zombie_system and zombie_system.has_active_zombies():
         lines.append("Blocked: %d undead nearby" % zombie_system.get_active_zombies())
@@ -896,6 +926,8 @@ func _build_recon_description() -> String:
     return "\n".join(lines)
 
 func _build_travel_description() -> String:
+    if game_manager and !game_manager.is_adventure_mode():
+        return "Travel locked. Switch to Adventure mode to begin the evacuation trek."
     if game_manager:
         _expedition_state = game_manager.get_expedition_state()
     var state: Dictionary = _expedition_state
@@ -1484,6 +1516,8 @@ func _execute_travel_action():
         match reason:
             "systems_unavailable":
                 message = "Travel systems offline"
+            "mode_locked":
+                message = "Travel available in Adventure mode"
             "no_selection":
                 message = "Select a route on the map (M)"
             "journey_complete":
@@ -1672,12 +1706,18 @@ func _format_forging_ready(total_food: float) -> String:
         capacity_fragment += " (12 w/Backpack)"
     else:
         capacity_fragment += " (Base %d)" % base_capacity
-    return "Forging ready (-%s%% energy | +%d cal burn | %s | Food %.1f)" % [
-        _format_percent_value(FORGING_REST_COST_PERCENT),
-        int(round(FORGING_CALORIE_COST)),
+    var fragments := PackedStringArray([
+        "-%s%% energy" % _format_percent_value(FORGING_REST_COST_PERCENT),
+        "+%d cal burn" % int(round(FORGING_CALORIE_COST)),
         capacity_fragment,
-        total_food
-    ]
+        "Food %.1f" % total_food
+    ])
+    if game_manager:
+        var hint = game_manager.get_forage_hint_for_current_location()
+        var summary = String(hint.get("short_summary", ""))
+        if !summary.is_empty():
+            fragments.append(summary)
+    return "Forging ready (%s)" % " | ".join(fragments)
 
 func _format_camp_search_ready() -> String:
     var capacity = game_manager.get_carry_capacity() if game_manager else InventorySystem.DEFAULT_CARRY_CAPACITY
@@ -2273,6 +2313,17 @@ func _format_recon_result(result: Dictionary) -> String:
     var wolf_text = _summarize_wolf_forecast(result.get("wolf_forecast", {}))
     if wolf_text != "":
         parts.append(wolf_text)
+    var intel: Dictionary = result.get("location_intel", {})
+    if typeof(intel) == TYPE_DICTIONARY and !intel.is_empty():
+        var label = String(intel.get("location_label", intel.get("location_id", "Intel")))
+        var summary = String(intel.get("summary", ""))
+        var fragment = "Intel %s" % label
+        if !summary.is_empty():
+            fragment += " – %s" % summary
+        var remaining = float(intel.get("minutes_remaining", intel.get("duration_minutes", 0.0)))
+        if remaining > 0.0:
+            fragment += " (%s)" % _format_duration(int(round(remaining)))
+        parts.append(fragment)
     return "Recon -> %s" % " | ".join(parts)
 
 func _show_lure_popup(result: Dictionary):
@@ -3732,6 +3783,16 @@ func _on_expedition_state_changed(state: Dictionary):
     if _selected_action == "travel":
         _update_description_body()
     _refresh_info_stats_if_selected("travel")
+
+func _on_game_mode_changed(_mode: String):
+    _refresh_display()
+
+func _on_location_intel_changed(_state: Dictionary):
+    if !_forging_feedback_locked:
+        var total = inventory_system.get_total_food_units() if inventory_system else 0.0
+        _set_forging_feedback(_format_forging_ready(total), "ready")
+    if _selected_action == "forging":
+        _update_description_body()
 
 func _on_trap_state_changed(_active: bool, state: Dictionary):
     _trap_state = state.duplicate(true)

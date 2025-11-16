@@ -131,10 +131,15 @@ func _resolve_game_manager():
         game_manager = candidate
         if game_manager.has_signal("expedition_state_changed"):
             game_manager.expedition_state_changed.connect(_on_expedition_state_changed)
+        if game_manager.has_signal("game_mode_changed"):
+            game_manager.game_mode_changed.connect(_on_game_mode_changed)
         _state = game_manager.get_expedition_state()
 
 func _on_expedition_state_changed(state: Dictionary):
     _state = state.duplicate(true)
+    _refresh_state()
+
+func _on_game_mode_changed(_mode: String):
     _refresh_state()
 
 func _on_option_button_pressed(index: int):
@@ -150,6 +155,13 @@ func _on_option_button_pressed(index: int):
 func _refresh_state():
     if game_manager != null:
         _state = game_manager.get_expedition_state()
+    if game_manager != null and !game_manager.is_adventure_mode():
+        var empty: Dictionary = {}
+        _refresh_checkpoint_label(empty)
+        _refresh_option_slots(empty)
+        _refresh_completed_routes(empty)
+        _refresh_hint(empty)
+        return
     var state := _state
     _refresh_checkpoint_label(state)
     _refresh_option_slots(state)
@@ -160,7 +172,10 @@ func _refresh_checkpoint_label(state: Dictionary):
     if checkpoint_label == null:
         return
     if state.is_empty():
-        checkpoint_label.text = "Map offline"
+        if game_manager != null and !game_manager.is_adventure_mode():
+            checkpoint_label.text = "Adventure mode required"
+        else:
+            checkpoint_label.text = "Map offline"
         return
     if state.get("journey_complete", false):
         var total = int(state.get("total_checkpoints", 8))
@@ -269,7 +284,10 @@ func _refresh_hint(state: Dictionary):
     if hint_label == null:
         return
     if state.is_empty():
-        hint_label.text = "Press M to toggle map"
+        if game_manager != null and !game_manager.is_adventure_mode():
+            hint_label.text = "Switch to Adventure mode to plot the evacuation route."
+        else:
+            hint_label.text = "Press M to toggle map"
         return
     if state.get("journey_complete", false):
         hint_label.text = "All checkpoints reached. Press M or Close to return."

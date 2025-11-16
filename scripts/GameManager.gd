@@ -273,6 +273,10 @@ const TEMPERATURE_BANDS := {
 }
 
 const DEFAULT_LOCATION_ID := "tower_base"
+const EVAC_LOCATION_ID := "evacuation_site"
+
+const GAME_MODE_SURVIVAL := "survival"
+const GAME_MODE_ADVENTURE := "adventure"
 
 # Location profiles describe loot pools, climate, and access per route id.
 const LOCATION_PROFILES := {
@@ -385,6 +389,20 @@ const LOCATION_PROFILES := {
             "wolves": 0.28,
             "zombies": 0.36,
             "survivors": 0.36
+        },
+        "shelter_from_rain": false
+    },
+    "evacuation_site": {
+        "label": "Evacuation Site",
+        "summary": "Makeshift landing zone ringed with barricades.",
+        "hazard_tier": "hostile",
+        "temperature_band": "temperate",
+        "forage_profile": "camp_cache",
+        "fishing_allowed": false,
+        "encounter_focus": {
+            "wolves": 0.22,
+            "zombies": 0.50,
+            "survivors": 0.28
         },
         "shelter_from_rain": false
     }
@@ -786,6 +804,168 @@ const FORAGE_PROFILE_TABLES := {
     ]
 }
 
+const FORAGE_LOCATION_MODIFIERS := {
+    "tower_base": {
+        "note": "Tower grounds stay balanced but always deliver extra timber.",
+        "multipliers": {
+            "wood": 1.10,
+            "vines": 1.15,
+            "metal_scrap": 0.90
+        }
+    },
+    "overgrown_path": {
+        "note": "Brushy trail spills vines and berries while choking salvage.",
+        "multipliers": {
+            "vines": 1.45,
+            "berries": 1.25,
+            "wood": 1.20,
+            "metal_scrap": 0.75,
+            "mechanical_parts": 0.80
+        }
+    },
+    "clearing": {
+        "note": "Open clearing scatters cloth and feathers yet dries forage quickly.",
+        "multipliers": {
+            "ripped_cloth": 1.35,
+            "feather": 1.55,
+            "berries": 1.15,
+            "wood": 0.80,
+            "mushrooms": 0.75
+        }
+    },
+    "small_stream": {
+        "note": "Stream banks gush grubs and mushrooms; cloth rots on the rocks.",
+        "multipliers": {
+            "grubs": 1.55,
+            "mushrooms": 1.30,
+            "wood": 1.15,
+            "ripped_cloth": 0.65,
+            "metal_scrap": 0.80
+        }
+    },
+    "thick_forest": {
+        "note": "Dark forest piles up wood and mushrooms while hiding tech salvage.",
+        "multipliers": {
+            "wood": 1.40,
+            "mushrooms": 1.30,
+            "berries": 1.20,
+            "metal_scrap": 0.70,
+            "mechanical_parts": 0.70,
+            "electrical_parts": 0.75
+        }
+    },
+    "old_campsite": {
+        "note": "Collapsed tents leak cloth, parts, and spare fuel.",
+        "multipliers": {
+            "ripped_cloth": 1.55,
+            "mechanical_parts": 1.35,
+            "electrical_parts": 1.30,
+            "fuel": 1.25,
+            "wood": 0.85,
+            "berries": 0.85
+        }
+    },
+    "old_cave": {
+        "note": "Cold cave grows mushrooms and herbs; timber dries up fast.",
+        "multipliers": {
+            "mushrooms": 1.60,
+            "medicinal_herbs": 1.45,
+            "grubs": 1.20,
+            "wood": 0.60,
+            "berries": 0.70,
+            "vines": 0.75
+        }
+    },
+    "hunting_stand": {
+        "note": "Stand caches feathers for arrows instead of produce.",
+        "multipliers": {
+            "feather": 1.65,
+            "wood": 1.10,
+            "berries": 0.80,
+            "mushrooms": 0.75,
+            "grubs": 0.85
+        }
+    },
+    "evacuation_site": {
+        "note": "Evac staging ground holds military crates packed with salvage.",
+        "multipliers": {
+            "metal_scrap": 1.50,
+            "mechanical_parts": 1.45,
+            "electrical_parts": 1.45,
+            "fuel": 1.35,
+            "berries": 0.60,
+            "wood": 0.60,
+            "mushrooms": 0.60
+        }
+    }
+}
+
+const LOCATION_INTEL_EVENTS := [
+    {
+        "id": "campground_rv",
+        "location_id": "old_campsite",
+        "sources": ["radio", "recon"],
+        "chance": 0.45,
+        "duration_hours": 12.0,
+        "summary": "Abandoned RV at the campground packed with salvage.",
+        "message": "Tip: Static mentions an abandoned RV at the campground loaded with supplies.",
+        "loot_hint": "Expect extra cloth, parts, and fuel for half a day.",
+        "modifiers": {
+            "ripped_cloth": 1.80,
+            "mechanical_parts": 1.70,
+            "electrical_parts": 1.60,
+            "fuel": 1.50
+        }
+    },
+    {
+        "id": "clearing_survivor_cache",
+        "location_id": "clearing",
+        "sources": ["radio", "recon"],
+        "chance": 0.40,
+        "duration_hours": 10.0,
+        "summary": "Scattered survivor camp gear litters the clearing.",
+        "message": "Tip: Recon spotted an overrun camp in the clearing with supplies strewn about.",
+        "loot_hint": "Boosts cloth, herbs, and lumber for a short window.",
+        "modifiers": {
+            "ripped_cloth": 1.60,
+            "medicinal_herbs": 1.60,
+            "wood": 1.35,
+            "metal_scrap": 1.40
+        }
+    },
+    {
+        "id": "stream_cache",
+        "location_id": "small_stream",
+        "sources": ["recon"],
+        "chance": 0.50,
+        "duration_hours": 8.0,
+        "summary": "Stream campers abandoned bait crates along the water.",
+        "message": "Tip: Scouts found bait crates beside the stream—critters have barely touched them.",
+        "loot_hint": "Expect surges in grubs, mushrooms, and scrap lumber before dusk.",
+        "modifiers": {
+            "grubs": 1.90,
+            "mushrooms": 1.60,
+            "wood": 1.30
+        }
+    },
+    {
+        "id": "forest_supply_drop",
+        "location_id": "thick_forest",
+        "sources": ["radio"],
+        "chance": 0.35,
+        "duration_hours": 9.0,
+        "summary": "Supply drone dumped crates deep in the forest.",
+        "message": "Tip: Dispatch logged a drone drop in the thick forest before batteries died.",
+        "loot_hint": "Extra fuel and advanced parts before scavengers strip the crates.",
+        "modifiers": {
+            "fuel": 1.60,
+            "mechanical_parts": 1.50,
+            "electrical_parts": 1.50,
+            "metal_scrap": 1.40
+        }
+    }
+]
+
 # Travel encounter damage ranges (min-max HP) per hostile type.
 const TRAVEL_ENCOUNTER_DAMAGE := {
     "wolves": {
@@ -1142,10 +1322,13 @@ signal snare_state_changed(state: Dictionary)
 signal wolf_state_changed(state: Dictionary)
 signal expedition_state_changed(state: Dictionary)
 signal radio_attention_changed(active: bool)
+signal game_mode_changed(mode: String)
+signal location_intel_changed(state: Dictionary)
 
 # Core game state values shared between systems and UI.
 var current_day: int = 1
 var game_paused: bool = false
+var _game_mode: String = GAME_MODE_SURVIVAL
 
 # Player reference cached once so interaction helpers can fetch it quickly.
 var player: CharacterBody2D
@@ -1200,6 +1383,7 @@ var _tutorial_popup: ActionPopupPanel
 var _tutorial_flags: Dictionary = {}
 var _daily_supply_state: Dictionary = {}
 var _daily_supply_spoil_notice: Dictionary = {}
+var _location_intel: Dictionary = {}
 
 # Wire together systems, seed defaults, and make sure listeners are ready before play begins.
 func _ready():
@@ -1278,6 +1462,8 @@ func _ready():
         _emit_expedition_state()
 
     _refresh_lure_status(true)
+    _emit_location_intel_state()
+    _emit_game_mode_changed()
     _broadcast_trap_state()
     _emit_hunt_stock_changed()
     _rebuild_snare_state()
@@ -1415,6 +1601,7 @@ func _apply_active_location(option: Dictionary) -> Dictionary:
     profile["calorie_cost"] = float(option.get("calorie_cost", profile.get("calorie_cost", TRAVEL_CALORIE_COST)))
     profile["checkpoint_index"] = int(option.get("checkpoint_index", profile.get("checkpoint_index", 1)))
     _active_location = profile.duplicate(true)
+    _emit_location_intel_state()
     return profile.duplicate(true)
 
 func get_hunt_status() -> Dictionary:
@@ -1643,13 +1830,17 @@ func _broadcast_snare_state():
     snare_state_changed.emit(get_snare_state())
 
 func get_expedition_state() -> Dictionary:
-    return expedition_system.get_state() if expedition_system else {}
+    if expedition_system == null or !is_adventure_mode():
+        return {}
+    return expedition_system.get_state()
 
 func get_selected_travel_option() -> Dictionary:
-    return expedition_system.get_selected_option() if expedition_system else {}
+    if expedition_system == null or !is_adventure_mode():
+        return {}
+    return expedition_system.get_selected_option()
 
 func select_travel_option(index: int) -> Dictionary:
-    if expedition_system == null:
+    if expedition_system == null or !is_adventure_mode():
         return {
             "success": false,
             "reason": "systems_unavailable",
@@ -1662,12 +1853,26 @@ func select_travel_option(index: int) -> Dictionary:
 
 func _emit_expedition_state():
     if expedition_system:
-        expedition_state_changed.emit(expedition_system.get_state())
+        expedition_state_changed.emit(get_expedition_state())
     else:
         expedition_state_changed.emit({})
 
-func _on_expedition_system_state_changed(state: Dictionary) -> void:
-    expedition_state_changed.emit(state)
+func _emit_game_mode_changed():
+    game_mode_changed.emit(_game_mode)
+
+func get_location_intel_state() -> Dictionary:
+    var location = get_active_location()
+    return {
+        "intel": _clone_location_intel(),
+        "active_location_id": String(location.get("id", DEFAULT_LOCATION_ID)),
+        "active_location_label": String(location.get("label", String(location.get("id", DEFAULT_LOCATION_ID)).capitalize()))
+    }
+
+func _emit_location_intel_state():
+    location_intel_changed.emit(get_location_intel_state())
+
+func _on_expedition_system_state_changed(_state: Dictionary) -> void:
+    expedition_state_changed.emit(get_expedition_state())
 
 func _rebuild_snare_state():
     var waiting: Array = []
@@ -1902,6 +2107,37 @@ func set_weight_unit(unit: String) -> String:
 func toggle_weight_unit() -> String:
     return sleep_system.toggle_weight_unit() if sleep_system else SleepSystem.WEIGHT_UNIT_LBS
 
+func get_game_mode() -> String:
+    return _game_mode
+
+func is_survival_mode() -> bool:
+    return _game_mode == GAME_MODE_SURVIVAL
+
+func is_adventure_mode() -> bool:
+    return _game_mode == GAME_MODE_ADVENTURE
+
+func set_game_mode(mode: String) -> String:
+    var normalized = String(mode).to_lower()
+    if normalized != GAME_MODE_ADVENTURE:
+        normalized = GAME_MODE_SURVIVAL
+    if normalized == _game_mode:
+        return _game_mode
+
+    _game_mode = normalized
+    print("🧭 Game mode set -> %s" % _game_mode.capitalize())
+
+    _location_intel.clear()
+    _emit_location_intel_state()
+
+    if expedition_system:
+        expedition_system.initialize(_rng)
+    if is_survival_mode():
+        _active_location = _resolve_location_profile(DEFAULT_LOCATION_ID)
+
+    _emit_expedition_state()
+    _emit_game_mode_changed()
+    return _game_mode
+
 func get_time_multiplier() -> float:
     return sleep_system.get_time_multiplier() if sleep_system else 1.0
 
@@ -1917,6 +2153,8 @@ func request_radio_broadcast() -> Dictionary:
     if news_system:
         broadcast = news_system.get_broadcast_for_day(current_day)
         has_message = !broadcast.is_empty() and !String(broadcast.get("text", "")).is_empty()
+    if typeof(broadcast) == TYPE_DICTIONARY:
+        broadcast = broadcast.duplicate(true)
     if broadcast.is_empty():
         broadcast = {
             "title": "Tower Dispatch",
@@ -1931,6 +2169,18 @@ func request_radio_broadcast() -> Dictionary:
         if !supply_text.is_empty():
             has_message = true
 
+    var intel_report = _trigger_location_intel("radio")
+    if !intel_report.is_empty():
+        intel_report["lines"] = _build_location_intel_lines(intel_report)
+        var intel_text = _format_location_intel_broadcast(intel_report)
+        if !intel_text.is_empty():
+            var base_text = String(broadcast.get("text", ""))
+            if base_text.is_empty():
+                broadcast["text"] = intel_text
+            else:
+                broadcast["text"] = "%s\n\n%s" % [base_text, intel_text]
+            has_message = true
+
     var result := {
         "success": true,
         "day": current_day,
@@ -1939,6 +2189,8 @@ func request_radio_broadcast() -> Dictionary:
         "daily_supply_status": _resolve_daily_supply_status(),
         "daily_supply_note": supply_note
     }
+    if !intel_report.is_empty():
+        result["location_intel"] = intel_report.duplicate(true)
     if supply_text.is_empty():
         result.erase("daily_supply_note")
     if !has_message:
@@ -3650,6 +3902,10 @@ func perform_recon() -> Dictionary:
     result["weather_forecast"] = weather_outlook
     result["zombie_forecast"] = zombie_outlook
     result["wolf_forecast"] = wolf_outlook
+    var intel_report = _trigger_location_intel("recon")
+    if !intel_report.is_empty():
+        intel_report["lines"] = _build_location_intel_lines(intel_report)
+        result["location_intel"] = intel_report.duplicate(true)
     result["window_status"] = get_recon_window_status()
     _update_recon_alerts_from_forecast(weather_outlook, zombie_outlook, wolf_outlook)
     result["alerts"] = _recon_alerts.duplicate(true)
@@ -3659,6 +3915,12 @@ func perform_recon() -> Dictionary:
     return result
 
 func perform_travel_to_next_location() -> Dictionary:
+    if !is_adventure_mode():
+        return {
+            "success": false,
+            "reason": "mode_locked",
+            "action": "travel"
+        }
     if expedition_system == null or time_system == null or sleep_system == null:
         return {
             "success": false,
@@ -3935,6 +4197,9 @@ func _pick_fishing_size(roll: float) -> Dictionary:
 func _roll_forging_loot_for_location() -> Array:
     var profile_id = _get_active_forage_profile()
     var table = _get_forage_table(profile_id)
+    var location = get_active_location()
+    var location_id = String(location.get("id", DEFAULT_LOCATION_ID))
+    table = _apply_location_forage_modifiers(table, location_id)
     return _roll_loot_from_table(table)
 
 func _roll_campground_loot() -> Array:
@@ -3942,6 +4207,9 @@ func _roll_campground_loot() -> Array:
     if profile_id == "stream_banks":
         profile_id = "camp_cache"
     var table = _get_forage_table(profile_id)
+    var location = get_active_location()
+    var location_id = String(location.get("id", DEFAULT_LOCATION_ID))
+    table = _apply_location_forage_modifiers(table, location_id)
     return _roll_loot_from_table(table)
 
 func _get_active_forage_profile() -> String:
@@ -3965,6 +4233,43 @@ func _get_forage_table(profile_id: String) -> Array:
         else:
             cloned.append(entry)
     return cloned
+
+func _apply_location_forage_modifiers(table: Array, location_id: String) -> Array:
+    if table.is_empty():
+        return table
+    var multipliers = _get_forage_modifiers(location_id)
+    if multipliers.is_empty():
+        return table
+    for entry in table:
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        var item_id = String(entry.get("item_id", ""))
+        if item_id.is_empty() or !multipliers.has(item_id):
+            continue
+        var factor = float(multipliers.get(item_id, 1.0))
+        if factor <= 0.0:
+            entry["chance"] = 0.0
+            continue
+        var chance = float(entry.get("chance", 0.0)) * factor
+        entry["chance"] = clamp(chance, 0.0, 0.99)
+    return table
+
+func _get_forage_modifiers(location_id: String) -> Dictionary:
+    var modifiers: Dictionary = {}
+    var base_entry: Dictionary = FORAGE_LOCATION_MODIFIERS.get(location_id, {}) if FORAGE_LOCATION_MODIFIERS.has(location_id) else {}
+    if typeof(base_entry.get("multipliers", {})) == TYPE_DICTIONARY:
+        var base_map: Dictionary = base_entry.get("multipliers", {})
+        for key in base_map.keys():
+            modifiers[key] = float(base_map.get(key, 1.0))
+    if _location_intel.has(location_id):
+        var intel_entry: Dictionary = _location_intel.get(location_id, {})
+        if typeof(intel_entry.get("modifiers", {})) == TYPE_DICTIONARY:
+            var intel_map: Dictionary = intel_entry.get("modifiers", {})
+            for key in intel_map.keys():
+                var intel_factor = float(intel_map.get(key, 1.0))
+                var current = float(modifiers.get(key, 1.0))
+                modifiers[key] = current * intel_factor
+    return modifiers
 
 func _roll_travel_encounter(option: Dictionary) -> Dictionary:
     if _rng == null or health_system == null:
@@ -4113,6 +4418,291 @@ func _roll_loot_from_table(table: Array) -> Array:
             })
     return rewards
 
+func get_forage_outlook(max_items: int = 6) -> Dictionary:
+    var profile_id = _get_active_forage_profile()
+    var location = get_active_location()
+    var table = _get_forage_table(profile_id)
+    var location_id = String(location.get("id", DEFAULT_LOCATION_ID))
+    table = _apply_location_forage_modifiers(table, location_id)
+    var items: Array = []
+    for entry in table:
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        var item_id = String(entry.get("item_id", ""))
+        if item_id.is_empty():
+            continue
+        var chance = clamp(float(entry.get("chance", 0.0)), 0.0, 1.0)
+        items.append({
+            "item_id": item_id,
+            "display_name": _resolve_item_label(item_id),
+            "chance": chance,
+            "tier": String(entry.get("tier", "basic"))
+        })
+    if items.size() > 1:
+        items.sort_custom(Callable(self, "_sort_loot_entry_desc"))
+    if max_items > 0 and items.size() > max_items:
+        items.resize(max_items)
+    return {
+        "location_id": location_id,
+        "location_label": String(location.get("label", location_id.capitalize())),
+        "items": items
+    }
+
+func get_forage_hint_for_current_location() -> Dictionary:
+    var outlook = get_forage_outlook()
+    var location_id = String(outlook.get("location_id", DEFAULT_LOCATION_ID))
+    var location_label = String(outlook.get("location_label", location_id.capitalize()))
+    var base_entry: Dictionary = FORAGE_LOCATION_MODIFIERS.get(location_id, {}) if FORAGE_LOCATION_MODIFIERS.has(location_id) else {}
+    var base_lines := PackedStringArray([])
+    var base_note = String(base_entry.get("note", ""))
+    if !base_note.is_empty():
+        base_lines.append(base_note)
+    if typeof(base_entry.get("multipliers", {})) == TYPE_DICTIONARY:
+        var bias_lines = _build_forage_bias_lines(base_entry.get("multipliers", {}))
+        for line in bias_lines:
+            base_lines.append(line)
+
+    var intel_entry: Dictionary = {}
+    if _location_intel.has(location_id):
+        intel_entry = _location_intel.get(location_id, {}).duplicate(true)
+        intel_entry["lines"] = _build_location_intel_lines(intel_entry)
+
+    var items: Array = outlook.get("items", [])
+    var fragments := PackedStringArray([])
+    for i in range(min(items.size(), 2)):
+        var entry: Dictionary = items[i]
+        var percent = int(round(float(entry.get("chance", 0.0)) * 100.0))
+        fragments.append("%s %d%%" % [entry.get("display_name", entry.get("item_id", "Loot")), percent])
+    var prefix = location_label
+    if typeof(intel_entry) == TYPE_DICTIONARY and !intel_entry.is_empty():
+        prefix += " tip"
+    else:
+        prefix += " focus"
+    var short_summary = prefix
+    if !fragments.is_empty():
+        short_summary = "%s: %s" % [prefix, ", ".join(fragments)]
+
+    return {
+        "location_id": location_id,
+        "location_label": location_label,
+        "base_lines": base_lines,
+        "intel": intel_entry,
+        "short_summary": short_summary,
+        "outlook": outlook
+    }
+
+func _build_location_intel_lines(entry: Dictionary) -> PackedStringArray:
+    var lines := PackedStringArray([])
+    var summary = String(entry.get("summary", ""))
+    if !summary.is_empty():
+        lines.append(summary)
+    var loot_hint = String(entry.get("loot_hint", ""))
+    if !loot_hint.is_empty():
+        lines.append(loot_hint)
+    var remaining = float(entry.get("minutes_remaining", entry.get("duration_minutes", 0.0)))
+    if remaining > 0.0:
+        var minutes_int = int(round(max(remaining, 0.0)))
+        lines.append("Ends in %s" % _format_minutes_short(minutes_int))
+        if time_system:
+            lines.append("Clear by %s" % time_system.get_formatted_time_after(minutes_int))
+    return lines
+
+func _build_forage_bias_lines(multipliers: Dictionary) -> PackedStringArray:
+    var lines := PackedStringArray([])
+    if typeof(multipliers) != TYPE_DICTIONARY or multipliers.is_empty():
+        return lines
+    var boosts: Array = []
+    var dips: Array = []
+    for key in multipliers.keys():
+        var factor = float(multipliers.get(key, 1.0))
+        if is_equal_approx(factor, 1.0):
+            continue
+        var entry := {
+            "label": _resolve_item_label(String(key)),
+            "delta": int(round(abs(factor - 1.0) * 100.0)),
+            "factor": factor
+        }
+        if factor > 1.0:
+            boosts.append(entry)
+        else:
+            dips.append(entry)
+    if boosts.size() > 1:
+        boosts.sort_custom(Callable(self, "_sort_bias_desc"))
+    if dips.size() > 1:
+        dips.sort_custom(Callable(self, "_sort_bias_desc"))
+    if !boosts.is_empty():
+        var fragments := PackedStringArray([])
+        for i in range(min(boosts.size(), 3)):
+            var entry = boosts[i]
+            fragments.append("%s +%d%%" % [entry.get("label", ""), entry.get("delta", 0)])
+        lines.append("Boosts: %s" % ", ".join(fragments))
+    if !dips.is_empty():
+        var fragments := PackedStringArray([])
+        for i in range(min(dips.size(), 3)):
+            var entry = dips[i]
+            fragments.append("%s -%d%%" % [entry.get("label", ""), entry.get("delta", 0)])
+        lines.append("Dips: %s" % ", ".join(fragments))
+    return lines
+
+func _resolve_item_label(item_id: String) -> String:
+    if inventory_system:
+        var label = inventory_system.get_item_display_name(item_id)
+        if !label.is_empty():
+            return label
+    return item_id.capitalize()
+
+func _format_minutes_short(minutes: int) -> String:
+    var clamped = max(minutes, 0)
+    var hours = clamped / 60
+    var mins = clamped % 60
+    if hours > 0 and mins > 0:
+        return "%dh %dm" % [hours, mins]
+    if hours > 0:
+        return "%dh" % hours
+    return "%dm" % mins
+
+func _sort_loot_entry_desc(a, b) -> bool:
+    if typeof(a) != TYPE_DICTIONARY or typeof(b) != TYPE_DICTIONARY:
+        return false
+    var a_chance = float(a.get("chance", 0.0))
+    var b_chance = float(b.get("chance", 0.0))
+    if is_equal_approx(a_chance, b_chance):
+        return String(a.get("display_name", "")) < String(b.get("display_name", ""))
+    return a_chance > b_chance
+
+func _sort_bias_desc(a, b) -> bool:
+    if typeof(a) != TYPE_DICTIONARY or typeof(b) != TYPE_DICTIONARY:
+        return false
+    return int(a.get("delta", 0)) > int(b.get("delta", 0))
+
+func _clone_location_intel() -> Dictionary:
+    var cloned: Dictionary = {}
+    for key in _location_intel.keys():
+        var entry = _location_intel.get(key, {})
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        cloned[key] = entry.duplicate(true)
+    return cloned
+
+func _roll_location_intel(source: String) -> Dictionary:
+    if LOCATION_INTEL_EVENTS.is_empty() or _rng == null:
+        return {}
+    var candidates: Array = []
+    for event in LOCATION_INTEL_EVENTS:
+        if typeof(event) != TYPE_DICTIONARY:
+            continue
+        var sources: Array = event.get("sources", [])
+        var allow_all = sources.is_empty()
+        var allowed = allow_all
+        if !allow_all:
+            for entry in sources:
+                if String(entry).to_lower() == source.to_lower():
+                    allowed = true
+                    break
+        if allowed:
+            candidates.append(event)
+    if candidates.is_empty():
+        return {}
+    var pick: Dictionary = candidates[_rng.randi_range(0, candidates.size() - 1)]
+    var chance = clamp(float(pick.get("chance", 0.0)), 0.0, 1.0)
+    if chance <= 0.0:
+        return {}
+    if _rng.randf() > chance:
+        return {}
+    return pick.duplicate(true)
+
+func _activate_location_intel(event: Dictionary, source: String) -> Dictionary:
+    if typeof(event) != TYPE_DICTIONARY or event.is_empty():
+        return {}
+    var location_id = String(event.get("location_id", ""))
+    if location_id.is_empty():
+        return {}
+    var duration_hours = float(event.get("duration_hours", 8.0))
+    if duration_hours <= 0.0:
+        duration_hours = 1.0
+    var duration_minutes = int(round(duration_hours * 60.0))
+    if duration_minutes <= 0:
+        duration_minutes = 60
+    var modifiers: Dictionary = {}
+    if typeof(event.get("modifiers", {})) == TYPE_DICTIONARY:
+        var raw_modifiers: Dictionary = event.get("modifiers", {})
+        for key in raw_modifiers.keys():
+            modifiers[key] = float(raw_modifiers.get(key, 1.0))
+    var entry := {
+        "id": String(event.get("id", location_id)),
+        "location_id": location_id,
+        "location_label": _resolve_location_profile(location_id).get("label", location_id.capitalize()),
+        "source": source,
+        "summary": String(event.get("summary", "")),
+        "message": String(event.get("message", "")),
+        "loot_hint": String(event.get("loot_hint", "")),
+        "duration_minutes": duration_minutes,
+        "minutes_remaining": float(duration_minutes),
+        "modifiers": modifiers
+    }
+    if time_system:
+        entry["expires_at_time"] = time_system.get_formatted_time_after(duration_minutes)
+    _location_intel[location_id] = entry.duplicate(true)
+    print("📡 Location intel tracked -> %s (%d min)" % [location_id, duration_minutes])
+    _emit_location_intel_state()
+    entry["lines"] = _build_location_intel_lines(entry)
+    return entry
+
+func _trigger_location_intel(source: String) -> Dictionary:
+    var event = _roll_location_intel(source)
+    if event.is_empty():
+        return {}
+    return _activate_location_intel(event, source)
+
+func _advance_location_intel(minutes: int) -> void:
+    if minutes <= 0 or _location_intel.is_empty():
+        return
+    var changed = false
+    for key in _location_intel.keys():
+        var entry = _location_intel.get(key, {})
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        var remaining = float(entry.get("minutes_remaining", entry.get("duration_minutes", 0.0)))
+        if remaining <= 0.0:
+            continue
+        var updated = max(remaining - minutes, 0.0)
+        if !is_equal_approx(updated, remaining):
+            entry["minutes_remaining"] = updated
+            _location_intel[key] = entry
+            changed = true
+    if !changed:
+        return
+    var expired: Array = []
+    for key in _location_intel.keys():
+        var entry = _location_intel.get(key, {})
+        if typeof(entry) != TYPE_DICTIONARY:
+            continue
+        if float(entry.get("minutes_remaining", 0.0)) <= 0.0:
+            expired.append(key)
+    for key in expired:
+        var entry = _location_intel.get(key, {})
+        var label = String(entry.get("location_label", key))
+        print("ℹ️ Location intel expired -> %s" % label)
+        _location_intel.erase(key)
+    _emit_location_intel_state()
+
+func _format_location_intel_broadcast(intel: Dictionary) -> String:
+    var lines := PackedStringArray([])
+    var label = String(intel.get("location_label", intel.get("location_id", "")))
+    if !label.is_empty():
+        lines.append("Tower Intel: %s" % label)
+    var summary = String(intel.get("summary", ""))
+    if !summary.is_empty():
+        lines.append(summary)
+    var loot_hint = String(intel.get("loot_hint", ""))
+    if !loot_hint.is_empty():
+        lines.append(loot_hint)
+    var remaining = float(intel.get("minutes_remaining", intel.get("duration_minutes", 0.0)))
+    if remaining > 0.0:
+        var minutes_int = int(round(max(remaining, 0.0)))
+        lines.append("Window: %s" % _format_minutes_short(minutes_int))
+    return "\n".join(lines)
+
 func _apply_carry_capacity(entries: Array) -> Dictionary:
     var capacity = get_carry_capacity()
     var retained: Array = []
@@ -4252,6 +4842,7 @@ func _on_weather_hour_elapsed(state: String):
 func _on_time_advanced_by_minutes(minutes: int, rolled_over: bool):
     if time_system == null:
         return
+    _advance_location_intel(minutes)
     _advance_wood_stove(minutes)
     _advance_snares(minutes, rolled_over)
     var current_minutes = time_system.get_minutes_since_daybreak()

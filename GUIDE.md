@@ -1,6 +1,7 @@
 # Firetower Survival Guide
 
 ## Core Loop Snapshot
+* **Game Modes**: `ModeSelectPanel` opens on boot—Survival locks the tower in place, Adventure unlocks the expedition trek toward evacuation.
 * **Day Cycle**: Daybreak at 6:00 AM, 1,440 total minutes per day maintained by `TimeSystem` scheduler.
 * **Action Flow**: `GameManager` advances the clock, burns calories, and updates rest using sleep/weather multipliers per activity.
 * **Weather Cadence**: Hourly precipitation roll while clear (5% start chance). Successful rolls weight intensity heavy 15%, rain 35%, sprinkling 50% with default durations 5h/2h/1h.
@@ -22,6 +23,8 @@
   - `trap_state_changed(active, state)` – announces trap deployment, arming, and trigger payloads to HUD/task panels.
   - `recon_alerts_changed(alerts)` – pushes upcoming weather/zombie notices to the HUD countdown banner.
   - `wolf_state_changed(state)` – publishes wolf schedule/active-state changes for task and recon updates.
+  - `game_mode_changed(mode)` – fires when the player swaps between Survival and Adventure.
+  - `location_intel_changed(state)` – broadcasts current location intel (active boosts + active location metadata).
 * **Key constants**
   - `CALORIES_PER_FOOD_UNIT = 1000` (1 food unit equals 1,000 calories).
   - `LEAD_AWAY_ZOMBIE_CHANCE = 0.80` (80% success per zombie).
@@ -38,6 +41,8 @@
 * **System accessors**
   - `get_sleep_system()`, `get_time_system()`, `get_inventory_system()`, `get_weather_system()`, `get_tower_health_system()`, `get_news_system()`, `get_zombie_system()`.
   - `get_crafting_recipes()` – deep copy of crafting blueprint dictionary.
+  - Mode helpers: `get_game_mode()`, `is_survival_mode()`, `is_adventure_mode()`, `set_game_mode(mode)`.
+  - Forage helpers: `get_forage_hint_for_current_location()`, `get_forage_outlook(max_items)` expose location biases, intel windows, and adjusted loot odds.
   - Recon helpers: `get_recon_window_status()` returns availability, cutoff, and resume timestamps.
   - Lure helpers: `get_lure_status()` exposes scouted spawn data, action availability, and failure reasons.
 * **Player status getters**
@@ -45,12 +50,13 @@
   - `set_weight_unit(unit)` / `toggle_weight_unit()` – pass-through to `SleepSystem`.
   - Multipliers: `get_time_multiplier()`, `get_weather_activity_multiplier()`, `get_combined_activity_multiplier()`.
 * **Radio & narrative**
-  - `request_radio_broadcast()` – returns cached `NewsBroadcastSystem` message for the current day (or static when missing).
+  - `request_radio_broadcast()` – returns cached `NewsBroadcastSystem` message for the current day (or static when missing) and may append location intel tips that temporarily alter forging odds.
   - Daily supply hamper – radio check-ins auto-claim the co-op hamper (berries, nuts, cloth, bait mixes) and missing a day spoils the drop with a reminder in the next briefing.
 * **Task actions**
   - `perform_eating(portion_key)` – spends 1 activity hour, converts food units to calories, and updates weight.
   - `schedule_sleep(hours)` – restores energy (10% per hour), burns 100 calories/hour, and advances time using the combined multiplier. Duration auto-truncates if daybreak would be crossed.
-- `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()` (wood 45%, ripped cloth 30%, staple forage 20–25% bands), respects the 5-slot carry cap (12 with a Backpack), logs overflow drops, and, when wolves are posted outside, applies the 30% wolf strike (5–15 HP) before finalizing loot.
+- `perform_forging()` – requires no active zombies, consumes 1 hour plus 10% energy, burns 300 calories, rolls `_roll_forging_loot()` (baseline wood 45%, ripped cloth 30%, staple forage 20–25% bands), respects the 5-slot carry cap (12 with a Backpack), logs overflow drops, and, when wolves are posted outside, applies the 30% wolf strike (5–15 HP) before finalizing loot.
+  * Area biases (`FORAGE_LOCATION_MODIFIERS`) and active intel multipliers adjust item chances; `location_intel_changed` lets UI refresh hints.
 - `perform_campground_search()` – spends 4 hours plus 20% energy and 800 calories sweeping campsite loot (ripped cloth 55%, wood 45%, advanced bundles at 25%), honors carry-cap overflow handling, and rolls the same wolf strike chance whenever the pack is circling the tower.
 - `perform_hunt()` – requires no active zombies, a crafted bow, and at least one arrow; consumes 2 hours plus 10% energy, burns 400 calories, fires up to three shots per trip (each with a 50% break chance) against a sequential animal table (Rabbit 30%/2 food, Squirrel 30%/2 food, Boar 20%/6 food, Doe 25%/5 food, Buck 20%/7 food), consumes broken arrows, adds food units, and banks raw game for Butcher/Cook Whole processing.
 - `perform_butcher_and_cook()` – requires a crafted knife, a lit wood stove, and stored hunt/snare game; consumes 1 hour plus 5% energy, burns 150 calories, processes as much stored game food as remains in inventory, and grants a 25% food bonus rounded up to the nearest 0.5 while clearing processed game stock.
@@ -63,6 +69,7 @@
 - `perform_place_snare()` – requires no nearby zombies and at least one crafted Animal Snare; consumes 1 scaled hour, spends 5% rest, burns 250 calories, removes one snare from inventory, and tracks the deployment for hourly 40% rabbit/squirrel catch rolls (each worth 2 food units) until collected for cooking.
 - `perform_check_snares()` – requires active snares and a clear area; consumes 0.5 scaled hours, spends 2% rest, burns 50 calories, retrieves any animals waiting in deployed snares (banking 2 food units per rabbit/squirrel into the same pending game stock used by Hunt processing), and reports when the lines are still empty.
 - `perform_recon()` – restricted to recon window, consumes 1 hour plus 150 calories, snapshots RNG, returns six-hour weather and zombie forecasts, triggers the recon outlook popup, and seeds HUD countdown alerts for incoming rain or waves.
+  * Successful sweeps can attach `location_intel` (label, summary, minutes remaining) that boosts forging odds until the timer expires.
   - `repair_tower(materials)` – costs 1 hour and 1 wood, burns 350 calories, grants 10% energy bonus, restores 5 tower health (capped at 100).
   - `reinforce_tower(materials)` – costs 2 hours, 3 wood, 5 nails, burns 450 calories, spends 20% energy, adds 25 health up to 150 cap.
   - `craft_item(recipe_id)` – validates materials, spends a fixed 1 hour (scaled by multipliers), burns 250 calories, consumes recipe-specific rest, and adds crafted goods.
