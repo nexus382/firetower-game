@@ -12,6 +12,26 @@ const OPTIONS_PER_CHECKPOINT: int = 2
 const DEFAULT_REST_COST_PERCENT: float = 15.0
 const DEFAULT_CALORIE_COST: float = 600.0
 
+const EVACUATION_OPTION := {
+    "id": "evacuation_site",
+    "label": "Evacuation Site",
+    "hours_min": 5.5,
+    "hours_max": 7.0,
+    "summary": "Final push to the evac staging zone.",
+    "rest_cost_percent": 18.0,
+    "calorie_cost": 680.0,
+    "hazard_tier": "hostile",
+    "temperature_band": "temperate",
+    "forage_profile": "camp_cache",
+    "fishing_allowed": false,
+    "encounter_focus": {
+        "wolves": 0.20,
+        "zombies": 0.55,
+        "survivors": 0.25
+    },
+    "shelter_from_rain": false
+}
+
 const LOCATION_DECK := [
     {
         "id": "overgrown_path",
@@ -258,6 +278,9 @@ func commit_selected_route() -> Dictionary:
 
 func _build_options_for_checkpoint() -> void:
     _options.clear()
+    if _current_checkpoint >= TOTAL_CHECKPOINTS:
+        _options.append(_build_option(EVACUATION_OPTION))
+        return
     var pool: Array = LOCATION_DECK.duplicate(true)
     pool.shuffle()
     for i in range(OPTIONS_PER_CHECKPOINT):
