@@ -31,10 +31,11 @@ func _ready():
     visible = true
     mouse_filter = Control.MOUSE_FILTER_STOP
     set_process_unhandled_input(true)
+    _resolve_nodes()
     _resolve_game_manager()
     _apply_theme_overrides()
     _wire_buttons()
-    _refresh_selection(game_manager.get_game_mode() if game_manager else SURVIVAL_MODE_ID)
+    _refresh_selection(game_manager if game_manager != null else SURVIVAL_MODE_ID)
     call_deferred("_grab_initial_focus")
 
 func _unhandled_input(event):
@@ -52,6 +53,18 @@ func _wire_buttons():
         adventure_button.pressed.connect(_on_adventure_pressed)
         adventure_button.focus_entered.connect(_on_adventure_preview)
         adventure_button.mouse_entered.connect(_on_adventure_preview)
+
+func _resolve_nodes():
+    if survival_button_path != NodePath(""):
+        survival_button = get_node_or_null(survival_button_path)
+    if adventure_button_path != NodePath(""):
+        adventure_button = get_node_or_null(adventure_button_path)
+    if title_label_path != NodePath(""):
+        title_label = get_node_or_null(title_label_path)
+    if description_label_path != NodePath(""):
+        description_label = get_node_or_null(description_label_path)
+    if info_popup_path != NodePath(""):
+        info_popup = get_node_or_null(info_popup_path)
 
 func _resolve_game_manager():
     var tree = get_tree()
