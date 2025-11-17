@@ -2182,14 +2182,6 @@ func get_mode_briefing(mode: String) -> Dictionary:
     var travel_enabled = bool(profile.get("travel_enabled", false))
     var rescue_enabled = bool(profile.get("rescue_available", false))
 
-    var travel_line = "Travel is locked; keep operations inside the tower."
-    if travel_enabled:
-        travel_line = "Expeditions and checkpoint travel are unlocked."
-
-    var rescue_line = "Rescue is off the table—ride out the siege."
-    if rescue_enabled:
-        rescue_line = "Reach the convoy to close the run."
-
     var sections: Array = [
         {
             "title": "%s Focus" % label,
@@ -2201,8 +2193,8 @@ func get_mode_briefing(mode: String) -> Dictionary:
         {
             "title": "Travel & Rescue",
             "lines": [
-                travel_line,
-                rescue_line
+                travel_enabled ? "Expeditions and checkpoint travel are unlocked." : "Travel is locked; keep operations inside the tower.",
+                rescue_enabled ? "Reach the convoy to close the run." : "Rescue is off the table—ride out the siege."
             ]
         },
         {
