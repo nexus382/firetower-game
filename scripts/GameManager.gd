@@ -2177,62 +2177,38 @@ func get_mode_briefing(mode: String) -> Dictionary:
     var profile = _resolve_mode_capabilities(mode)
     var label = String(profile.get("label", "Mode"))
     var scope_key = String(profile.get("location_scope", "unknown"))
-    var scope_line = String(MODE_SCOPE_SUMMARIES.get(scope_key, MODE_SCOPE_SUMMARIES.get("unknown")))
+    var scope_line = MODE_SCOPE_SUMMARIES.get(scope_key, MODE_SCOPE_SUMMARIES.get("unknown"))
+
     var travel_enabled = bool(profile.get("travel_enabled", false))
     var rescue_enabled = bool(profile.get("rescue_available", false))
 
-    var travel_line = "Travel is locked; keep operations inside the tower."
-    if travel_enabled:
-        travel_line = "Expeditions and checkpoint travel are unlocked."
-
-    var rescue_line = "Rescue is off the table - ride out the siege."
-    if rescue_enabled:
-        rescue_line = "Reach the convoy to close the run."
-
-    var focus_lines: PackedStringArray = [
-        String(profile.get("description", "")),
-        scope_line
-    ]
-
-    var travel_lines: PackedStringArray = [
-        travel_line,
-        rescue_line
-    ]
-
-    var baseline_lines: PackedStringArray = [
-        "Sleep restores %.0f%% rest per hour and costs %d calories." % [
-            SleepSystem.SLEEP_PERCENT_PER_HOUR,
-            SleepSystem.CALORIES_PER_SLEEP_HOUR
-        ],
-        "Warmth swings from +%.0f/hr daytime to %.0f/hr at night (sleep blocks the nightly drop)." % [
-            WarmthSystem.RATE_DAYTIME,
-            WarmthSystem.RATE_NIGHT
-        ],
-        "Hiking legs run %.1f to %.1f hours with %.0f%% rest and %d calories per trip when enabled." % [
-            TRAVEL_HOURS_MIN,
-            TRAVEL_HOURS_MAX,
-            TRAVEL_REST_COST_PERCENT,
-            TRAVEL_CALORIE_COST
-        ]
-    ]
-
     var sections: Array = [
         {
-            "title": "%s Focus" % [label],
-            "lines": focus_lines
+            "title": "%s Focus" % label,
+            "lines": [
+                String(profile.get("description", "")),
+                scope_line
+            ]
         },
         {
             "title": "Travel & Rescue",
-            "lines": travel_lines
+            "lines": [
+                travel_enabled ? "Expeditions and checkpoint travel are unlocked." : "Travel is locked; keep operations inside the tower.",
+                rescue_enabled ? "Reach the convoy to close the run." : "Rescue is off the table—ride out the siege."
+            ]
         },
         {
             "title": "Baseline Costs",
-            "lines": baseline_lines
+            "lines": [
+                "Sleep restores %.0f%% rest per hour and costs %d calories." % [SleepSystem.SLEEP_PERCENT_PER_HOUR, SleepSystem.CALORIES_PER_SLEEP_HOUR],
+                "Warmth swings from +%.0f/hr daytime to %.0f/hr at night (sleep blocks the nightly drop)." % [WarmthSystem.RATE_DAYTIME, WarmthSystem.RATE_NIGHT],
+                "Hiking legs run %.1f–%.1f hours with %.0f%% rest and %d calories per trip when enabled." % [TRAVEL_HOURS_MIN, TRAVEL_HOURS_MAX, TRAVEL_REST_COST_PERCENT, TRAVEL_CALORIE_COST]
+            ]
         }
     ]
 
     return {
-        "title": "%s Mode Ready" % [label],
+        "title": "%s Mode Ready" % label,
         "sections": sections
     }
 
