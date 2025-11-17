@@ -1,7 +1,8 @@
 # Firetower Survival Guide
 
 ## Core Loop Snapshot
-* **Game Modes**: `ModeSelectPanel` opens on boot—Survival locks the tower in place, Adventure unlocks the expedition trek toward evacuation.
+* **Game Modes**: `ModeSelectPanel` opens on boot—Survival locks play to the fire tower (forge/search only, no evacuation path), Adventure unlocks the expedition trek toward evacuation.
+* **Mode Briefings**: Selecting a mode surfaces a popup outlining scope, travel/rescue access, and baseline rest/warmth costs; the living-area "Firetower Patrol Guide" book mirrors the same primer on a table.
 * **Day Cycle**: Daybreak at 6:00 AM, 1,440 total minutes per day maintained by `TimeSystem` scheduler.
 * **Action Flow**: `GameManager` advances the clock, burns calories, and updates rest using sleep/weather multipliers per activity.
 * **Weather Cadence**: Hourly precipitation roll while clear (5% start chance). Successful rolls weight intensity heavy 15%, rain 35%, sprinkling 50% with default durations 5h/2h/1h.
@@ -41,7 +42,8 @@
 * **System accessors**
   - `get_sleep_system()`, `get_time_system()`, `get_inventory_system()`, `get_weather_system()`, `get_tower_health_system()`, `get_news_system()`, `get_zombie_system()`.
   - `get_crafting_recipes()` – deep copy of crafting blueprint dictionary.
-  - Mode helpers: `get_game_mode()`, `is_survival_mode()`, `is_adventure_mode()`, `set_game_mode(mode)`.
+  - Mode helpers: `get_game_mode()`, `get_mode_capabilities()`, `is_survival_mode()`, `is_adventure_mode()`, `set_game_mode(mode)`.
+  - Mode capability map: `GAME_MODE_CAPABILITIES` seeds per-mode labels, descriptions, expedition/travel/rescue flags, and `location_scope` so future features can opt-in to either mode via `_mode_capabilities`.
   - Forage helpers: `get_forage_hint_for_current_location()`, `get_forage_outlook(max_items)` expose location biases, intel windows, and adjusted loot odds.
   - Recon helpers: `get_recon_window_status()` returns availability, cutoff, and resume timestamps.
   - Lure helpers: `get_lure_status()` exposes scouted spawn data, action availability, and failure reasons.

@@ -277,6 +277,63 @@ const EVAC_LOCATION_ID := "evacuation_site"
 
 const GAME_MODE_SURVIVAL := "survival"
 const GAME_MODE_ADVENTURE := "adventure"
+const GAME_MODE_CAPABILITIES := {
+    GAME_MODE_SURVIVAL: {
+        "label": "Survival",
+        "description": "Hold the tower, forge locally, and outlast the horde.",
+        "expeditions_enabled": false,
+        "travel_enabled": false,
+        "rescue_available": false,
+        "location_scope": "tower_only"
+    },
+    GAME_MODE_ADVENTURE: {
+        "label": "Adventure",
+        "description": "Gear up, scout checkpoints, and push toward the evac convoy.",
+        "expeditions_enabled": true,
+        "travel_enabled": true,
+        "rescue_available": true,
+        "location_scope": "overland"
+    }
+}
+const MODE_SCOPE_SUMMARIES := {
+    "tower_only": "Scope: Fire tower only—forge and sweep the rooms without evac travel.",
+    "overland": "Scope: Tower hub plus expedition map—plan routes toward the convoy.",
+    "unknown": "Scope: Default tower play until a mode adds new routes."
+}
+const PATROL_GUIDE_SECTIONS := [
+    {
+        "title": "Modes & Goals",
+        "lines": [
+            "Survival locks you into the tower loop (forge/search, no travel/rescue).",
+            "Adventure enables expedition map legs and the evac finish line."
+        ]
+    },
+    {
+        "title": "Rest & Health",
+        "lines": [
+            "Sleep adds %.0f%% rest per hour and burns %d calories." % [SleepSystem.SLEEP_PERCENT_PER_HOUR, SleepSystem.CALORIES_PER_SLEEP_HOUR],
+            "Forging/searching each cost %.0f%% rest and %.0f calories per hour block." % [FORGING_REST_COST_PERCENT, FORGING_CALORIE_COST],
+            "Travel burns %d calories with %.0f%% rest loss (%.1f–%.1f hr legs)." % [TRAVEL_CALORIE_COST, TRAVEL_REST_COST_PERCENT, TRAVEL_HOURS_MIN, TRAVEL_HOURS_MAX],
+            "Wolf or lure mishaps roll 5–15 HP hits; stragglers can land 10 HP counters."
+        ]
+    },
+    {
+        "title": "Warmth & Dayparts",
+        "lines": [
+            "Daytime warms at %.0f/hr; evenings cool at %.0f/hr." % [WarmthSystem.RATE_DAYTIME, WarmthSystem.RATE_EVENING],
+            "Nights are the worst at %.0f/hr; sleep stops overnight heat loss." % [WarmthSystem.RATE_NIGHT],
+            "Early mornings drift %.0f/hr until sunrise burns off the chill." % [WarmthSystem.RATE_EARLY_MORNING]
+        ]
+    },
+    {
+        "title": "Crafting & Supplies",
+        "lines": [
+            "Craft actions take %.1f hr, spend %.0f calories, and respect carry caps (5 slots, 12 with Backpack)." % [CRAFT_ACTION_HOURS, CRAFT_CALORIE_COST],
+            "Portable Craft Station opens travel crafting; snares/traps add wildlife and defense income.",
+            "Metal/rope/cloth stock fuels repairs, trinkets, and weapon upkeep down the line."
+        ]
+    }
+]
 
 # Location profiles describe loot pools, climate, and access per route id.
 const LOCATION_PROFILES := {
@@ -1329,6 +1386,7 @@ signal location_intel_changed(state: Dictionary)
 var current_day: int = 1
 var game_paused: bool = false
 var _game_mode: String = GAME_MODE_SURVIVAL
+var _mode_capabilities: Dictionary = {}
 
 # Player reference cached once so interaction helpers can fetch it quickly.
 var player: CharacterBody2D
@@ -1395,6 +1453,7 @@ func _ready():
         print("❌ Player not found!")
 
     _active_location = _resolve_location_profile(DEFAULT_LOCATION_ID)
+    _mode_capabilities = _resolve_mode_capabilities(_game_mode)
     _tutorial_flags.clear()
 
     if sleep_system == null:
@@ -1830,20 +1889,20 @@ func _broadcast_snare_state():
     snare_state_changed.emit(get_snare_state())
 
 func get_expedition_state() -> Dictionary:
-    if expedition_system == null or !is_adventure_mode():
+    if expedition_system == null or !_is_expedition_enabled():
         return {}
     return expedition_system.get_state()
 
 func get_selected_travel_option() -> Dictionary:
-    if expedition_system == null or !is_adventure_mode():
+    if expedition_system == null or !_is_expedition_enabled():
         return {}
     return expedition_system.get_selected_option()
 
 func select_travel_option(index: int) -> Dictionary:
-    if expedition_system == null or !is_adventure_mode():
+    if expedition_system == null or !_is_expedition_enabled():
         return {
             "success": false,
-            "reason": "systems_unavailable",
+            "reason": "mode_locked",
             "action": "travel_select"
         }
     var result = expedition_system.select_option(index)
@@ -2110,11 +2169,67 @@ func toggle_weight_unit() -> String:
 func get_game_mode() -> String:
     return _game_mode
 
+func get_mode_capabilities() -> Dictionary:
+    return _mode_capabilities.duplicate(true)
+
+func get_mode_briefing(mode: String) -> Dictionary:
+    """Return a modal-friendly overview for the selected game mode."""
+    var profile = _resolve_mode_capabilities(mode)
+    var label = String(profile.get("label", "Mode"))
+    var scope_key = String(profile.get("location_scope", "unknown"))
+    var scope_line = MODE_SCOPE_SUMMARIES.get(scope_key, MODE_SCOPE_SUMMARIES.get("unknown"))
+
+    var travel_enabled = bool(profile.get("travel_enabled", false))
+    var rescue_enabled = bool(profile.get("rescue_available", false))
+
+    var sections: Array = [
+        {
+            "title": "%s Focus" % label,
+            "lines": [
+                String(profile.get("description", "")),
+                scope_line
+            ]
+        },
+        {
+            "title": "Travel & Rescue",
+            "lines": [
+                "Expeditions and checkpoint travel are unlocked." if travel_enabled else "Travel is locked; keep operations inside the tower.",
+                "Reach the convoy to close the run." if rescue_enabled else "Rescue is off the table—ride out the siege."
+            ]
+        },
+        {
+            "title": "Baseline Costs",
+            "lines": [
+                "Sleep restores %.0f%% rest per hour and costs %d calories." % [SleepSystem.SLEEP_PERCENT_PER_HOUR, SleepSystem.CALORIES_PER_SLEEP_HOUR],
+                "Warmth swings from +%.0f/hr daytime to %.0f/hr at night (sleep blocks the nightly drop)." % [WarmthSystem.RATE_DAYTIME, WarmthSystem.RATE_NIGHT],
+                "Hiking legs run %.1f–%.1f hours with %.0f%% rest and %d calories per trip when enabled." % [TRAVEL_HOURS_MIN, TRAVEL_HOURS_MAX, TRAVEL_REST_COST_PERCENT, TRAVEL_CALORIE_COST]
+            ]
+        }
+    ]
+
+    return {
+        "title": "%s Mode Ready" % label,
+        "sections": sections
+    }
+
+func get_patrol_guide_payload() -> Dictionary:
+    """Curated book contents for the in-tower Firetower Patrol Guide."""
+    return {
+        "title": "Firetower Patrol Guide",
+        "sections": PATROL_GUIDE_SECTIONS.duplicate(true)
+    }
+
 func is_survival_mode() -> bool:
     return _game_mode == GAME_MODE_SURVIVAL
 
 func is_adventure_mode() -> bool:
     return _game_mode == GAME_MODE_ADVENTURE
+
+func _is_expedition_enabled() -> bool:
+    return bool(_mode_capabilities.get("expeditions_enabled", false))
+
+func _is_travel_enabled() -> bool:
+    return bool(_mode_capabilities.get("travel_enabled", false))
 
 func set_game_mode(mode: String) -> String:
     var normalized = String(mode).to_lower()
@@ -2124,6 +2239,7 @@ func set_game_mode(mode: String) -> String:
         return _game_mode
 
     _game_mode = normalized
+    _mode_capabilities = _resolve_mode_capabilities(_game_mode)
     print("🧭 Game mode set -> %s" % _game_mode.capitalize())
 
     _location_intel.clear()
@@ -2137,6 +2253,10 @@ func set_game_mode(mode: String) -> String:
     _emit_expedition_state()
     _emit_game_mode_changed()
     return _game_mode
+
+func _resolve_mode_capabilities(mode: String) -> Dictionary:
+    var profile: Dictionary = GAME_MODE_CAPABILITIES.get(mode, GAME_MODE_CAPABILITIES.get(GAME_MODE_SURVIVAL, {}))
+    return profile.duplicate(true)
 
 func get_time_multiplier() -> float:
     return sleep_system.get_time_multiplier() if sleep_system else 1.0
@@ -3915,7 +4035,7 @@ func perform_recon() -> Dictionary:
     return result
 
 func perform_travel_to_next_location() -> Dictionary:
-    if !is_adventure_mode():
+    if !_is_travel_enabled():
         return {
             "success": false,
             "reason": "mode_locked",
