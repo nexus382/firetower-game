@@ -2193,8 +2193,8 @@ func get_mode_briefing(mode: String) -> Dictionary:
         {
             "title": "Travel & Rescue",
             "lines": [
-                "Expeditions and checkpoint travel are unlocked." if travel_enabled else "Travel is locked; keep operations inside the tower.",
-                "Reach the convoy to close the run." if rescue_enabled else "Rescue is off the table—ride out the siege."
+                travel_enabled ? "Expeditions and checkpoint travel are unlocked." : "Travel is locked; keep operations inside the tower.",
+                rescue_enabled ? "Reach the convoy to close the run." : "Rescue is off the table—ride out the siege."
             ]
         },
         {
