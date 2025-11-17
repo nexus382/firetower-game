@@ -2177,18 +2177,10 @@ func get_mode_briefing(mode: String) -> Dictionary:
     var profile = _resolve_mode_capabilities(mode)
     var label = String(profile.get("label", "Mode"))
     var scope_key = String(profile.get("location_scope", "unknown"))
-    var scope_line = String(MODE_SCOPE_SUMMARIES.get(scope_key, MODE_SCOPE_SUMMARIES.get("unknown")))
+    var scope_line = MODE_SCOPE_SUMMARIES.get(scope_key, MODE_SCOPE_SUMMARIES.get("unknown"))
 
     var travel_enabled = bool(profile.get("travel_enabled", false))
     var rescue_enabled = bool(profile.get("rescue_available", false))
-
-    var travel_line = "Travel is locked; keep operations inside the tower."
-    if travel_enabled:
-        travel_line = "Expeditions and checkpoint travel are unlocked."
-
-    var rescue_line = "Rescue is off the table—ride out the siege."
-    if rescue_enabled:
-        rescue_line = "Reach the convoy to close the run."
 
     var sections: Array = [
         {
@@ -2201,8 +2193,8 @@ func get_mode_briefing(mode: String) -> Dictionary:
         {
             "title": "Travel & Rescue",
             "lines": [
-                travel_line,
-                rescue_line
+                travel_enabled ? "Expeditions and checkpoint travel are unlocked." : "Travel is locked; keep operations inside the tower.",
+                rescue_enabled ? "Reach the convoy to close the run." : "Rescue is off the table—ride out the siege."
             ]
         },
         {

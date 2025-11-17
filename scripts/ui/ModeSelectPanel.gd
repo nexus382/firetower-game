@@ -19,11 +19,11 @@ const ADVENTURE_DESCRIPTION := "Adventure: Gear up, travel checkpoints, and push
 @export var description_label_path: NodePath
 @export var info_popup_path: NodePath
 
-@onready var survival_button: Button = null
-@onready var adventure_button: Button = null
-@onready var title_label: Label = null
-@onready var description_label: Label = null
-@onready var info_popup: ActionPopupPanel = null
+@onready var survival_button: Button = get_node_or_null(survival_button_path) if survival_button_path != NodePath("") else null
+@onready var adventure_button: Button = get_node_or_null(adventure_button_path) if adventure_button_path != NodePath("") else null
+@onready var title_label: Label = get_node_or_null(title_label_path) if title_label_path != NodePath("") else null
+@onready var description_label: Label = get_node_or_null(description_label_path) if description_label_path != NodePath("") else null
+@onready var info_popup: ActionPopupPanel = get_node_or_null(info_popup_path) if info_popup_path != NodePath("") else null
 
 var game_manager: GameManager
 
