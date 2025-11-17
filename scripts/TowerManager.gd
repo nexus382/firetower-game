@@ -11,6 +11,7 @@ var catwalk_width: float = 0.05  # 5% of tower width (keep between 0.04 - 0.08 f
 const RadioScene = preload("res://scenes/objects/Radio.tscn")
 const CraftingTable = preload("res://scripts/objects/CraftingTable.gd")
 const WoodStove = preload("res://scripts/objects/WoodStove.gd")
+const PatrolGuide = preload("res://scripts/objects/PatrolGuide.gd")
 
 # Room configurations (public for other scripts to access)
 var living_area_rect: Rect2
@@ -86,6 +87,9 @@ func setup_tower_layout():
 
     # Create crafting table in the kitchen
     create_crafting_table()
+
+    # Place the patrol guide book on a living area table
+    create_patrol_guide()
 
     # Create visual walls and collision
     create_walls_and_collision()
@@ -438,6 +442,77 @@ func create_crafting_table():
     table.add_to_group("interactable")
     kitchen_node.add_child(table)
     print("🛠️ Crafting table placed at: %s" % table_pos)
+
+func create_patrol_guide():
+    """Add the Firetower Patrol Guide book to a living-area table."""
+    if PatrolGuide == null:
+        return
+
+    var living_node: Node = inside_view.get_node_or_null("LivingArea")
+    if living_node == null:
+        return
+
+    var guide_node := Area2D.new()
+    guide_node.set_script(PatrolGuide)
+    var guide: PatrolGuide = guide_node as PatrolGuide
+    if guide == null:
+        guide_node.queue_free()
+        return
+    guide.name = "PatrolGuide"
+
+    var table_pos = Vector2(
+        living_area_rect.position.x + living_area_rect.size.x * 0.28,
+        living_area_rect.position.y + living_area_rect.size.y * 0.72
+    )
+    guide.position = table_pos
+    guide.z_index = 4
+
+    var table_top = ColorRect.new()
+    table_top.name = "TableSurface"
+    table_top.size = Vector2(96, 40)
+    table_top.position = Vector2(-48, -20)
+    table_top.color = Color(0.32, 0.18, 0.10)
+    table_top.z_index = 2
+    guide.add_child(table_top)
+
+    var book = ColorRect.new()
+    book.name = "GuideBook"
+    book.size = Vector2(52, 22)
+    book.position = Vector2(-12, -26)
+    book.color = Color(0.18, 0.26, 0.40)
+    book.z_index = 3
+    guide.add_child(book)
+
+    var book_label = Label.new()
+    book_label.name = "GuideLabel"
+    book_label.text = "Patrol Guide"
+    book_label.position = Vector2(-40, -44)
+    book_label.custom_minimum_size = Vector2(80, 16)
+    book_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    book_label.add_theme_color_override("font_color", Color.WHITE)
+    book_label.add_theme_font_size_override("font_size", 12)
+    book_label.z_index = 4
+    guide.add_child(book_label)
+
+    var prompt = Label.new()
+    prompt.name = "PromptLabel"
+    prompt.position = Vector2(-60, -70)
+    prompt.add_theme_color_override("font_color", Color.WHITE)
+    prompt.add_theme_font_size_override("font_size", 12)
+    prompt.visible = false
+    guide.add_child(prompt)
+
+    var collision = CollisionShape2D.new()
+    collision.name = "InteractShape"
+    var shape = RectangleShape2D.new()
+    shape.size = Vector2(92, 60)
+    collision.shape = shape
+    collision.position = Vector2(0, 0)
+    guide.add_child(collision)
+
+    guide.add_to_group("interactable")
+    living_node.add_child(guide)
+    print("📘 Patrol guide placed at: %s" % table_pos)
 
 func create_wood_stove():
     """Create a wood stove hugging the living/kitchen/bath intersection."""
