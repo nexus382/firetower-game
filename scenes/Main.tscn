@@ -1558,6 +1558,7 @@ survival_button_path = NodePath("Panel/Margin/VBox/Buttons/SurvivalButton")
 adventure_button_path = NodePath("Panel/Margin/VBox/Buttons/AdventureButton")
 title_label_path = NodePath("Panel/Margin/VBox/Title")
 description_label_path = NodePath("Panel/Margin/VBox/Description")
+info_popup_path = NodePath("../ActionPopupPanel")
 
 [node name="Panel" type="PanelContainer" parent="UI/ModeSelectPanel"]
 anchor_left = 0.5
