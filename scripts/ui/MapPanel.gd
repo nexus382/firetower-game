@@ -155,7 +155,10 @@ func _on_option_button_pressed(index: int):
 func _refresh_state():
     if game_manager != null:
         _state = game_manager.get_expedition_state()
-    if game_manager != null and !game_manager.is_adventure_mode():
+    var expeditions_enabled = false
+    if game_manager != null:
+        expeditions_enabled = bool(game_manager.get_mode_capabilities().get("expeditions_enabled", false))
+    if game_manager != null and !expeditions_enabled:
         var empty: Dictionary = {}
         _refresh_checkpoint_label(empty)
         _refresh_option_slots(empty)
@@ -172,7 +175,10 @@ func _refresh_checkpoint_label(state: Dictionary):
     if checkpoint_label == null:
         return
     if state.is_empty():
-        if game_manager != null and !game_manager.is_adventure_mode():
+        var expeditions_enabled = false
+        if game_manager != null:
+            expeditions_enabled = bool(game_manager.get_mode_capabilities().get("expeditions_enabled", false))
+        if !expeditions_enabled:
             checkpoint_label.text = "Adventure mode required"
         else:
             checkpoint_label.text = "Map offline"
